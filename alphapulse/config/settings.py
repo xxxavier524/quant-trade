@@ -4,7 +4,10 @@ import os
 
 # === 路径 ===
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATA_DIR = os.path.join(PROJECT_ROOT, "data", "day")
+DATA_DIR = os.environ.get(
+    "ALPHAPULSE_DATA_DIR",
+    "/Volumes/Mac-480g外接/quantan_data/day",
+)
 BACKTEST_RESULTS_DIR = os.path.join(PROJECT_ROOT, "backtest_results")
 REPORTS_DIR = os.path.join(PROJECT_ROOT, "reports")
 
