@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AlphaPulse-A 量化交易系统</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e1e4e8;display:flex;min-height:100vh}
+.sidebar{width:220px;background:#161b22;border-right:1px solid #30363d;padding:16px 0;flex-shrink:0}
+.sidebar h2{color:#58a6ff;font-size:16px;padding:8px 20px;margin-bottom:8px}
+.sidebar nav a{display:block;padding:10px 20px;color:#8b949e;text-decoration:none;font-size:14px;border-left:3px solid transparent;transition:all .15s}
+.sidebar nav a:hover,.sidebar nav a.active{color:#e1e4e8;background:#1c2129;border-left-color:#58a6ff}
+.main{flex:1;padding:24px;overflow-y:auto;max-height:100vh}
+.panel{display:none;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:24px;margin-bottom:16px}
+.panel.active{display:block}
+.panel h3{color:#58a6ff;font-size:18px;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid #30363d}
+.row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.col{flex:1;min-width:200px}
+label{display:block;font-size:13px;color:#8b949e;margin-bottom:4px}
+input,select,textarea{width:100%;padding:8px 12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e1e4e8;font-size:14px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#58a6ff}
+button{padding:10px 20px;background:#238636;border:none;border-radius:6px;color:#fff;font-size:14px;cursor:pointer;transition:background .15s}
+button:hover{background:#2ea043}
+button.secondary{background:#30363d}
+button.secondary:hover{background:#484f58}
+button.danger{background:#da3633}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:16px 0}
+.metric-card{background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;text-align:center}
+.metric-card .value{font-size:28px;font-weight:700;color:#58a6ff}
+.metric-card .label{font-size:12px;color:#8b949e;margin-top:4px}
+.metric-card.green .value{color:#3fb950}
+.metric-card.red .value{color:#f85149}
+.chart-container{position:relative;height:350px;margin:16px 0}
+#nlp-input{height:80px;font-size:14px;resize:vertical}
+#nlp-result{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;margin-top:12px;font-family:monospace;font-size:13px;white-space:pre-wrap;min-height:60px}
+.nlp-examples{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.nlp-examples button{font-size:12px;padding:4px 10px;background:#21262d}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 12px;background:#21262d;color:#8b949e;font-weight:600}
+td{padding:8px 12px;border-top:1px solid #30363d}
+tr:hover{background:#1c2129}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.badge-buy{background:#23863633;color:#3fb950}
+.badge-sell{background:#da363333;color:#f85149}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.status-online{background:#3fb950}
+.status-offline{background:#f85149}
+.status-pending{background:#d29922}
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:1000;animation:fadeIn .3s}
+.toast.success{background:#238636}
+.toast.error{background:#da3633}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h2>⚡ AlphaPulse-A</h2>
+  <nav>
+    <a href="#backtest" class="active" onclick="switchPanel('backtest')">📊 回测控制</a>
+    <a href="#factors" onclick="switchPanel('factors')">🧬 因子构建</a>
+    <a href="#nlp" onclick="switchPanel('nlp')">🤖 NLP转公式</a>
+    <a href="#data" onclick="switchPanel('data')">📁 数据浏览</a>
+    <a href="#results" onclick="switchPanel('results')">📈 回测结果</a>
+    <a href="#system" onclick="switchPanel('system')">⚙️ 系统状态</a>
+  </nav>
+</div>
+
+<div class="main">
+
+  <!-- ===== 回测控制面板 ===== -->
+  <div id="panel-backtest" class="panel active">
+    <h3>📊 回测控制</h3>
+    <div class="row">
+      <div class="col">
+        <label>策略选择</label>
+        <select id="bt-strategy">
+          <option value="B1">B1 - 多因子组合</option>
+          <option value="BRICK">砖型图 - Renko突破</option>
+          <option value="NEEDLE">单针下三十</option>
+          <option value="ALL">全部策略</option>
+        </select>
+      </div>
+      <div class="col">
+        <label>初始资金</label>
+        <input id="bt-capital" type="number" value="1000000" step="100000">
+      </div>
+      <div class="col">
+        <label>股票池</label>
+        <select id="bt-pool">
+          <option value="all">全部已下载</option>
+          <option value="sample50">随机抽样50只</option>
+          <option value="sample20">随机抽样20只</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col">
+        <label>起始日期</label>
+        <input id="bt-start" type="date" value="2020-01-01">
+      </div>
+      <div class="col">
+        <label>结束日期</label>
+        <input id="bt-end" type="date" value="2025-12-31">
+      </div>
+      <div class="col">
+        <label>&nbsp;</label>
+        <button onclick="runBacktest()" style="width:100%">▶ 运行回测</button>
+      </div>
+    </div>
+
+    <h4 style="margin-top:16px">B1 策略参数</h4>
+    <div class="row">
+      <div class="col"><label>缩量比例</label><input id="bt-shrink" type="number" value="0.25" step="0.05" min="0.1" max="0.9"></div>
+      <div class="col"><label>J值阈值</label><input id="bt-j" type="number" value="13" step="1" min="5" max="30"></div>
+      <div class="col"><label>放量倍量 K</label><input id="bt-k" type="number" value="2.0" step="0.5" min="1.0" max="5.0"></div>
+      <div class="col"><label>异动次数 X</label><input id="bt-x" type="number" value="3" step="1" min="1" max="10"></div>
+    </div>
+
+    <div id="bt-progress" style="display:none;margin-top:12px;color:#d29922">⏳ 回测运行中...</div>
+  </div>
+
+  <!-- ===== 因子构建面板 ===== -->
+  <div id="panel-factors" class="panel">
+    <h3>🧬 因子构建器</h3>
+    <div class="row">
+      <div class="col">
+        <label>因子名称</label>
+        <input id="fac-name" placeholder="例如: MA_CROSS_20_50">
+      </div>
+      <div class="col">
+        <label>因子类型</label>
+        <select id="fac-type">
+          <option value="ma_cross">均线交叉</option>
+          <option value="volume">成交量</option>
+          <option value="price_pattern">价格形态</option>
+          <option value="indicator">技术指标</option>
+          <option value="custom">自定义组合</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="fac-params">
+      <div class="row">
+        <div class="col"><label>参数1</label><input id="fac-p1" value="20"></div>
+        <div class="col"><label>参数2</label><input id="fac-p2" value="50"></div>
+        <div class="col"><label>参数3</label><input id="fac-p3" value=""></div>
+      </div>
+    </div>
+
+    <button onclick="generateFactorCode()" style="margin-top:8px">🔧 生成因子代码</button>
+    <div id="fac-code" style="margin-top:12px;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;font-family:monospace;font-size:13px;white-space:pre-wrap;min-height:80px"></div>
+    <button onclick="exportFactor()" class="secondary" style="margin-top:8px">📥 导出因子文件</button>
+  </div>
+
+  <!-- ===== NLP转公式面板 ===== -->
+  <div id="panel-nlp" class="panel">
+    <h3>🤖 自然语言 → 量化公式</h3>
+    <p style="color:#8b949e;font-size:13px;margin-bottom:8px">用中文描述你的交易想法，系统自动转换为因子公式</p>
+
+    <div class="nlp-examples">
+      <button onclick="setNLPExample('收盘价20日均线上穿50日均线，且成交量大于2倍60日均量')">例1: 均线金叉+放量</button>
+      <button onclick="setNLPExample('KDJ的J值低于10，且近5日缩量至1/4')">例2: J值超卖+缩量</button>
+      <button onclick="setNLPExample('下影线长度超过实体3倍，价格在60日最低30%区域')">例3: 长下影探底</button>
+      <button onclick="setNLPExample('MACD在零轴上方死叉，周线5日10日20日均线多头排列')">例4: MACD零轴上死叉</button>
+    </div>
+
+    <textarea id="nlp-input" placeholder="用中文描述你的交易条件..."></textarea>
+    <button onclick="nlpToFormula()" style="margin-top:8px">✨ 转换为公式</button>
+    <div id="nlp-result"></div>
+  </div>
+
+  <!-- ===== 数据浏览面板 ===== -->
+  <div id="panel-data" class="panel">
+    <h3>📁 数据浏览</h3>
+    <div class="row">
+      <div class="col"><label>股票代码</label><input id="data-symbol" placeholder="600519"></div>
+      <div class="col"><label>数据目录</label><input id="data-dir" value="/Volumes/Mac-480g外接/quantan_data/day" readonly></div>
+      <div class="col"><label>&nbsp;</label><button onclick="loadStockPreview()">🔍 预览</button></div>
+    </div>
+    <div id="data-preview" style="margin-top:12px;overflow-x:auto"></div>
+  </div>
+
+  <!-- ===== 回测结果面板 ===== -->
+  <div id="panel-results" class="panel">
+    <h3>📈 回测结果</h3>
+    <div id="results-metrics" class="metrics"></div>
+    <div class="chart-container"><canvas id="equity-chart"></canvas></div>
+    <div id="results-table" style="overflow-x:auto"></div>
+  </div>
+
+  <!-- ===== 系统状态面板 ===== -->
+  <div id="panel-system" class="panel">
+    <h3>⚙️ 系统状态</h3>
+    <div class="metrics" id="sys-metrics"></div>
+    <div style="margin-top:16px">
+      <h4 style="color:#8b949e;font-size:14px;margin-bottom:8px">各阶段进度</h4>
+      <div id="sys-phases"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ===== Global State =====
+let equityChart = null;
+const API = { dataDir: '/Volumes/Mac-480g外接/quantan_data/day' };
+
+// ===== Panel switching =====
+function switchPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sidebar nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.querySelector(`[href="#${name}"]`).classList.add('active');
+}
+
+// ===== NLP → Formula Engine =====
+const NLP_PATTERNS = [
+  // 均线相关
+  { re: /(?:(\d+)日)?(?:收盘价|价格|close)?\s*(?:的)?(\d+)日均线\s*(上穿|下穿|大于|小于|突破)\s*(?:(\d+)日)?(?:的)?(\d+)日均线/, fn: m => {
+    const p1 = m[1] || m[2], action = m[3], p2 = m[4] || m[5];
+    const op = action.includes('上穿') ? 'crosses_above' : action.includes('下穿') ? 'crosses_below' : action.includes('大于') ? '>' : '<';
+    return `# 均线交叉因子\nMA_FAST = close.rolling(${p1}).mean()\nMA_SLOW = close.rolling(${p2}).mean()\nsignal = (MA_FAST ${op} MA_SLOW)`;
+  }},
+  // 成交量放量
+  { re: /成交量\s*(?:大于|超过|>)\s*(\d+(?:\.\d+)?)\s*倍\s*(?:的)?(\d+)日(?:均|平均)量/, fn: m =>
+    `# 放量因子\nVOL_MA = volume.rolling(${m[2]}).mean()\nsignal = volume > ${m[1]} * VOL_MA`},
+  // KDJ J值
+  { re: /(?:KDJ的)?J值\s*(低于|小于|<=|<)\s*(\d+)/, fn: m =>
+    `# KDJ J值低位因子\n_, _, J = compute_kdj(high, low, close)\nsignal = J < ${m[2]}`},
+  // 缩量
+  { re: /(?:近|最近|过去)\s*(\d+)日\s*(?:的)?缩量(?:\s*至\s*(\d+(?:\.\d+)?)(?:\s*\/\s*(\d+))?)?/, fn: m => {
+    const days = m[1], ratio = m[2] ? parseFloat(m[2])/(parseFloat(m[3]||1)) : 0.25;
+    return `# 缩量因子\nRECENT_MAX = volume.shift(1).rolling(${days}).max()\nsignal = volume < ${ratio} * RECENT_MAX`;
+  }},
+  // 下影线
+  { re: /下影线\s*(?:长度|占比)?\s*(?:超过|大于|>)\s*(?:实体)?\s*(\d+(?:\.\d+)?)\s*倍/, fn: m =>
+    `# 长下影线因子\nBODY_LOW = min(open, close)\nLOWER_SHADOW = BODY_LOW - low\nBODY = abs(close - open)\nsignal = LOWER_SHADOW > ${m[1]} * BODY`},
+  // 价格低位
+  { re: /价格\s*(?:在|处于)\s*(\d+)日\s*(?:最低|波幅的?下?)\s*(\d+)%/, fn: m =>
+    `# 价格低位因子\nRANGE_H = high.rolling(${m[1]}).max()\nRANGE_L = low.rolling(${m[1]}).min()\nPOS = (close - RANGE_L) / (RANGE_H - RANGE_L)\nsignal = POS < ${parseInt(m[2])/100}`},
+  // MACD
+  { re: /MACD\s*(?:在)?零轴\s*(上方|上)\s*(死叉|下穿)/, fn: () =>
+    `# MACD零轴上死叉因子\nDIF, DEA, _ = compute_macd(close)\nprev = DIF.shift(1) > DEA.shift(1)\ncurr = DIF <= DEA\nsignal = prev & curr & (DEA > 0)`},
+  // 周线多头
+  { re: /周线\s*(?:多头排列|MA多头|均线多头)/, fn: () =>
+    `# 周线多头因子\nW = close.resample('W').last()\nMA5 = W.rolling(5).mean()\nMA10 = W.rolling(10).mean()\nMA20 = W.rolling(20).mean()\nsignal = (MA5 > MA10) & (MA10 > MA20)`},
+  // 默认：尝试提取条件组合
+  { re: /(.+)/, fn: m => `# 自定义因子（请手动调整）\n# 原始描述: ${m[1]}\n# 提示: 可组合上述条件\n\n# 条件1: \n# 条件2: \n# signal = condition1 & condition2`},
+];
+
+function nlpToFormula() {
+  const text = document.getElementById('nlp-input').value.trim();
+  if (!text) return;
+
+  let result = '';
+  let matched = false;
+
+  for (const pattern of NLP_PATTERNS) {
+    const m = text.match(pattern.re);
+    if (m) {
+      result += (result ? '\n\n# --- AND ---\n\n' : '') + pattern.fn(m);
+      matched = true;
+      // Continue to find more patterns in the text
+      const remaining = text.replace(pattern.re, '').trim();
+      if (!remaining || remaining.length < 5) break;
+    }
+  }
+
+  document.getElementById('nlp-result').textContent = result || '无法解析。请尝试更明确的描述，如"收盘价20日均线上穿50日均线"。';
+  if (result) showToast('公式生成成功！', 'success');
+}
+
+function setNLPExample(text) {
+  document.getElementById('nlp-input').value = text;
+  nlpToFormula();
+}
+
+// ===== Factor Code Generator =====
+function generateFactorCode() {
+  const name = document.getElementById('fac-name').value || 'CUSTOM_FACTOR';
+  const type = document.getElementById('fac-type').value;
+  const p1 = document.getElementById('fac-p1').value;
+  const p2 = document.getElementById('fac-p2').value;
+  const p3 = document.getElementById('fac-p3').value;
+
+  const templates = {
+    ma_cross: `"""${name} - 均线交叉因子"""\nimport pandas as pd\n\ndef compute(data: pd.DataFrame, fast=${p1||20}, slow=${p2||50}) -> pd.Series:\n    ma_fast = data['close'].rolling(fast).mean()\n    ma_slow = data['close'].rolling(slow).mean()\n    return ma_fast > ma_slow`,
+    volume: `"""${name} - 成交量因子"""\nimport pandas as pd\n\ndef compute(data: pd.DataFrame, N=${p1||60}, K=${p2||2.0}) -> pd.Series:\n    vol_ma = data['volume'].rolling(N).mean()\n    return data['volume'] > K * vol_ma`,
+    price_pattern: `"""${name} - 价格形态因子"""\nimport pandas as pd\nimport numpy as np\n\ndef compute(data: pd.DataFrame, threshold=${p1||0.6}) -> pd.Series:\n    body_low = pd.concat([data['open'], data['close']], axis=1).min(axis=1)\n    shadow = body_low - data['low']\n    total_range = data['high'] - data['low']\n    return (shadow / total_range.replace(0, np.nan)) > threshold`,
+    indicator: `"""${name} - 技术指标因子"""\nimport pandas as pd\n\ndef compute(data: pd.DataFrame, period=${p1||14}) -> pd.Series:\n    """RSI-like indicator."""\n    delta = data['close'].diff()\n    gain = delta.clip(lower=0).rolling(period).mean()\n    loss = -delta.clip(upper=0).rolling(period).mean()\n    rs = gain / loss.replace(0, float('nan'))\n    return 100 - (100 / (1 + rs))`,
+    custom: `"""${name}"""\nimport pandas as pd\nimport numpy as np\n\ndef compute(data: pd.DataFrame) -> pd.Series:\n    # 自定义逻辑\n    cond1 = pd.Series(True, index=data.index)  # 条件1\n    cond2 = pd.Series(True, index=data.index)  # 条件2\n    return cond1 & cond2`,
+  };
+
+  document.getElementById('fac-code').textContent = templates[type] || templates.custom;
+}
+
+function exportFactor() {
+  const code = document.getElementById('fac-code').textContent;
+  if (!code) return;
+  const name = document.getElementById('fac-name').value || 'custom_factor';
+  const blob = new Blob([code], {type:'text/python'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name + '.py'; a.click();
+  showToast(`因子 ${name}.py 已导出`, 'success');
+}
+
+// ===== Data Preview =====
+function loadStockPreview() {
+  const symbol = document.getElementById('data-symbol').value.trim();
+  if (!symbol) return;
+  // In a real setup, this would fetch from a local API. Show sample structure.
+  document.getElementById('data-preview').innerHTML = `
+    <table><thead><tr><th>date</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th></tr></thead>
+    <tbody><tr><td colspan="6" style="color:#8b949e">数据文件: ${symbol}.csv<br>
+    路径: ${API.dataDir}/${symbol}.csv<br>
+    <span style="color:#d29922">提示：启动本地API服务后可实时浏览。当前为预览模式。</span></td></tr></tbody></table>`;
+}
+
+// ===== Backtest Runner =====
+function runBacktest() {
+  document.getElementById('bt-progress').style.display = 'block';
+  const params = {
+    strategy: document.getElementById('bt-strategy').value,
+    capital: document.getElementById('bt-capital').value,
+    start: document.getElementById('bt-start').value,
+    end: document.getElementById('bt-end').value,
+    shrink_ratio: document.getElementById('bt-shrink').value,
+    j_threshold: document.getElementById('bt-j').value,
+    abnormal_k: document.getElementById('bt-k').value,
+    abnormal_x: document.getElementById('bt-x').value,
+  };
+
+  // Simulate backtest run (in production, this calls the Python backtest API)
+  setTimeout(() => {
+    document.getElementById('bt-progress').style.display = 'none';
+    // Mock results
+    displayResults({
+      B1: {
+        initial_capital: parseInt(params.capital),
+        final_nav: 1847290.50,
+        total_return: 84.73,
+        annual_return: 13.21,
+        max_drawdown: -12.45,
+        sharpe_ratio: 1.15,
+        win_rate: 58.3,
+        profit_loss_ratio: 2.1,
+        total_trades: 127,
+        n_days: 1260,
+      }
+    });
+    showToast('回测完成！', 'success');
+    switchPanel('results');
+  }, 1500);
+}
+
+// ===== Results Display =====
+function displayResults(data) {
+  const r = Object.values(data)[0];
+  document.getElementById('results-metrics').innerHTML = `
+    <div class="metric-card green"><div class="value">${r.total_return}%</div><div class="label">总收益率</div></div>
+    <div class="metric-card green"><div class="value">${r.annual_return}%</div><div class="label">年化收益率</div></div>
+    <div class="metric-card red"><div class="value">${r.max_drawdown}%</div><div class="label">最大回撤</div></div>
+    <div class="metric-card"><div class="value">${r.sharpe_ratio}</div><div class="label">夏普比率</div></div>
+    <div class="metric-card"><div class="value">${r.win_rate}%</div><div class="label">胜率</div></div>
+    <div class="metric-card"><div class="value">${r.profit_loss_ratio}</div><div class="label">盈亏比</div></div>
+    <div class="metric-card"><div class="value">${r.total_trades}</div><div class="label">总交易次数</div></div>
+    <div class="metric-card"><div class="value">${r.n_days}</div><div class="label">回测天数</div></div>`;
+
+  // Equity curve chart
+  if (equityChart) equityChart.destroy();
+  const ctx = document.getElementById('equity-chart').getContext('2d');
+  const dates = Array.from({length:r.n_days}, (_,i) => {
+    const d = new Date('2020-01-01'); d.setDate(d.getDate()+i); return d.toISOString().slice(0,10);
+  });
+  const nav = dates.map((_,i) => r.initial_capital * (1 + (r.total_return/100) * i / r.n_days));
+
+  equityChart = new Chart(ctx, {
+    type:'line',
+    data:{labels:dates.filter((_,i)=>i%30===0),datasets:[{label:'净值曲线',data:nav.filter((_,i)=>i%30===0),borderColor:'#58a6ff',borderWidth:2,pointRadius:0,fill:false}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{color:'#21262d'},ticks:{color:'#8b949e',maxTicksLimit:12}},
+        y:{grid:{color:'#21262d'},ticks:{color:'#8b949e',callback:v=>'¥'+v.toLocaleString()}}
+      }
+    }
+  });
+}
+
+// ===== System Status =====
+function loadSystemStatus() {
+  document.getElementById('sys-metrics').innerHTML = `
+    <div class="metric-card green"><div class="value">8</div><div class="label">已实现因子</div></div>
+    <div class="metric-card green"><div class="value">3</div><div class="label">策略引擎</div></div>
+    <div class="metric-card green"><div class="value">6</div><div class="label">自动化脚本</div></div>
+    <div class="metric-card"><div class="value status-dot status-online" style="display:inline-block"></div><div class="label">baostock</div></div>`;
+
+  const phases = [
+    {name:'阶段零：项目脚手架',status:'✅'},
+    {name:'阶段一：数据准备',status:'🔄 baostock下载中'},
+    {name:'阶段二：核心因子',status:'✅ 8/8'},
+    {name:'阶段三：案例提炼',status:'⏭️ 待补'},
+    {name:'阶段四：策略生成器',status:'✅ 3/3'},
+    {name:'阶段五：回测引擎',status:'✅'},
+    {name:'阶段六：参数搜索',status:'⬜'},
+    {name:'阶段七：云端验证',status:'⬜'},
+    {name:'阶段八：Agent工具',status:'✅ 4脚本'},
+    {name:'阶段九：QMT对接',status:'✅'},
+    {name:'阶段十：无人值守',status:'✅ launchd'},
+  ];
+  document.getElementById('sys-phases').innerHTML = phases.map(p =>
+    `<div style="padding:6px 0;border-bottom:1px solid #21262d;font-size:13px">${p.status} ${p.name}</div>`
+  ).join('');
+}
+
+// ===== Toast =====
+function showToast(msg, type) {
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ===== Init =====
+loadSystemStatus();
+generateFactorCode();
+</script>
+</body>
+</html>
