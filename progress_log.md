@@ -16,8 +16,8 @@
 | 阶段五：VeighNa 回测 | ⬜ | | |
 | 阶段六：参数网格搜索 | ⬜ | | |
 | 阶段七：云端交叉验证 | ⬜ | | |
-| 阶段八：Agent 工具封装 | ⬜ | | |
-| 阶段九：QMT 实盘对接 | ⬜ | | |
+| 阶段八：Agent 工具封装 | ✅ | 2025-05-16 | 4脚本完成，待真实数据验证 |
+| 阶段九：QMT 实盘对接 | ✅ | 2025-05-16 | export_qmt_csv完成，待券商开通 |
 | 阶段十：长期无人值守 | ⬜ | | |
 
 ## 待补阶段
@@ -88,12 +88,6 @@
 
 ---
 
-## 阶段四：策略信号生成器
-
-⬜ 待执行
-
----
-
 ## 阶段五：VeighNa 回测
 
 ⬜ 待执行
@@ -112,15 +106,25 @@
 
 ---
 
-## 阶段八：Agent 工具封装
+## 阶段八：Agent 工具封装 — 2025-05-16
 
-⬜ 待执行
+- **结果**: 成功。4个独立脚本全部实现，集成测试通过
+- **产出**:
+  - `scripts/daily_screener.py` — 每日三大策略选股，输出Markdown信号报告
+  - `scripts/evening_review.py` — 晚间复盘，比对信号vs实际涨跌，生成胜率统计
+  - `scripts/risk_monitor.py` — 风控监控（仓位/回撤/亏损5项检查），CRITICAL时exit 1
+  - `scripts/export_qmt_csv.py` — QMT批量下单CSV导出（含代码格式转换、整手计算）
+- **待完成**: 真实数据验证、macOS launchd / Python schedule 定时配置
+- **下一步**: 阶段五（VeighNa回测，需数据）
 
 ---
 
-## 阶段九：QMT 实盘对接
+## 阶段九：QMT 实盘对接 — 2025-05-16
 
-⬜ 待执行
+- **结果**: 基本完成。`scripts/export_qmt_csv.py` 可独立使用
+- **产出**: QMT格式订单CSV（code/quantity/direction/price_type/price）
+- **待完成**: 券商QMT开通后的模拟交易测试、3个月半自动运行规则执行
+- **下一步**: 券商对接
 
 ---
 
