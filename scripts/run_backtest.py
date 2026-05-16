@@ -225,29 +225,36 @@ class BacktestEngine:
         return total
 
     def _compute_metrics(self) -> dict:
-        """计算绩效指标。"""
+        """计算绩效指标（含Calmar/Sortino/连续亏损）。规格书6.2节"""
         if len(self.nav_curve) < 2:
             return {"error": "净值数据不足"}
 
         nav_df = pd.DataFrame(self.nav_curve)
         nav_df["daily_return"] = nav_df["nav"].pct_change()
 
-        # 年化收益率
         total_return = (nav_df["nav"].iloc[-1] - self.initial_capital) / self.initial_capital
         n_days = len(nav_df)
         annual_return = (1 + total_return) ** (252 / max(n_days, 1)) - 1
 
-        # 最大回撤
         cummax = nav_df["nav"].cummax()
         drawdown = (nav_df["nav"] - cummax) / cummax
         max_dd = drawdown.min()
 
-        # 夏普比率
-        risk_free = 0.02  # 假设无风险利率 2%
+        risk_free = 0.03
         excess = nav_df["daily_return"].dropna() - risk_free / 252
+        annual_vol = nav_df["daily_return"].std() * np.sqrt(252)
+
         sharpe = excess.mean() / excess.std() * np.sqrt(252) if excess.std() > 0 else 0
 
-        # 胜率、盈亏比
+        # Calmar比率 = 年化收益率 / |最大回撤|
+        calmar = annual_return / abs(max_dd) if abs(max_dd) > 0 else 0
+
+        # Sortino比率：仅考虑下行波动率
+        downside = nav_df["daily_return"].dropna()
+        downside = downside[downside < 0]
+        downside_std = downside.std() * np.sqrt(252) if len(downside) > 0 else 1e-10
+        sortino = (annual_return - risk_free) / downside_std if downside_std > 0 else 0
+
         trades_df = pd.DataFrame(self.trades)
         if len(trades_df) > 0:
             sells = trades_df[trades_df["direction"] == "SELL"]
@@ -256,12 +263,20 @@ class BacktestEngine:
                 avg_win = sells[sells["pnl"] > 0]["pnl"].mean() if (sells["pnl"] > 0).any() else 0
                 avg_loss = abs(sells[sells["pnl"] < 0]["pnl"].mean()) if (sells["pnl"] < 0).any() else 0
                 profit_loss_ratio = avg_win / avg_loss if avg_loss > 0 else float("inf")
+                # 最大连续亏损次数
+                loss_streak = (sells["pnl"] < 0).astype(int)
+                max_consec_losses = 0
+                current = 0
+                for v in loss_streak:
+                    if v:
+                        current += 1
+                        max_consec_losses = max(max_consec_losses, current)
+                    else:
+                        current = 0
             else:
-                win_rate, profit_loss_ratio = 0, 0
+                win_rate, profit_loss_ratio, max_consec_losses = 0, 0, 0
         else:
-            win_rate, profit_loss_ratio = 0, 0
-
-        total_trades = len(self.trades)
+            win_rate, profit_loss_ratio, max_consec_losses = 0, 0, 0
 
         return {
             "initial_capital": self.initial_capital,
@@ -270,9 +285,13 @@ class BacktestEngine:
             "annual_return": round(annual_return * 100, 2),
             "max_drawdown": round(max_dd * 100, 2),
             "sharpe_ratio": round(sharpe, 2),
+            "calmar_ratio": round(calmar, 2),
+            "sortino_ratio": round(sortino, 2),
             "win_rate": round(win_rate * 100, 2),
             "profit_loss_ratio": round(profit_loss_ratio, 2),
-            "total_trades": total_trades,
+            "max_consecutive_losses": max_consec_losses,
+            "annual_volatility": round(float(annual_vol) * 100, 2) if annual_vol else 0,
+            "total_trades": len(self.trades),
             "n_days": n_days,
         }
 

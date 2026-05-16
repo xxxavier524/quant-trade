@@ -1,0 +1,48 @@
+# AlphaPulse-A N型选股系统参数配置
+# 规格书 V1.0 | 2026-05-16
+
+n_pattern:
+  rise_min_pct: 5.0
+  rise_max_pct: 30.0
+  pullback_min_pct: 30.0
+  pullback_max_pct: 62.0
+  pullback_min_days: 3
+  pullback_max_days: 15
+  consolidation_days: 3
+  consolidation_vol_ratio: 0.7
+  breakout_vol_ratio: 1.5
+  breakout_rise_pct: 2.0
+
+kdj:
+  j_threshold: 13
+  k_threshold: 30
+  d_threshold: 30
+  enable_divergence: true
+  enable_multi_period: true
+  weekly_j_threshold: 50
+
+volume:
+  red_bar_high_ratio: 1.2
+  volume_surge_ratio: 1.8
+  volume_shrink_ratio: 0.6
+  ma_volume_period: 20
+
+ai_model:
+  model_type: lightgbm
+  score_range: [0, 100]
+  train_start: "2020-01-01"
+  valid_ratio: 0.2
+  retrain_interval_days: 30
+
+backtest:
+  start_date: "2020-01-01"
+  end_date: "2025-12-31"
+  initial_capital: 1000000
+  max_positions: 10
+  commission_rate: 0.001
+  slippage_pct: 0.1
+
+factor_monitor:
+  ic_threshold: 0.02
+  decay_window: 20
+  remove_threshold: 0.01
