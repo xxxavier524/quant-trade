@@ -14,8 +14,26 @@
 
 ## 模型路由
 
-- 重推理（因子设计、策略逻辑、调试）：`deepseek-v4-pro`
-- 批量任务（数据清洗、回测执行、报告生成）：`deepseek-v4-flash`
+- **重推理任务** → `deepseek-v4-pro`：因子设计、策略逻辑修改、bug 调试、案例特征分析
+- **批量任务** → `deepseek-v4-flash`：数据清洗、回测执行（并行）、因子全量扫描、报告生成、CSV/Excel 转换
+
+## 自动化任务（无人值守）
+
+### 每日凌晨 2:00 — 因子/策略/案例全量扫描
+- 触发方式：macOS launchd (`config/com.alphapulse.daily-auto.plist`)
+- 执行脚本：`scripts/daily_auto_run.py`
+- 输出：追加到 `daily_auto_report.md`
+- 安装 launchd：`launchctl load ~/Library/LaunchAgents/com.alphapulse.daily-auto.plist`
+
+### 每日 14:30 — 盘中选股
+- 执行脚本：`scripts/daily_screener.py --output signals_$(date +%Y-%m-%d).csv`
+
+### 每日 15:30 — 晚间复盘
+- 执行脚本：`scripts/evening_review.py --signals signals_$(date +%Y-%m-%d).csv`
+
+### 风控 — 按需
+- 执行脚本：`scripts/risk_monitor.py --positions positions.csv`
+- 有 CRITICAL 警报时 exit 1，可接入告警通道
 
 ## 项目结构
 

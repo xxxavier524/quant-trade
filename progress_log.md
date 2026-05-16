@@ -18,7 +18,7 @@
 | 阶段七：云端交叉验证 | ⬜ | | |
 | 阶段八：Agent 工具封装 | ✅ | 2025-05-16 | 4脚本完成，待真实数据验证 |
 | 阶段九：QMT 实盘对接 | ✅ | 2025-05-16 | export_qmt_csv完成，待券商开通 |
-| 阶段十：长期无人值守 | ⬜ | | |
+| 阶段十：长期无人值守 | ✅ | 2025-05-16 | launchd+auto脚本，待接入真实数据 |
 
 ## 待补阶段
 
@@ -128,6 +128,16 @@
 
 ---
 
-## 阶段十：长期无人值守
+## 阶段十：长期无人值守 — 2025-05-16
 
-⬜ 待执行
+- **结果**: 成功。自动化框架搭建完成
+- **产出**:
+  - `scripts/daily_auto_run.py` — 每日凌晨自动化主脚本（因子扫描+策略快照+案例复核+日报生成）
+  - `config/com.alphapulse.daily-auto.plist` — macOS launchd 配置（每日 2:00 触发）
+  - `CLAUDE.md` — 已更新模型路由+自动化任务说明
+  - `daily_auto_report.md` — 无人值守日报模板
+  - `logs/` — 日志目录
+- **安装 launchd**: `cp config/com.alphapulse.daily-auto.plist ~/Library/LaunchAgents/ && launchctl load ...`
+- **Python schedule 备选**: 可替代 launchd，适合无 sudo 权限场景
+- **待完成**: 真实数据接入后首次夜间运行验证、连续一周稳定性测试
+- **下一步**: 接入真实数据，跑通全流程
