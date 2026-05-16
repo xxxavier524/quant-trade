@@ -1,0 +1,111 @@
+# AlphaPulse-A 量化交易系统
+
+> Claude Code 自动读取。完整计划与核心约束。
+
+## 核心约束（全局）
+
+- Python 3.10+，向量化优先（pandas/numpy），禁止逐行循环
+- 回测框架仅 VeighNa (vnpy)，不接受 backtrader
+- 数据源：通达信 `.day` → CSV，存储于 `data/day/`
+- 命名空间：`alphapulse.factors`、`alphapulse.strategies`
+- 滑点买0.1%卖0.2%、手续费万2.5最低5元、单票≤20%最多5只
+- 每次修改代码前 `git commit`
+- 每阶段结束追加 `progress_log.md`
+
+## 模型路由
+
+- 重推理（因子设计、策略逻辑、调试）：`deepseek-v4-pro`
+- 批量任务（数据清洗、回测执行、报告生成）：`deepseek-v4-flash`
+
+## 项目结构
+
+```
+├── CLAUDE.md
+├── progress_log.md
+├── alphapulse/
+│   ├── factors/          # 因子模块（每个因子独立 .py，compute(df)->Series）
+│   │   └── factor_registry.py
+│   ├── strategies/       # B1 / 砖型图 / 单针下三十
+│   ├── utils/            # data_loader, backtest_utils
+│   └── config/           # settings.py, best_params.json
+├── vnpy_strategies/      # CtaTemplate 封装
+├── scripts/              # parse_tdx_data, daily_screener, evening_review, risk_monitor, export_qmt_csv
+├── tests/
+├── backtest_results/
+├── data/day/             # CSV日线
+└── reports/
+```
+
+## 执行阶段
+
+### 阶段一：数据准备
+- `scripts/parse_tdx_data.py`：解析通达信 `.day` → `data/day/{symbol}.csv`
+- 安装 VeighNa：`pip install veighna`
+- 验证：抽查 600519.csv / 000001.csv 完整性
+
+### 阶段二：核心因子实现（8个因子）
+
+| 因子ID | 名称 | 关键参数 |
+|--------|------|----------|
+| N_STRUCT | N型结构识别 | min_leg_len=5, retrace_ratio=0.618 |
+| VOL_RED_GREEN | 红肥绿瘦 | N=20, ratio_threshold=1.3 |
+| ABNORMAL_VOL | 放量异动 | M=60, P=20, K=2.0, X=3, Y=5 |
+| VOL_CONT_SHRINK | 缩量 | shrink_ratio=0.25, recent_period=5 |
+| KDJ_J_LOW | J值低位 | j_threshold=13 |
+| WEEKLY_MA_BULL | 周线多头 | ma_periods=[5,10,20] |
+| MACD_BULL_DEAD | MACD多头/死叉 | fast=12, slow=26, signal=9 |
+| SHRINK_TO_ABNORMAL | 缩量至异动1/4 | ratio=0.25 |
+
+每个因子实现 `compute(data: pd.DataFrame) -> pd.Series`，注册到 `factor_registry.py`。
+
+### 阶段三：案例分析与因子提炼
+- 用户提供 `cases.csv`（symbol, event_date, note，≥10 条）
+- 输出 `reports/case_analysis_report.md`：
+  1. 事件前后价格走势共性
+  2. tsfresh 提取 Top 5 量价特征
+  3. 转化为 CASE_001~005 因子注册入库
+  4. 回放测试：命中率 + 平均提前天数
+
+### 阶段四：三大策略信号生成器
+- `b1.py`：条件组合信号 DataFrame（symbol, signal, strategy, factor_snapshot）
+- `brick.py`：Renko 固定2%振幅 + 突破逻辑
+- `needle.py`：长下影 + J值超卖
+- 单元测试验证
+
+### 阶段五：VeighNa 回测
+- `vnpy_strategies/*.py`：继承 CtaTemplate，on_bar 调用信号生成器
+- 2020-2025 完整回测，配置滑点/手续费/仓位
+- 输出 HTML 报告：年化收益、最大回撤、夏普比率、胜率、盈亏比、月度热力图
+
+### 阶段六：参数网格搜索
+- shrink_ratio: 0.2/0.25/0.3/0.4
+- j_threshold: 8/10/13/15
+- K: 1.5/2.0/2.5/3.0
+- 输出 Markdown 绩效表 + 帕累托前沿 → `config/best_params.json`
+
+### 阶段七：云端交叉验证（聚宽）
+- 翻译信号逻辑为聚宽 notebook
+- 2020-2025 回测，关键指标偏差 < 5%
+- 输出 `reports/cross_validation_report.md`
+
+### 阶段八：Agent 工具封装
+- `scripts/daily_screener.py`：当日信号 Markdown 列表
+- `scripts/evening_review.py`：胜率统计
+- `scripts/risk_monitor.py`：减仓警报
+- macOS 用 `launchd` / Python `schedule` 定时 14:30/15:30
+
+### 阶段九：QMT 实盘对接
+- `scripts/export_qmt_csv.py`：QMT 批量下单格式
+- 3 个月半自动运行规则
+
+### 阶段十：长期无人值守
+- 每日凌晨 2:00 自动因子扫描、策略回测、案例复核
+- 结果追加到 `daily_auto_report.md`
+
+## 总里程碑
+
+- [ ] 三种策略年化收益 > 20%，最大回撤 < 15%（2020-2025）
+- [ ] 训练案例命中率 ≥ 70%，验证 ≥ 60%
+- [ ] 云端偏差 < 5%
+- [ ] 每日自动信号+复盘，QMT 半自动
+- [ ] 无人值守稳定运行 ≥ 一周
