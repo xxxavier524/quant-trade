@@ -12,6 +12,7 @@ from alphapulse.factors import (
     weekly_ma_bull,
     macd_bull_dead,
     shrink_to_abnormal,
+    b1_formula,
 )
 
 FACTOR_REGISTRY = {
@@ -54,6 +55,18 @@ FACTOR_REGISTRY = {
         "module": shrink_to_abnormal,
         "description": "缩量至异动量1/4",
         "default_params": {"ratio": 0.25},
+    },
+    "B1_FORMULA": {
+        "module": b1_formula,
+        "description": "B1选股公式（通达信）：涨幅±3%+振幅<9%+市值>10亿+J<13+趋势线>多空线+MACD DIF>-0.1",
+        "default_params": {
+            "pct_change_range": 3.0,
+            "amplitude_max": 9.0,
+            "j_threshold": 13.0,
+            "dif_threshold": -0.1,
+            "trend_fast": 12,
+            "trend_slow": 26,
+        },
     },
 }
 
