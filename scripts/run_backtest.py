@@ -25,9 +25,9 @@ from alphapulse.config.settings import (
     DATA_DIR, INITIAL_CAPITAL, BACKTEST_RESULTS_DIR,
     SLIPPAGE_BUY, SLIPPAGE_SELL,
 )
-from alphapulse.strategies.b1 import generate_signals as b1_signals
-from alphapulse.strategies.brick import generate_signals as brick_signals
-from alphapulse.strategies.needle import generate_signals as needle_signals
+from alphapulse.strategies.b1_formula_strategy import generate_signals as b1_signals
+from alphapulse.strategies.brick_ultra_strategy import generate_signals as brick_signals
+from alphapulse.strategies.needle_enhanced import generate_signals as needle_signals
 from alphapulse.utils.backtest_utils import (
     apply_slippage, calc_commission, calc_max_shares,
 )
