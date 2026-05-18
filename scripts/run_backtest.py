@@ -68,7 +68,7 @@ class BacktestEngine:
         end_date: str,
         **strategy_params,
     ) -> dict:
-        """运行回测。
+        """运行回测（优化版：预计算信号，分离组合模拟）。
 
         Args:
             stocks: symbol -> DataFrame (OHLCV, index=date)
@@ -84,58 +84,58 @@ class BacktestEngine:
         for df in stocks.values():
             all_dates.update(df.index)
         all_dates = sorted(d for d in all_dates if start_date <= str(d)[:10] <= end_date)
-
         if len(all_dates) < 60:
             return {"error": "交易日不足"}
 
-        lookback_days = 365  # 计算因子需要的历史天数
+        lookback_days = 365
+        print(f"  [Phase 1/2] 预计算信号 ({len(stocks)} stocks x ~{len(all_dates)} days)...")
 
-        for trade_date in all_dates:
+        # Phase 1: 预计算所有股票的信号（只算一次）
+        all_signals = {}  # symbol -> set of signal dates
+        n_done = 0
+        for symbol, full_data in stocks.items():
+            try:
+                signals = strategy_fn(full_data, symbol=symbol, **strategy_params)
+                if len(signals) > 0:
+                    buy_dates = set(signals[signals["signal"] == 1].index)
+                    if buy_dates:
+                        all_signals[symbol] = buy_dates
+            except Exception:
+                pass
+            n_done += 1
+            if n_done % 50 == 0:
+                print(f"    signals: {n_done}/{len(stocks)} stocks, {sum(len(v) for v in all_signals.values())} total signals")
+
+        print(f"    signals ready: {len(all_signals)} stocks with signals, {sum(len(v) for v in all_signals.values())} total")
+
+        # Phase 2: 组合模拟（快速，只查字典）
+        print(f"  [Phase 2/2] 组合模拟...")
+        n_days = len(all_dates)
+        for di, trade_date in enumerate(all_dates):
             self._cur_date = trade_date
-            trade_date_str = str(trade_date)[:10]
 
-            # 先检查是否有持仓需要卖出（止损/止盈）
+            # 检查持仓退出
             self._check_exits(stocks, trade_date)
 
-            # 对每只股票检查信号
-            available_symbols = 0
-            for symbol, full_data in stocks.items():
+            # 检查信号买入
+            for symbol in sorted(all_signals.keys()):
                 if symbol in self.holdings:
-                    continue  # 已持有，不重复买入
+                    continue
                 if len(self.holdings) >= self.max_holdings:
                     break
-
-                # 截取回测日之前的数据
-                hist = full_data[full_data.index <= trade_date]
-                if len(hist) < lookback_days:
+                if trade_date not in all_signals.get(symbol, set()):
                     continue
-                if trade_date not in full_data.index:
+                if trade_date not in stocks.get(symbol, pd.DataFrame()).index:
                     continue
-
-                available_symbols += 1
-
-                try:
-                    signals = strategy_fn(hist, symbol=symbol, **strategy_params)
-                    today_mask = signals.index == trade_date
-                    if today_mask.any():
-                        today_signals = signals[today_mask]
-                        buy_signal = today_signals[today_signals["signal"] == 1]
-                        if len(buy_signal) > 0:
-                            self._execute_buy(symbol, full_data, trade_date)
-                except Exception:
-                    continue
+                self._execute_buy(symbol, stocks[symbol], trade_date)
 
             # 记录净值
-            holdings_value = self._calc_holdings_value(stocks)
-            total_nav = self.cash + holdings_value
-            self.nav_curve.append({
-                "date": trade_date,
-                "nav": total_nav,
-                "cash": self.cash,
-                "holdings_value": holdings_value,
-            })
+            hv = self._calc_holdings_value(stocks)
+            self.nav_curve.append({"date": trade_date, "nav": self.cash + hv, "cash": self.cash, "holdings_value": hv})
 
-        # 计算绩效指标
+            if (di + 1) % 252 == 0:
+                print(f"    sim: {di+1}/{n_days} days")
+
         return self._compute_metrics()
 
     def _execute_buy(self, symbol: str, data: pd.DataFrame, trade_date):
@@ -209,10 +209,10 @@ class BacktestEngine:
 
             # 止损：-10%
             if pnl_pct < -0.10:
-                self._execute_sell(symbol, stocks, trade_date, "stop_loss")
+                self._execute_sell(symbol, data, trade_date, "stop_loss")
             # 止盈：+30%
             elif pnl_pct > 0.30:
-                self._execute_sell(symbol, stocks, trade_date, "take_profit")
+                self._execute_sell(symbol, data, trade_date, "take_profit")
 
     def _calc_holdings_value(self, stocks: dict) -> float:
         """计算当前持仓总市值。"""

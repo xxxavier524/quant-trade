@@ -1,0 +1,53 @@
+{
+  "B1": {
+    "initial_capital": 1000000,
+    "final_nav": 1000000.0,
+    "total_return": 0.0,
+    "annual_return": 0.0,
+    "max_drawdown": 0.0,
+    "sharpe_ratio": -4.646543928362733e+16,
+    "calmar_ratio": 0,
+    "sortino_ratio": -300000000.0,
+    "win_rate": 0,
+    "profit_loss_ratio": 0,
+    "max_consecutive_losses": 0,
+    "annual_volatility": 0,
+    "total_trades": 0,
+    "n_days": 1455,
+    "elapsed_seconds": 0.6
+  },
+  "BRICK": {
+    "initial_capital": 1000000,
+    "final_nav": 621299.55,
+    "total_return": -37.87,
+    "annual_return": -7.91,
+    "max_drawdown": -58.99,
+    "sharpe_ratio": -0.3,
+    "calmar_ratio": -0.13,
+    "sortino_ratio": -0.61,
+    "win_rate": 27.37,
+    "profit_loss_ratio": 2.2,
+    "max_consecutive_losses": 15,
+    "annual_volatility": 26.18,
+    "total_trades": 385,
+    "n_days": 1455,
+    "elapsed_seconds": 3.8
+  },
+  "NEEDLE": {
+    "initial_capital": 1000000,
+    "final_nav": 962223.34,
+    "total_return": -3.78,
+    "annual_return": -0.66,
+    "max_drawdown": -6.7,
+    "sharpe_ratio": -1.0,
+    "calmar_ratio": -0.1,
+    "sortino_ratio": -0.8,
+    "win_rate": 0.0,
+    "profit_loss_ratio": 0.0,
+    "max_consecutive_losses": 3,
+    "annual_volatility": 3.6,
+    "total_trades": 8,
+    "n_days": 1455,
+    "elapsed_seconds": 0.1
+  }
+}

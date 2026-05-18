@@ -72,22 +72,25 @@ def _resolve_bs_code_fast(symbol: str) -> str:
 
 
 def get_stock_list() -> list[str]:
-    """通过 baostock query_stock_basic 获取全A股列表。"""
-    symbols = set()
-    try:
-        rs = bs.query_stock_basic(code_name="")
-        while rs.next():
-            row = rs.get_row_data()
-            # row: [code, code_name, ipoDate, outDate, type, status]
-            code = row[0]  # e.g. "sh.600519"
-            status = row[5] if len(row) > 5 else "1"
-            if code and status == "1":  # 1=上市
-                symbol = code.split(".")[-1]
-                BS_CODE_CACHE[symbol] = code
-                symbols.add(symbol)
-    except Exception as e:
-        print(f"[WARN] query_stock_basic 失败: {e}")
+    """快速生成全A股代码列表（覆盖所有可能范围）。
 
+    替代慢速的 bs.query_stock_basic()——逐个下载时会自动过滤无效代码。
+    """
+    symbols = set()
+    # 上海主板 600000-605999
+    for i in range(600000, 606000): symbols.add(f"{i:06d}")
+    # 上海科创板 688000-689999
+    for i in range(688000, 690000): symbols.add(f"{i:06d}")
+    # 深圳主板 000001-003999
+    for i in range(1, 4000): symbols.add(f"{i:06d}")
+    # 深圳创业板 300000-301999
+    for i in range(300000, 302000): symbols.add(f"{i:06d}")
+    # 北交所 830000-879999 + 920000-929999
+    for i in range(830000, 880000): symbols.add(f"{i:06d}")
+    for i in range(920000, 930000): symbols.add(f"{i:06d}")
+    # 预缓存 baostock code 格式
+    for sym in list(symbols):
+        BS_CODE_CACHE[sym] = _resolve_bs_code_fast(sym)
     return sorted(symbols)
 
 
