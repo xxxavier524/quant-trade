@@ -181,54 +181,21 @@ def is_already_downloaded(symbol: str, output_dir: str, min_rows: int = MIN_REQU
 
 
 def get_stock_list() -> list[str]:
-    """获取全A股列表（通过 baostock 行业分类接口 + 全量查询）。"""
-    all_symbols = set()
+    """快速生成全A股代码列表（覆盖所有可能范围，不查询baostock）。
 
-    # 方法1：通过上证50/沪深300成分股等
-    for prefix, exchange in [("sh", "6"), ("sz", "0"), ("sz", "3")]:
-        for digit in "0123456789":
-            for code_suffix in range(0, 10000):
-                # 这里用另一种方式：从日K线数据接口遍历
-                pass
-
-    # 方法2：直接硬编码常见范围然后验证
-    # 上证：600000-605999, 688000-689999
-    # 深证：000001-003999, 300000-301999
-    # 北交：830000-879999
-    ranges = [
-        ("sh", 600000, 606000),
-        ("sh", 688000, 689999),
-        ("sz", 0, 4000),
-        ("sz", 300000, 302000),
-    ]
-
-    # 实际使用 baostock 的 stock_basic 接口
-    for exchange, start, end in ranges:
-        for code in range(start, min(end + 1, start + 100)):
-            symbol = f"{code:06d}"
-            bs_code = f"{exchange}.{symbol}"
-            rs = bs.query_history_k_data_plus(bs_code, "date", start_date="2025-01-01", end_date="2025-01-10", frequency="d")
-            if rs.error_code == "0":
-                rows = []
-                while rs.next():
-                    rows.append(rs.get_row_data())
-                if rows:
-                    all_symbols.add(symbol)
-
-    # 更高效的方式：使用 akshare 的 stock list（如果a股列表能获取的话）
-    # 或者直接 用 baostock 的 query_stock_basic
-    try:
-        rs = bs.query_stock_basic()
-        while rs.next():
-            row = rs.get_row_data()
-            code = row[0]  # e.g. "sh.600519"
-            if code:
-                symbol = code.split(".")[-1]
-                all_symbols.add(symbol)
-    except Exception:
-        pass
-
-    return sorted(all_symbols)
+    无效代码在下载时由 download_single_stock 自然过滤（返回 empty/error）。
+    """
+    symbols = set()
+    for i in range(600000, 606000): symbols.add(f"{i:06d}")
+    for i in range(688000, 690000): symbols.add(f"{i:06d}")
+    for i in range(1, 4000): symbols.add(f"{i:06d}")
+    for i in range(300000, 302000): symbols.add(f"{i:06d}")
+    for i in range(830000, 880000): symbols.add(f"{i:06d}")
+    for i in range(920000, 930000): symbols.add(f"{i:06d}")
+    # 预缓存 baostock code 格式
+    for sym in list(symbols):
+        BS_CODE_CACHE[sym] = f"sh.{sym}" if sym[0] in "69" else f"sz.{sym}"
+    return sorted(symbols)
 
 
 def download_batch(
@@ -300,9 +267,7 @@ def main():
         symbols = [s.strip() for s in args.symbols.split(",")]
     else:
         print("[INFO] 获取A股列表...")
-        bs.login()
         symbols = get_stock_list()
-        bs.logout()
         print(f"[INFO] 共 {len(symbols)} 只")
         if args.sample:
             import random

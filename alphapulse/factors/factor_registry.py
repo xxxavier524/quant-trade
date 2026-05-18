@@ -19,6 +19,14 @@ from alphapulse.factors import (
     volume_b1,
 )
 
+from alphapulse.factors.experimental import (
+    northbound_capital_flow,
+    idiosyncratic_vol,
+    turnover_uniformity,
+    analyst_revision,
+    capital_flow_big_order,
+)
+
 FACTOR_REGISTRY = {
     "N_STRUCT": {
         "module": n_struct,
@@ -120,6 +128,42 @@ FACTOR_REGISTRY = {
         "description": "知行四线数值（短期/中期/中长期/长期），纯指标输出",
         "source": "知行洗盘短线.txt",
         "default_params": {"n1": 5, "n2": 30},
+    },
+    # --- 实验性因子（券商金工研究来源） ---
+    "NORTHBOUND_FLOW": {
+        "module": northbound_capital_flow,
+        "type": "experimental",
+        "description": "北向资金代理因子：量价估计资金流向加速度。广发证券北向2.0 / 国金证券(2024)。A股IC 5.1%, ICIR 2.7, 胜率89.3%",
+        "source": "广发证券《北向选股2.0》/ 国金证券《量化行业配置》",
+        "default_params": {"short_window": 5, "long_window": 20, "zscore_window": 60},
+    },
+    "IDIOSYNCRATIC_VOL": {
+        "module": idiosyncratic_vol,
+        "type": "experimental",
+        "description": "特质波动率(IVOL)因子：去Beta后残差波动率。国信证券(2022)。A股RankIC -9.29%, ICIR -3.44, 胜率86%。负向因子(低IVOL=看多)",
+        "source": "国信证券金工(2022) / 东吴证券纯真波动率(2020) / Ang et al.(2006)",
+        "default_params": {"window": 20, "method": "simple", "use_composite": False},
+    },
+    "TURNOVER_UNIFORMITY": {
+        "module": turnover_uniformity,
+        "type": "experimental",
+        "description": "换手率分布均匀度(UTD)因子：换手率CV/范围比。东吴证券(2024)。A股RankIC -6.7%, ICIR -3.99, 胜率77.3%。负向因子(均匀=看多)",
+        "source": "东吴证券金工(2024) / 中信建投筹码分布因子(2025)",
+        "default_params": {"window": 20, "method": "cv", "use_decay": True},
+    },
+    "ANALYST_REVISION": {
+        "module": analyst_revision,
+        "type": "experimental",
+        "description": "分析师盈利修正代理因子：量价动量代理盈利上调。华泰证券(2024)。A股综合RankIC 4.27%, TOP组合年化超额10.55%",
+        "source": "华泰证券金工《分析师预期类因子初探》(2024.12)",
+        "default_params": {"short_window": 5, "long_window": 20, "volume_window": 10, "momentum_window": 60},
+    },
+    "CAPITAL_FLOW_BIG": {
+        "module": capital_flow_big_order,
+        "type": "experimental",
+        "description": "大单资金流向因子：量价识别大单净流入强度。东海证券。A股IC 0.087(30天), IR 0.729(大单最强)",
+        "source": "东海证券金工",
+        "default_params": {"flow_window": 20, "vol_ratio_threshold": 1.5, "ma_window": 60},
     },
 }
 
