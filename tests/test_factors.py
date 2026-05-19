@@ -183,11 +183,18 @@ def test_all_factors_no_error():
     """所有因子在合成数据上运行不报错。"""
     data = make_synthetic_data(500)
 
+    # 这些因子返回非bool类型（实验性因子返回连续Z-Score值，
+    # 指标类因子返回连续数值，N_STRUCT返回分类标签）
+    NON_BOOL_FACTORS = {"N_STRUCT"}.union(
+        name for name, entry in FACTOR_REGISTRY.items()
+        if entry.get("type") in ("experimental", "indicator")
+    )
+
     for name, entry in FACTOR_REGISTRY.items():
         result = entry["module"].compute(data, **entry["default_params"])
         assert len(result) == len(data), f"{name}: 长度不匹配"
-        # 大部分因子返回布尔型
-        if name != "N_STRUCT":
+        # 大部分因子返回布尔型；实验性因子和N_STRUCT返回连续值
+        if name not in NON_BOOL_FACTORS:
             assert result.dtype == bool, f"{name}: 非bool类型: {result.dtype}"
 
 

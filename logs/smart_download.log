@@ -1,0 +1,14 @@
+21:43:23 [INFO   ] ============================================================
+21:43:23 [INFO   ] SMART DOWNLOADER - A-share daily data (2020-01-01 ~ today)
+21:43:23 [INFO   ] Data dir:  /Volumes/Mac-480g外接/quantan_data/day
+21:43:23 [INFO   ] Log dir:   /Users/qiushixuan/cc/quantan trade/logs
+21:43:23 [INFO   ] Start:     2026-05-19T21:43:23.082416
+21:43:23 [INFO   ] ============================================================
+21:43:24 [INFO   ] Candidate codes:      73,999
+21:43:24 [INFO   ] Already downloaded:   699
+21:43:24 [INFO   ] Remaining to process: 73,300
+21:43:24 [INFO   ] Estimated real stocks: ~5,300 (most candidates are invalid codes)
+21:43:24 [INFO   ] [HEALTH] baostock login OK
+21:43:25 [INFO   ] [HEALTH] akshare test OK (sz000001 returned data)
+21:43:25 [INFO   ] MODE: ALTERNATING (switch every 10 codes)
+21:43:25 [INFO   ]   baostock interval: 1.0s | akshare interval: 0.35s

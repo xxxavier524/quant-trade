@@ -90,6 +90,24 @@ def compute(
     return result.fillna(False).astype(bool)
 
 
+def compute_indicator(
+    data: pd.DataFrame,
+    n1: int = 5,
+    n2: int = 30,
+) -> pd.Series:
+    """计算知行四线综合指标（数值输出）。
+
+    返回四线的等权均值作为综合指标值，取值范围约0-100。
+    值越高表示价格在区间上沿，越低表示在区间下沿。
+
+    Returns:
+        pd.Series[float64]: 综合指标值
+    """
+    lines = compute_lines(data, n1, n2)
+    composite = (lines["short"] + lines["medium"] + lines["med_long"] + lines["long"]) / 4.0
+    return composite.fillna(0).astype(float)
+
+
 def compute_detail(data: pd.DataFrame, n1: int = 5, n2: int = 30) -> pd.DataFrame:
     """返回四线和所有买入条件的详细信息。"""
     lines = compute_lines(data, n1, n2)

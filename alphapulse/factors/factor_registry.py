@@ -117,6 +117,7 @@ FACTOR_REGISTRY = {
     # --- 指标类因子（不含选股逻辑，仅输出数值） ---
     "BRICK_INDICATOR": {
         "module": brick_ultra,
+        "compute_func": "compute_brick_indicator",
         "type": "indicator",  # 指标公式
         "description": "砖型图指标值（纯数值输出，不含选股逻辑）。等同通达信砖型图:=IF(VAR6A>4,VAR6A-4,0)",
         "source": "砖型图.txt",
@@ -124,6 +125,7 @@ FACTOR_REGISTRY = {
     },
     "ZHIXING_LINES": {
         "module": zhixing_washout,
+        "compute_func": "compute_indicator",
         "type": "indicator",  # 指标公式
         "description": "知行四线数值（短期/中期/中长期/长期），纯指标输出",
         "source": "知行洗盘短线.txt",
@@ -188,4 +190,7 @@ def compute_factor(
 
     entry = FACTOR_REGISTRY[name]
     merged_params = {**entry["default_params"], **params}
-    return entry["module"].compute(data, **merged_params)
+    # 支持 registry 中指定 compute_func 键来调用非 compute 函数
+    func_name = entry.get("compute_func", "compute")
+    func = getattr(entry["module"], func_name)
+    return func(data, **merged_params)
