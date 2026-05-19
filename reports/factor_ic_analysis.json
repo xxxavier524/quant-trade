@@ -1,0 +1,104 @@
+{
+  "N_STRUCT": {
+    "mean_ic": -0.387,
+    "std_ic": 0.0829,
+    "samples": 45,
+    "icir": -4.667
+  },
+  "VOL_RED_GREEN": {
+    "mean_ic": -0.0142,
+    "std_ic": 0.0288,
+    "samples": 50,
+    "icir": -0.493
+  },
+  "ABNORMAL_VOL": {
+    "mean_ic": -0.0251,
+    "std_ic": 0.0233,
+    "samples": 50,
+    "icir": -1.079
+  },
+  "VOL_CONT_SHRINK": {
+    "mean_ic": -0.0063,
+    "std_ic": 0.0376,
+    "samples": 50,
+    "icir": -0.168
+  },
+  "KDJ_J_LOW": {
+    "mean_ic": 0.0185,
+    "std_ic": 0.033,
+    "samples": 50,
+    "icir": 0.561
+  },
+  "WEEKLY_MA_BULL": {
+    "mean_ic": -0.0198,
+    "std_ic": 0.026,
+    "samples": 50,
+    "icir": -0.761
+  },
+  "MACD_BULL_DEAD": {
+    "mean_ic": -0.0113,
+    "std_ic": 0.0249,
+    "samples": 50,
+    "icir": -0.454
+  },
+  "SHRINK_TO_ABNORMAL": {
+    "mean_ic": 0.0074,
+    "std_ic": 0.0303,
+    "samples": 50,
+    "icir": 0.244
+  },
+  "B1_FORMULA": {
+    "mean_ic": 0.0121,
+    "std_ic": 0.0261,
+    "samples": 50,
+    "icir": 0.462
+  },
+  "ZHIXING_WASHOUT": {
+    "mean_ic": -0.0183,
+    "std_ic": 0.0288,
+    "samples": 50,
+    "icir": -0.634
+  },
+  "BRICK_ULTRA": {
+    "mean_ic": 0.0035,
+    "std_ic": 0.0266,
+    "samples": 50,
+    "icir": 0.132
+  },
+  "VOLUME_B1": {
+    "mean_ic": NaN,
+    "std_ic": NaN,
+    "samples": 50,
+    "icir": 0
+  },
+  "NORTHBOUND_FLOW": {
+    "mean_ic": -0.0098,
+    "std_ic": 0.0287,
+    "samples": 50,
+    "icir": -0.341
+  },
+  "IDIOSYNCRATIC_VOL": {
+    "mean_ic": -0.0111,
+    "std_ic": 0.0223,
+    "samples": 50,
+    "icir": -0.501
+  },
+  "TURNOVER_UNIFORMITY": {
+    "mean_ic": -0.0133,
+    "std_ic": 0.0338,
+    "samples": 50,
+    "icir": -0.392
+  },
+  "ANALYST_REVISION": {
+    "mean_ic": -0.0121,
+    "std_ic": 0.0303,
+    "samples": 50,
+    "icir": -0.4
+  },
+  "CAPITAL_FLOW_BIG": {
+    "mean_ic": -0.0081,
+    "std_ic": 0.0325,
+    "samples": 50,
+    "icir": -0.249
+  }
+}
