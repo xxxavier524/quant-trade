@@ -1,6 +1,6 @@
 {
-  "last_check": "2026-05-20T23:27:18.140538",
-  "cycle": 1,
+  "last_check": "2026-05-21T00:27:52.029231",
+  "cycle": 2,
   "total": 6,
   "passed": 5,
   "failed": 1,
@@ -25,7 +25,7 @@
       "name": "test_suite_passing",
       "desc": "\u6d4b\u8bd5\u5957\u4ef6 100% \u901a\u8fc7",
       "passed": true,
-      "output": "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n15 passed, 1000 warnings in 2.25s",
+      "output": "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n15 passed, 3 warnings in 1.84s",
       "severity": "CRITICAL",
       "action": "cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q"
     },
