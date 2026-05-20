@@ -1,0 +1,33 @@
+2026-05-20 23:26:01,413 [MONITOR]   ✅ data_download_running: 18
+2026-05-20 23:26:02,296 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-20 23:26:04,924 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-20 23:26:05,416 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-20 23:26:29,656 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-20 23:26:35,632 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-20 23:26:44,656 [MONITOR] ============================================================
+2026-05-20 23:26:44,656 [MONITOR] AlphaPulse-A 监控守护进程 启动
+2026-05-20 23:26:44,656 [MONITOR] 检查间隔: 3600s (1.0h)
+2026-05-20 23:26:44,656 [MONITOR] ============================================================
+2026-05-20 23:26:44,656 [MONITOR] -- 第 1 轮检查 2026-05-20T23:26:44.656613 --
+2026-05-20 23:26:44,698 [MONITOR]   ✅ data_download_running: 18
+2026-05-20 23:26:44,838 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-20 23:26:47,317 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-20 23:26:47,803 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-20 23:27:12,039 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-20 23:27:18,139 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-20 23:27:18,140 [MONITOR] ⚠️ 1 项失败:
+2026-05-20 23:27:18,140 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-20 23:27:18,140 [MONITOR] 第 1 轮完成 (5/6). 下次: 2026-05-20T23:27:18.140752 + 3600s

@@ -157,3 +157,55 @@
 - **Python schedule 备选**: 可替代 launchd，适合无 sudo 权限场景
 - **待完成**: 真实数据接入后首次夜间运行验证、连续一周稳定性测试
 - **下一步**: 接入真实数据，跑通全流程
+
+---
+
+## 阶段十一：GitHub Top 10 开源项目集成研究 — 2026-05-21
+
+- **结果**: 成功。10个项目全面研究 + 4个Python适配器 + 前端迁移指南
+- **产出**:
+  - `reports/github_top10_research.md` — 完整研究报告（10个项目逐一分析）
+  - `alphapulse/adapters/__init__.py`
+  - `alphapulse/adapters/riskfolio_adapter.py` — Black-Litterman + CVaR + HRP 组合优化适配器（P0）
+  - `alphapulse/adapters/vectorbt_adapter.py` — 向量化网格搜索加速适配器（P0）
+  - `alphapulse/adapters/financetoolkit_adapter.py` — 45个基本面因子适配器（P1）
+  - `alphapulse/adapters/tradingagents_adapter.py` — 多智能体LLM信号增强适配器（P1）
+  - `frontend/lightweight_charts_migration.md` — TradingView前端迁移指南（P1）
+
+### Python 3.14 兼容性验证
+
+| 项目 | pip安装 | 版本 | 导入验证 |
+|------|---------|------|----------|
+| backtrader | YES | 1.9.78.123 | OK |
+| yfinance | YES | 1.3.0 | OK |
+| FinanceToolkit | YES | 2.0.7 | OK |
+| TradingAgents | YES | 0.6.0 | OK (liteLLM警告可忽略) |
+| Riskfolio-Lib | YES | 7.2.1 | OK (HRP/NCO scipy兼容性警告) |
+| vectorbt | YES | 0.28.2 | OK |
+| OpenBB | YES | 4.7.1 | OK |
+| Microsoft Qlib (pyqlib) | **FAILED** | N/A | 无cp314 wheel |
+
+### 适配器测试结果
+
+| 适配器 | 无视图BL | CVaR | HRP | 自动选择 | 仓位转换 |
+|--------|---------|------|-----|---------|---------|
+| riskfolio_adapter | PASS | PASS | PASS(fallback) | PASS | PASS |
+| vectorbt_adapter | N/A | N/A | N/A | N/A | PASS(single+multi) |
+| financetoolkit_adapter | N/A | N/A | N/A | N/A | PASS(45因子) |
+| tradingagents_adapter | N/A | N/A | N/A | N/A | PASS(fallback) |
+
+### 已知限制
+- **Riskfolio-Lib HRP/NCO**: scipy sqrtm在Python 3.14有兼容性问题，自动fallback到CVaR
+- **Microsoft Qlib**: 无cp314 wheel，需Python 3.12 sidecar环境或纯pandas重新实现Alpha158
+- **TradingAgents**: 需LLM API密钥(DeepSeek推荐)，无密钥时graceful fallback（信号透传）
+
+### 集成优先级
+1. **P0-立即**: Riskfolio-Lib Black-Litterman/CVaR替换静态20%仓位分配
+2. **P0-立即**: vectorbt向量化网格搜索加速阶段六参数扫描
+3. **P1-短期**: FinanceToolkit 45个基本面因子扩展因子库
+4. **P1-短期**: TradingAgents多智能体信号增强（需API密钥）
+5. **P1-短期**: Lightweight Charts替换Chart.js前端
+6. **P2-中期**: Qlib Alpha158因子纯pandas重实现
+7. **P3-长期**: OpenBB作为美国市场基准数据源
+
+- **下一步**: P0项集成到主回测流程中
