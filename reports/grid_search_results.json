@@ -1,0 +1,190 @@
+[
+  {
+    "strategy": "B1_FORMULA",
+    "j_threshold": 8,
+    "pct_range": 2,
+    "signals": 28857
+  },
+  {
+    "strategy": "B1_FORMULA",
+    "j_threshold": 8,
+    "pct_range": 3,
+    "signals": 35595
+  },
+  {
+    "strategy": "B1_FORMULA",
+    "j_threshold": 8,
+    "pct_range": 4,
+    "signals": 39355
+  },
+  {
+    "strategy": "B1_FORMULA",
+    "j_threshold": 13,
+    "pct_range": 2,
+    "signals": 36675
+  },
+  {
+    "strategy": "B1_FORMULA",
+    "j_threshold": 13,
+    "pct_range": 3,
+    "signals": 45056
+  },
+  {
+    "strategy": "B1_FORMULA",
+    "j_threshold": 13,
+    "pct_range": 4,
+    "signals": 49671
+  },
+  {
+    "strategy": "B1_FORMULA",
+    "j_threshold": 18,
+    "pct_range": 2,
+    "signals": 44211
+  },
+  {
+    "strategy": "B1_FORMULA",
+    "j_threshold": 18,
+    "pct_range": 3,
+    "signals": 54232
+  },
+  {
+    "strategy": "B1_FORMULA",
+    "j_threshold": 18,
+    "pct_range": 4,
+    "signals": 59771
+  },
+  {
+    "strategy": "B1_FORMULA",
+    "j_threshold": 23,
+    "pct_range": 2,
+    "signals": 51511
+  },
+  {
+    "strategy": "B1_FORMULA",
+    "j_threshold": 23,
+    "pct_range": 3,
+    "signals": 63195
+  },
+  {
+    "strategy": "B1_FORMULA",
+    "j_threshold": 23,
+    "pct_range": 4,
+    "signals": 69581
+  },
+  {
+    "strategy": "BRICK",
+    "min_ratio": 0.4,
+    "signals": 85289
+  },
+  {
+    "strategy": "BRICK",
+    "min_ratio": 0.6,
+    "signals": 75136
+  },
+  {
+    "strategy": "BRICK",
+    "min_ratio": 0.8,
+    "signals": 66978
+  },
+  {
+    "strategy": "BRICK",
+    "min_ratio": 1.0,
+    "signals": 59843
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.3,
+    "j_threshold": 13,
+    "signals": 524
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.3,
+    "j_threshold": 18,
+    "signals": 567
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.3,
+    "j_threshold": 23,
+    "signals": 629
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.3,
+    "j_threshold": 28,
+    "signals": 675
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.4,
+    "j_threshold": 13,
+    "signals": 413
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.4,
+    "j_threshold": 18,
+    "signals": 452
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.4,
+    "j_threshold": 23,
+    "signals": 500
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.4,
+    "j_threshold": 28,
+    "signals": 548
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.5,
+    "j_threshold": 13,
+    "signals": 243
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.5,
+    "j_threshold": 18,
+    "signals": 266
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.5,
+    "j_threshold": 23,
+    "signals": 301
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.5,
+    "j_threshold": 28,
+    "signals": 334
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.6,
+    "j_threshold": 13,
+    "signals": 152
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.6,
+    "j_threshold": 18,
+    "signals": 166
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.6,
+    "j_threshold": 23,
+    "signals": 185
+  },
+  {
+    "strategy": "NEEDLE",
+    "shadow_ratio": 0.6,
+    "j_threshold": 28,
+    "signals": 209
+  }
+]
