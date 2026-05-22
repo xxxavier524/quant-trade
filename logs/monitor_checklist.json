@@ -1,6 +1,6 @@
 {
-  "last_check": "2026-05-22T07:46:06.031997",
-  "cycle": 33,
+  "last_check": "2026-05-22T20:53:24.981403",
+  "cycle": 46,
   "total": 6,
   "passed": 4,
   "failed": 2,
@@ -25,7 +25,7 @@
       "name": "test_suite_passing",
       "desc": "\u6d4b\u8bd5\u5957\u4ef6 100% \u901a\u8fc7",
       "passed": false,
-      "output": "FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...\n1 failed, 14 passed, 3 warnings in 1.87s",
+      "output": "FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...\n1 failed, 14 passed, 3 warnings in 2.09s",
       "severity": "CRITICAL",
       "action": "cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q"
     },
@@ -41,7 +41,7 @@
       "name": "baostock_reachable",
       "desc": "baostock \u53ef\u8fbe",
       "passed": true,
-      "output": "\u670d\u52a1\u5668\u8fde\u63a5\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u3002\n[Errno 32] Broken pipe\n\u63a5\u6536\u6570\u636e\u5f02\u5e38\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u3002\n10002007\n[Errno 32] Broken pipe\n\u63a5\u6536\u6570\u636e\u5f02\u5e38\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u3002",
+      "output": "login success!\n0\nlogout success!",
       "severity": "WARN",
       "action": "NONE"
     },

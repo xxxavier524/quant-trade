@@ -33,6 +33,9 @@ def generate_signals(
     min_trend_score: float = 0.45,
     industry_rankings: list[dict] | None = None,
     industry_indices: dict[str, pd.DataFrame] | None = None,
+    pre_selected: set[str] | None = None,
+    pre_beta: float | None = None,
+    pre_trend_score: float | None = None,
     **kwargs,
 ) -> pd.DataFrame:
     """Generate buy signals using two-stage selection.
@@ -49,6 +52,31 @@ def generate_signals(
     Returns:
         DataFrame with columns [symbol, date, signal, industry, predicted_beta, ...]
     """
+    # Fast-path: pre-computed selection (used by optimized backtest)
+    if pre_selected is not None:
+        if symbol not in pre_selected:
+            return pd.DataFrame(columns=["symbol", "date", "signal", "strategy"])
+        # Generate monthly/weekly signal dates
+        if rebalance_freq == "M":
+            signal_dates = list(data.groupby(data.index.to_period("M")).apply(lambda x: x.index[-1]))
+        elif rebalance_freq == "W":
+            signal_dates = list(data.groupby(data.index.to_period("W")).apply(lambda x: x.index[-1]))
+        else:
+            signal_dates = [data.index[-1]]
+        signals = []
+        for d in signal_dates:
+            if d in data.index:
+                signals.append({
+                    "date": d, "symbol": symbol, "signal": 1,
+                    "strategy": "TWO_STAGE_FAST",
+                    "predicted_beta": round(pre_beta or 0, 4),
+                    "industry_trend_score": round(pre_trend_score or 0, 4),
+                })
+        df = pd.DataFrame(signals)
+        if len(df) > 0:
+            df = df.set_index("date")
+        return df
+
     if all_stocks is None or len(all_stocks) < 50:
         # Fallback: no industry context, use B1 formula
         from alphapulse.factors.b1_formula import compute as b1_compute
@@ -119,8 +147,8 @@ def generate_signals(
     for d in signal_dates:
         if d in data.index:
             signals.append({
-                "symbol": symbol,
                 "date": d,
+                "symbol": symbol,
                 "signal": 1,
                 "strategy": "TWO_STAGE",
                 "industry": stock_industry,
@@ -128,4 +156,7 @@ def generate_signals(
                 "predicted_beta": round(beta_latest, 4),
             })
 
-    return pd.DataFrame(signals)
+    df = pd.DataFrame(signals)
+    if len(df) > 0:
+        df = df.set_index("date")
+    return df

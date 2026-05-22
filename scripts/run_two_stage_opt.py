@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts.run_backtest import BacktestEngine, load_stocks, STRATEGIES
 from alphapulse.strategies.two_stage_selection import generate_signals as two_stage_fn
 from alphapulse.factors.industry_rotation import load_industry_map, get_industry, rank_industries, build_industry_index as build_indices
+from alphapulse.factors.beta_fundamental import predict_beta, rank_stocks_by_beta
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = "/Volumes/Mac-480g外接/quantan_data/day"
@@ -108,11 +109,36 @@ def run_single_backtest(params: dict, stocks: dict, run_id: int) -> dict:
 
     engine._check_exits = custom_check_exits
 
-    # Pre-compute industry rankings ONCE (avoid 300+ redundant calls in per-stock loop)
+    # Pre-compute EVERYTHING once: industry rankings + beta for all stocks + selection
+    print(f"    Pre-computing industry rankings...")
     pre_rankings = rank_industries(stocks, min_constituents=5, top_n=params["top_industries"])
     pre_indices = build_indices(stocks)
+    mainline_industries = set(r["industry"] for r in pre_rankings if r["total"] >= params["min_trend_score"])
 
-    # Build two-stage strategy wrapper
+    # Pre-compute beta for stocks in mainline industries only
+    pre_selected = set()
+    pre_betas = {}
+    pre_scores = {}
+    ind_score_map = {r["industry"]: r["total"] for r in pre_rankings}
+
+    for ind in mainline_industries:
+        ind_syms = [s for s in stocks if get_industry(s) == ind]
+        if len(ind_syms) < 3:
+            continue
+        ind_stocks = {s: stocks[s] for s in ind_syms}
+        ind_returns = pre_indices.get(ind, pd.DataFrame()).get("return") if ind in pre_indices else None
+
+        print(f"    Computing beta for {ind}: {len(ind_syms)} stocks...")
+        ranked = rank_stocks_by_beta(ind_stocks, ind_returns, top_n=params["stocks_per_industry"])
+        for _, row in ranked.iterrows():
+            sym = row["symbol"]
+            pre_selected.add(sym)
+            pre_betas[sym] = row["predicted_beta"]
+            pre_scores[sym] = ind_score_map.get(ind, 0)
+
+    print(f"    Pre-selected {len(pre_selected)} stocks across {len(mainline_industries)} industries")
+
+    # Fast wrapper: just check pre_selected set membership
     def two_stage_wrapper(data, symbol="", **kw):
         return two_stage_fn(
             data, symbol=symbol, all_stocks=stocks,
@@ -120,8 +146,9 @@ def run_single_backtest(params: dict, stocks: dict, run_id: int) -> dict:
             stocks_per_industry=params["stocks_per_industry"],
             min_trend_score=params["min_trend_score"],
             rebalance_freq=params["rebalance_freq"],
-            industry_rankings=pre_rankings,
-            industry_indices=pre_indices,
+            pre_selected=pre_selected,
+            pre_beta=pre_betas.get(symbol),
+            pre_trend_score=pre_scores.get(symbol),
         )
 
     print(f"  Run {run_id}: top_ind={params['top_industries']}, per_ind={params['stocks_per_industry']}, "
