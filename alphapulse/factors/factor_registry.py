@@ -26,6 +26,7 @@ from alphapulse.factors.experimental import (
     analyst_revision,
     capital_flow_big_order,
 )
+from alphapulse.factors import industry_rotation, beta_fundamental
 
 FACTOR_REGISTRY = {
     "N_STRUCT": {
@@ -166,6 +167,28 @@ FACTOR_REGISTRY = {
         "description": "大单资金流向因子：量价识别大单净流入强度。东海证券。A股IC 0.087(30天), IR 0.729(大单最强)",
         "source": "东海证券金工",
         "default_params": {"flow_window": 20, "vol_ratio_threshold": 1.5, "ma_window": 60},
+    },
+    # --- 两阶段AI选股模型（Stage 1+2） ---
+    "INDUSTRY_ROTATION": {
+        "module": industry_rotation,
+        "type": "experimental",
+        "description": "行业主线轮动模型(Stage 1)：构建行业指数+趋势评分(MA/MACD/动量/一致性)+排序。Top5行业实测半年",
+        "source": "AI量化选股第一阶段——行业主线轮动模型",
+        "default_params": {"ma_periods": [5, 10, 20, 60], "mom_periods": [20, 60, 120], "top_n": 5},
+    },
+    "BETA_PREDICTION": {
+        "module": beta_fundamental,
+        "type": "experimental",
+        "description": "个股β预测模型(Stage 2)：7个基本面因子代理(规模/盈利稳定性/成长性/经营杠杆/财务杠杆/资产质量/量能趋势)预测β系数",
+        "source": "AI量化选股第二阶段——基于个股基本面特征因子的β系数预测",
+        "default_params": {"hist_beta_weight": 0.60, "fundamental_weight": 0.40},
+    },
+    "TWO_STAGE_SELECTION": {
+        "module": industry_rotation,
+        "type": "selection",
+        "description": "两阶段AI选股：行业轮动(Top5主线行业) + 个股β排序(每行业Top10)。双层垂直AI体系(宏观→微观)",
+        "source": "AI量化选股模型——行业配置+个股精选双层垂直体系",
+        "default_params": {"top_industries": 5, "stocks_per_industry": 10, "min_trend_score": 0.45},
     },
 }
 

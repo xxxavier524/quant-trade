@@ -1,0 +1,483 @@
+{
+  "timestamp": "2026-05-21",
+  "n_cases": 45,
+  "missing_data": [
+    "920807"
+  ],
+  "combined_detection_rate": 100.0,
+  "per_strategy": {
+    "B1_FORMULA": {
+      "detected": 45,
+      "rate": 100.0
+    },
+    "BRICK_ULTRA": {
+      "detected": 45,
+      "rate": 100.0
+    },
+    "NEEDLE_ENHANCED": {
+      "detected": 2,
+      "rate": 4.4
+    },
+    "B1_ENHANCED": {
+      "detected": 45,
+      "rate": 100.0
+    },
+    "B1_SUPER": {
+      "detected": 0,
+      "rate": 0.0
+    }
+  },
+  "per_case": [
+    {
+      "symbol": "601869",
+      "name": "\u6848\u4f8b20260517",
+      "total": 423,
+      "B1_FORMULA": 99,
+      "BRICK_ULTRA": 169,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 155,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "600674",
+      "name": "\u6848\u4f8b20260517",
+      "total": 410,
+      "B1_FORMULA": 98,
+      "BRICK_ULTRA": 159,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 153,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "603016",
+      "name": "\u6848\u4f8b20260517",
+      "total": 403,
+      "B1_FORMULA": 101,
+      "BRICK_ULTRA": 166,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 136,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "600601",
+      "name": "\u6848\u4f8b20260517",
+      "total": 402,
+      "B1_FORMULA": 105,
+      "BRICK_ULTRA": 152,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 145,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "002947",
+      "name": "",
+      "total": 396,
+      "B1_FORMULA": 99,
+      "BRICK_ULTRA": 157,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 140,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "300571",
+      "name": "\u6848\u4f8b20260517",
+      "total": 394,
+      "B1_FORMULA": 80,
+      "BRICK_ULTRA": 176,
+      "NEEDLE_ENHANCED": 1,
+      "B1_ENHANCED": 137,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "605318",
+      "name": "\u6848\u4f8b20260517",
+      "total": 392,
+      "B1_FORMULA": 107,
+      "BRICK_ULTRA": 127,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 158,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "300283",
+      "name": "",
+      "total": 389,
+      "B1_FORMULA": 97,
+      "BRICK_ULTRA": 157,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 135,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "601888",
+      "name": "\u6848\u4f8b20260517",
+      "total": 386,
+      "B1_FORMULA": 100,
+      "BRICK_ULTRA": 169,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 117,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "300069",
+      "name": "",
+      "total": 385,
+      "B1_FORMULA": 92,
+      "BRICK_ULTRA": 155,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 138,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "603345",
+      "name": "",
+      "total": 382,
+      "B1_FORMULA": 110,
+      "BRICK_ULTRA": 141,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 131,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "002074",
+      "name": "\u6848\u4f8b20260517",
+      "total": 380,
+      "B1_FORMULA": 96,
+      "BRICK_ULTRA": 160,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 124,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "002940",
+      "name": "\u6848\u4f8b20260517",
+      "total": 378,
+      "B1_FORMULA": 107,
+      "BRICK_ULTRA": 141,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 130,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "300503",
+      "name": "\u6848\u4f8b20260517",
+      "total": 373,
+      "B1_FORMULA": 86,
+      "BRICK_ULTRA": 163,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 124,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "600184",
+      "name": "",
+      "total": 373,
+      "B1_FORMULA": 90,
+      "BRICK_ULTRA": 151,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 132,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "600366",
+      "name": "\u6848\u4f8b20260517",
+      "total": 372,
+      "B1_FORMULA": 94,
+      "BRICK_ULTRA": 152,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 126,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "603667",
+      "name": "\u6848\u4f8b20260517",
+      "total": 372,
+      "B1_FORMULA": 81,
+      "BRICK_ULTRA": 156,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 135,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "002475",
+      "name": "",
+      "total": 371,
+      "B1_FORMULA": 83,
+      "BRICK_ULTRA": 171,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 117,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "603933",
+      "name": "\u6848\u4f8b20260517",
+      "total": 368,
+      "B1_FORMULA": 79,
+      "BRICK_ULTRA": 166,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 123,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "002705",
+      "name": "",
+      "total": 366,
+      "B1_FORMULA": 98,
+      "BRICK_ULTRA": 148,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 120,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "300390",
+      "name": "\u6848\u4f8b20260517",
+      "total": 366,
+      "B1_FORMULA": 83,
+      "BRICK_ULTRA": 164,
+      "NEEDLE_ENHANCED": 1,
+      "B1_ENHANCED": 118,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "000547",
+      "name": "\u6848\u4f8b20260517",
+      "total": 365,
+      "B1_FORMULA": 91,
+      "BRICK_ULTRA": 159,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 115,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "300706",
+      "name": "\u6848\u4f8b20260517",
+      "total": 365,
+      "B1_FORMULA": 91,
+      "BRICK_ULTRA": 150,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 124,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "300689",
+      "name": "\u6848\u4f8b20260517",
+      "total": 361,
+      "B1_FORMULA": 90,
+      "BRICK_ULTRA": 154,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 117,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "300858",
+      "name": "",
+      "total": 358,
+      "B1_FORMULA": 91,
+      "BRICK_ULTRA": 152,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 115,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "603618",
+      "name": "\u6848\u4f8b20260517",
+      "total": 358,
+      "B1_FORMULA": 90,
+      "BRICK_ULTRA": 141,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 127,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "603819",
+      "name": "",
+      "total": 358,
+      "B1_FORMULA": 84,
+      "BRICK_ULTRA": 154,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 120,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "688321",
+      "name": "\u6848\u4f8b20260517",
+      "total": 356,
+      "B1_FORMULA": 87,
+      "BRICK_ULTRA": 158,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 111,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "688799",
+      "name": "\u6848\u4f8b20260517",
+      "total": 354,
+      "B1_FORMULA": 97,
+      "BRICK_ULTRA": 126,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 131,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "300782",
+      "name": "",
+      "total": 349,
+      "B1_FORMULA": 81,
+      "BRICK_ULTRA": 159,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 109,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "605198",
+      "name": "\u6848\u4f8b20260517",
+      "total": 349,
+      "B1_FORMULA": 85,
+      "BRICK_ULTRA": 145,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 119,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "601778",
+      "name": "\u6848\u4f8b20260517",
+      "total": 348,
+      "B1_FORMULA": 86,
+      "BRICK_ULTRA": 145,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 117,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "600487",
+      "name": "\u6848\u4f8b20260517",
+      "total": 345,
+      "B1_FORMULA": 71,
+      "BRICK_ULTRA": 157,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 117,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "002943",
+      "name": "\u6848\u4f8b20260517",
+      "total": 327,
+      "B1_FORMULA": 81,
+      "BRICK_ULTRA": 137,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 109,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "600641",
+      "name": "",
+      "total": 323,
+      "B1_FORMULA": 71,
+      "BRICK_ULTRA": 149,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 103,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "300671",
+      "name": "",
+      "total": 311,
+      "B1_FORMULA": 66,
+      "BRICK_ULTRA": 154,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 91,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "300903",
+      "name": "",
+      "total": 308,
+      "B1_FORMULA": 71,
+      "BRICK_ULTRA": 140,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 97,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "003041",
+      "name": "\u6848\u4f8b20260517",
+      "total": 303,
+      "B1_FORMULA": 68,
+      "BRICK_ULTRA": 132,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 103,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "605378",
+      "name": "\u6848\u4f8b20260517",
+      "total": 292,
+      "B1_FORMULA": 63,
+      "BRICK_ULTRA": 129,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 100,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "301076",
+      "name": "\u6848\u4f8b20260517",
+      "total": 282,
+      "B1_FORMULA": 64,
+      "BRICK_ULTRA": 123,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 95,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "301093",
+      "name": "\u6848\u4f8b20260517",
+      "total": 274,
+      "B1_FORMULA": 58,
+      "BRICK_ULTRA": 114,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 102,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "301285",
+      "name": "\u6848\u4f8b20260517",
+      "total": 258,
+      "B1_FORMULA": 64,
+      "BRICK_ULTRA": 92,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 102,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "301217",
+      "name": "\u6848\u4f8b20260517",
+      "total": 231,
+      "B1_FORMULA": 55,
+      "BRICK_ULTRA": 102,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 74,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "301282",
+      "name": "",
+      "total": 216,
+      "B1_FORMULA": 49,
+      "BRICK_ULTRA": 92,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 75,
+      "B1_SUPER": 0
+    },
+    {
+      "symbol": "301526",
+      "name": "\u6848\u4f8b20260517",
+      "total": 133,
+      "B1_FORMULA": 24,
+      "BRICK_ULTRA": 66,
+      "NEEDLE_ENHANCED": 0,
+      "B1_ENHANCED": 43,
+      "B1_SUPER": 0
+    }
+  ],
+  "undetected": []
+}

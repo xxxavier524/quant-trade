@@ -48,3 +48,542 @@
 2026-05-21 00:27:52,029 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
   File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
 2026-05-21 00:27:52,029 [MONITOR] 第 2 轮完成 (5/6). 下次: 2026-05-21T00:27:52.029629 + 3600s
+2026-05-21 01:27:52,094 [MONITOR] -- 第 3 轮检查 2026-05-21T01:27:52.093977 --
+2026-05-21 01:27:52,147 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 01:27:53,025 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 01:27:55,473 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 01:27:55,948 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 01:28:20,206 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 01:28:26,257 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 01:28:26,258 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 01:28:26,258 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 01:28:26,259 [MONITOR] 第 3 轮完成 (5/6). 下次: 2026-05-21T01:28:26.259096 + 3600s
+2026-05-21 02:28:24,771 [MONITOR] -- 第 4 轮检查 2026-05-21T02:28:24.771821 --
+2026-05-21 02:28:24,841 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 02:28:25,720 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 02:28:28,153 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 02:28:28,627 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 02:28:52,988 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 02:28:58,170 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 02:28:58,170 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 02:28:58,170 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 02:28:58,171 [MONITOR] 第 4 轮完成 (5/6). 下次: 2026-05-21T02:28:58.171145 + 3600s
+2026-05-21 03:28:59,644 [MONITOR] -- 第 5 轮检查 2026-05-21T03:28:59.644829 --
+2026-05-21 03:28:59,700 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 03:29:00,579 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 03:29:03,018 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 03:29:03,496 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 03:29:27,761 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 03:29:33,397 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 03:29:33,398 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 03:29:33,398 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 03:29:33,398 [MONITOR] 第 5 轮完成 (5/6). 下次: 2026-05-21T03:29:33.398751 + 3600s
+2026-05-21 04:29:33,347 [MONITOR] -- 第 6 轮检查 2026-05-21T04:29:33.347884 --
+2026-05-21 04:29:33,403 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 04:29:34,280 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 04:29:36,698 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 04:29:37,178 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 04:30:01,435 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 04:30:07,365 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 04:30:07,365 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 04:30:07,365 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 04:30:07,366 [MONITOR] 第 6 轮完成 (5/6). 下次: 2026-05-21T04:30:07.366157 + 3600s
+2026-05-21 05:30:07,473 [MONITOR] -- 第 7 轮检查 2026-05-21T05:30:07.473044 --
+2026-05-21 05:30:07,529 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 05:30:08,446 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 05:30:10,852 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 05:30:11,325 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 05:30:35,588 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 05:30:41,296 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 05:30:41,296 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 05:30:41,296 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 05:30:41,298 [MONITOR] 第 7 轮完成 (5/6). 下次: 2026-05-21T05:30:41.298457 + 3600s
+2026-05-21 06:30:41,380 [MONITOR] -- 第 8 轮检查 2026-05-21T06:30:41.380279 --
+2026-05-21 06:30:41,449 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 06:30:42,330 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 06:30:44,758 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 06:30:45,234 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 06:31:09,510 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 06:31:15,631 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 06:31:15,631 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 06:31:15,631 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 06:31:15,632 [MONITOR] 第 8 轮完成 (5/6). 下次: 2026-05-21T06:31:15.632860 + 3600s
+2026-05-21 07:31:15,614 [MONITOR] -- 第 9 轮检查 2026-05-21T07:31:15.614274 --
+2026-05-21 07:31:15,672 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 07:31:16,553 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 07:31:19,023 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 07:31:19,499 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 07:31:43,771 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 07:31:49,204 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 07:31:49,205 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 07:31:49,205 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 07:31:49,205 [MONITOR] 第 9 轮完成 (5/6). 下次: 2026-05-21T07:31:49.205945 + 3600s
+2026-05-21 08:31:49,136 [MONITOR] -- 第 10 轮检查 2026-05-21T08:31:49.136729 --
+2026-05-21 08:31:49,198 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 08:31:50,077 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 08:31:52,482 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 08:31:52,961 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 08:32:17,211 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 08:32:22,956 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 08:32:22,956 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 08:32:22,956 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 08:32:22,957 [MONITOR] 第 10 轮完成 (5/6). 下次: 2026-05-21T08:32:22.957148 + 3600s
+2026-05-21 09:32:23,014 [MONITOR] -- 第 11 轮检查 2026-05-21T09:32:23.013794 --
+2026-05-21 09:32:23,065 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 09:32:23,944 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 09:32:26,384 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 09:32:26,862 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 09:32:51,121 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 09:33:22,907 [MONITOR]   ❌ akshare_reachable: 0%|          | 0/58 [00:00<?, ?it/s]
+  2%|▏         | 1/58 [00:06<06:16,  6.61s/
+2026-05-21 09:33:22,907 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 09:33:22,907 [MONITOR]   [WARN] akshare_reachable: 0%|          | 0/58 [00:00<?, ?it/s]
+  2%|▏         | 1/58 [00:06<06:16,  6.61s/it]
+  3%|▎         |
+2026-05-21 09:33:22,908 [MONITOR] 第 11 轮完成 (5/6). 下次: 2026-05-21T09:33:22.908410 + 3600s
+2026-05-21 10:33:23,008 [MONITOR] -- 第 12 轮检查 2026-05-21T10:33:23.008057 --
+2026-05-21 10:33:23,075 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 10:33:23,952 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 10:33:26,396 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 10:33:26,869 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 10:33:51,162 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 10:34:21,397 [MONITOR]   ❌ akshare_reachable: 0%|          | 0/58 [00:00<?, ?it/s]
+  2%|▏         | 1/58 [00:05<05:03,  5.33s/
+2026-05-21 10:34:21,398 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 10:34:21,398 [MONITOR]   [WARN] akshare_reachable: 0%|          | 0/58 [00:00<?, ?it/s]
+  2%|▏         | 1/58 [00:05<05:03,  5.33s/it]
+  3%|▎         |
+2026-05-21 10:34:21,398 [MONITOR] 第 12 轮完成 (5/6). 下次: 2026-05-21T10:34:21.398799 + 3600s
+2026-05-21 11:34:21,424 [MONITOR] -- 第 13 轮检查 2026-05-21T11:34:21.424671 --
+2026-05-21 11:34:21,478 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 11:34:22,353 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 11:34:24,801 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 11:34:25,276 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 11:34:49,528 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 11:34:55,729 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 11:34:55,729 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 11:34:55,729 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 11:34:55,730 [MONITOR] 第 13 轮完成 (5/6). 下次: 2026-05-21T11:34:55.730937 + 3600s
+2026-05-21 12:34:55,715 [MONITOR] -- 第 14 轮检查 2026-05-21T12:34:55.715558 --
+2026-05-21 12:34:55,773 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 12:34:55,957 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 12:34:58,395 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 12:34:58,868 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 12:35:23,133 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 12:35:29,548 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 12:35:29,549 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 12:35:29,549 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 12:35:29,549 [MONITOR] 第 14 轮完成 (5/6). 下次: 2026-05-21T12:35:29.549923 + 3600s
+2026-05-21 13:35:29,684 [MONITOR] -- 第 15 轮检查 2026-05-21T13:35:29.684023 --
+2026-05-21 13:35:29,737 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 13:35:30,615 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 13:35:33,033 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 13:35:33,507 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 13:35:57,755 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 13:36:24,376 [MONITOR]   ❌ akshare_reachable: 0%|          | 0/58 [00:00<?, ?it/s]
+  2%|▏         | 1/58 [00:00<00:56,  1.01it
+2026-05-21 13:36:24,377 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 13:36:24,377 [MONITOR]   [WARN] akshare_reachable: 0%|          | 0/58 [00:00<?, ?it/s]
+  2%|▏         | 1/58 [00:00<00:56,  1.01it/s]
+  3%|▎         |
+2026-05-21 13:36:24,378 [MONITOR] 第 15 轮完成 (5/6). 下次: 2026-05-21T13:36:24.378428 + 3600s
+2026-05-21 14:36:24,460 [MONITOR] -- 第 16 轮检查 2026-05-21T14:36:24.459972 --
+2026-05-21 14:36:24,529 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 14:36:25,407 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 14:36:27,847 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 14:36:28,319 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 14:36:52,582 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 14:37:52,586 [MONITOR]   ❌ akshare_reachable: Command 'cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate &&
+2026-05-21 14:37:52,587 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 14:37:52,587 [MONITOR]   [WARN] akshare_reachable: Command 'cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && no_proxy='*' python
+2026-05-21 14:37:52,588 [MONITOR] 第 16 轮完成 (5/6). 下次: 2026-05-21T14:37:52.588757 + 3600s
+2026-05-21 15:37:52,597 [MONITOR] -- 第 17 轮检查 2026-05-21T15:37:52.597246 --
+2026-05-21 15:37:52,652 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 15:37:53,529 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 15:37:55,965 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 15:37:56,438 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 15:38:20,700 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 15:39:20,705 [MONITOR]   ❌ akshare_reachable: Command 'cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate &&
+2026-05-21 15:39:20,706 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 15:39:20,706 [MONITOR]   [WARN] akshare_reachable: Command 'cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && no_proxy='*' python
+2026-05-21 15:39:20,708 [MONITOR] 第 17 轮完成 (5/6). 下次: 2026-05-21T15:39:20.708134 + 3600s
+2026-05-21 16:39:20,651 [MONITOR] -- 第 18 轮检查 2026-05-21T16:39:20.651059 --
+2026-05-21 16:39:20,712 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 16:39:21,596 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 16:39:24,071 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 16:39:24,545 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 16:39:48,791 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-21 16:39:54,167 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 16:39:54,168 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 16:39:54,168 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 16:39:54,169 [MONITOR] 第 18 轮完成 (5/6). 下次: 2026-05-21T16:39:54.169081 + 3600s
+2026-05-21 17:39:54,238 [MONITOR] -- 第 19 轮检查 2026-05-21T17:39:54.235382 --
+2026-05-21 17:39:54,302 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 17:39:55,180 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 17:39:57,794 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 17:39:58,274 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 17:39:58,653 [MONITOR]   ✅ baostock_reachable: login success!
+0
+logout success!
+2026-05-21 17:40:04,406 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 17:40:04,406 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 17:40:04,406 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 17:40:04,407 [MONITOR] 第 19 轮完成 (5/6). 下次: 2026-05-21T17:40:04.407371 + 3600s
+2026-05-21 18:40:04,476 [MONITOR] -- 第 20 轮检查 2026-05-21T18:40:04.476230 --
+2026-05-21 18:40:04,558 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 18:40:05,439 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 18:40:07,951 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 18:40:08,430 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 18:40:11,797 [MONITOR]   ✅ baostock_reachable: login success!
+0
+logout success!
+2026-05-21 18:40:17,518 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 18:40:17,518 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 18:40:17,518 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 18:40:17,519 [MONITOR] 第 20 轮完成 (5/6). 下次: 2026-05-21T18:40:17.519250 + 3600s
+2026-05-21 19:40:17,539 [MONITOR] -- 第 21 轮检查 2026-05-21T19:40:17.538855 --
+2026-05-21 19:40:17,605 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 19:40:18,481 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 19:40:20,992 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 19:40:21,470 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 19:40:21,917 [MONITOR]   ✅ baostock_reachable: login success!
+0
+logout success!
+2026-05-21 19:40:27,904 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 19:40:27,904 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 19:40:27,904 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 19:40:27,905 [MONITOR] 第 21 轮完成 (5/6). 下次: 2026-05-21T19:40:27.905969 + 3600s
+2026-05-21 20:40:27,979 [MONITOR] -- 第 22 轮检查 2026-05-21T20:40:27.979125 --
+2026-05-21 20:40:28,043 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 20:40:28,921 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 20:40:31,412 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 20:40:31,880 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 20:40:32,315 [MONITOR]   ✅ baostock_reachable: login success!
+0
+logout success!
+2026-05-21 20:40:37,636 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 20:40:37,636 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 20:40:37,636 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 20:40:37,637 [MONITOR] 第 22 轮完成 (5/6). 下次: 2026-05-21T20:40:37.637344 + 3600s
+2026-05-21 21:40:37,686 [MONITOR] -- 第 23 轮检查 2026-05-21T21:40:37.686447 --
+2026-05-21 21:40:37,756 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 21:40:38,634 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 21:40:41,105 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 21:40:41,577 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 21:40:41,977 [MONITOR]   ✅ baostock_reachable: login success!
+0
+logout success!
+2026-05-21 21:40:49,532 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 21:40:49,532 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 21:40:49,532 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 21:40:49,533 [MONITOR] 第 23 轮完成 (5/6). 下次: 2026-05-21T21:40:49.533774 + 3600s
+2026-05-21 22:40:49,479 [MONITOR] -- 第 24 轮检查 2026-05-21T22:40:49.479131 --
+2026-05-21 22:40:49,543 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 22:40:50,429 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 22:40:52,890 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passe
+2026-05-21 22:40:53,369 [MONITOR]   ✅ factor_registry_importable: 20
+2026-05-21 22:40:53,883 [MONITOR]   ✅ baostock_reachable: login success!
+0
+logout success!
+2026-05-21 22:41:00,165 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 22:41:00,165 [MONITOR] ⚠️ 1 项失败:
+2026-05-21 22:41:00,165 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 22:41:00,166 [MONITOR] 第 24 轮完成 (5/6). 下次: 2026-05-21T22:41:00.166341 + 3600s
+2026-05-21 23:41:00,081 [MONITOR] -- 第 25 轮检查 2026-05-21T23:41:00.081594 --
+2026-05-21 23:41:00,116 [MONITOR]   ✅ data_download_running: 18
+2026-05-21 23:41:01,032 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-21 23:41:03,699 [MONITOR]   ❌ test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+2026-05-21 23:41:04,230 [MONITOR]   ✅ factor_registry_importable: 23
+2026-05-21 23:41:06,526 [MONITOR]   ✅ baostock_reachable: login success!
+0
+logout success!
+2026-05-21 23:41:12,635 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-21 23:41:12,635 [MONITOR] ⚠️ 2 项失败:
+2026-05-21 23:41:12,636 [MONITOR]   [CRITICAL] test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+1 failed, 14 passed
+2026-05-21 23:41:12,636 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-21 23:41:12,636 [MONITOR]   🔧 执行修复: test_suite_passing → cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q
+2026-05-21 23:41:14,851 [MONITOR] 🔴 1 CRITICAL 失败!
+2026-05-21 23:41:14,851 [MONITOR] 第 25 轮完成 (4/6). 下次: 2026-05-21T23:41:14.851861 + 3600s
+2026-05-22 00:41:14,932 [MONITOR] -- 第 26 轮检查 2026-05-22T00:41:14.931662 --
+2026-05-22 00:41:14,984 [MONITOR]   ✅ data_download_running: 18
+2026-05-22 00:41:15,862 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-22 00:41:18,398 [MONITOR]   ❌ test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+2026-05-22 00:41:18,873 [MONITOR]   ✅ factor_registry_importable: 23
+2026-05-22 00:41:43,192 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-22 00:41:48,892 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-22 00:41:48,892 [MONITOR] ⚠️ 2 项失败:
+2026-05-22 00:41:48,892 [MONITOR]   [CRITICAL] test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+1 failed, 14 passed
+2026-05-22 00:41:48,892 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-22 00:41:48,893 [MONITOR]   🔧 执行修复: test_suite_passing → cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q
+2026-05-22 00:41:51,206 [MONITOR] 🔴 1 CRITICAL 失败!
+2026-05-22 00:41:51,206 [MONITOR] 第 26 轮完成 (4/6). 下次: 2026-05-22T00:41:51.206928 + 3600s
+2026-05-22 01:41:51,253 [MONITOR] -- 第 27 轮检查 2026-05-22T01:41:51.253639 --
+2026-05-22 01:41:51,305 [MONITOR]   ✅ data_download_running: 18
+2026-05-22 01:41:52,186 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-22 01:41:54,698 [MONITOR]   ❌ test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+2026-05-22 01:41:55,174 [MONITOR]   ✅ factor_registry_importable: 23
+2026-05-22 01:42:19,441 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-22 01:42:25,594 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-22 01:42:25,594 [MONITOR] ⚠️ 2 项失败:
+2026-05-22 01:42:25,594 [MONITOR]   [CRITICAL] test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+1 failed, 14 passed
+2026-05-22 01:42:25,594 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-22 01:42:25,594 [MONITOR]   🔧 执行修复: test_suite_passing → cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q
+2026-05-22 01:42:27,844 [MONITOR] 🔴 1 CRITICAL 失败!
+2026-05-22 01:42:27,844 [MONITOR] 第 27 轮完成 (4/6). 下次: 2026-05-22T01:42:27.844821 + 3600s
+2026-05-22 02:42:27,986 [MONITOR] -- 第 28 轮检查 2026-05-22T02:42:27.986404 --
+2026-05-22 02:42:28,060 [MONITOR]   ✅ data_download_running: 18
+2026-05-22 02:42:28,937 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-22 02:42:31,468 [MONITOR]   ❌ test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+2026-05-22 02:42:31,945 [MONITOR]   ✅ factor_registry_importable: 23
+2026-05-22 02:42:56,211 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-22 02:43:02,129 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-22 02:43:02,129 [MONITOR] ⚠️ 2 项失败:
+2026-05-22 02:43:02,129 [MONITOR]   [CRITICAL] test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+1 failed, 14 passed
+2026-05-22 02:43:02,129 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-22 02:43:02,129 [MONITOR]   🔧 执行修复: test_suite_passing → cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q
+2026-05-22 02:43:04,343 [MONITOR] 🔴 1 CRITICAL 失败!
+2026-05-22 02:43:04,343 [MONITOR] 第 28 轮完成 (4/6). 下次: 2026-05-22T02:43:04.343164 + 3600s
+2026-05-22 03:43:04,350 [MONITOR] -- 第 29 轮检查 2026-05-22T03:43:04.349844 --
+2026-05-22 03:43:04,404 [MONITOR]   ✅ data_download_running: 18
+2026-05-22 03:43:05,287 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-22 03:43:07,807 [MONITOR]   ❌ test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+2026-05-22 03:43:08,281 [MONITOR]   ✅ factor_registry_importable: 23
+2026-05-22 03:43:32,544 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-22 03:43:39,040 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-22 03:43:39,040 [MONITOR] ⚠️ 2 项失败:
+2026-05-22 03:43:39,040 [MONITOR]   [CRITICAL] test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+1 failed, 14 passed
+2026-05-22 03:43:39,040 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-22 03:43:39,040 [MONITOR]   🔧 执行修复: test_suite_passing → cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q
+2026-05-22 03:43:41,246 [MONITOR] 🔴 1 CRITICAL 失败!
+2026-05-22 03:43:41,246 [MONITOR] 第 29 轮完成 (4/6). 下次: 2026-05-22T03:43:41.246631 + 3600s
+2026-05-22 04:43:41,321 [MONITOR] -- 第 30 轮检查 2026-05-22T04:43:41.321346 --
+2026-05-22 04:43:41,379 [MONITOR]   ✅ data_download_running: 18
+2026-05-22 04:43:42,283 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-22 04:43:44,782 [MONITOR]   ❌ test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+2026-05-22 04:43:45,257 [MONITOR]   ✅ factor_registry_importable: 23
+2026-05-22 04:44:09,614 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-22 04:44:15,797 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-22 04:44:15,797 [MONITOR] ⚠️ 2 项失败:
+2026-05-22 04:44:15,797 [MONITOR]   [CRITICAL] test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+1 failed, 14 passed
+2026-05-22 04:44:15,797 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-22 04:44:15,797 [MONITOR]   🔧 执行修复: test_suite_passing → cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q
+2026-05-22 04:44:18,097 [MONITOR] 🔴 1 CRITICAL 失败!
+2026-05-22 04:44:18,097 [MONITOR] 第 30 轮完成 (4/6). 下次: 2026-05-22T04:44:18.097898 + 3600s
+2026-05-22 05:44:18,170 [MONITOR] -- 第 31 轮检查 2026-05-22T05:44:18.170273 --
+2026-05-22 05:44:18,229 [MONITOR]   ✅ data_download_running: 18
+2026-05-22 05:44:19,108 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-22 05:44:21,625 [MONITOR]   ❌ test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+2026-05-22 05:44:22,105 [MONITOR]   ✅ factor_registry_importable: 23
+2026-05-22 05:44:46,370 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-22 05:44:52,067 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-22 05:44:52,067 [MONITOR] ⚠️ 2 项失败:
+2026-05-22 05:44:52,067 [MONITOR]   [CRITICAL] test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+1 failed, 14 passed
+2026-05-22 05:44:52,067 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-22 05:44:52,067 [MONITOR]   🔧 执行修复: test_suite_passing → cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q
+2026-05-22 05:44:54,322 [MONITOR] 🔴 1 CRITICAL 失败!
+2026-05-22 05:44:54,322 [MONITOR] 第 31 轮完成 (4/6). 下次: 2026-05-22T05:44:54.322787 + 3600s
+2026-05-22 06:44:54,363 [MONITOR] -- 第 32 轮检查 2026-05-22T06:44:54.363279 --
+2026-05-22 06:44:54,440 [MONITOR]   ✅ data_download_running: 18
+2026-05-22 06:44:55,318 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-22 06:44:57,836 [MONITOR]   ❌ test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+2026-05-22 06:44:58,312 [MONITOR]   ✅ factor_registry_importable: 23
+2026-05-22 06:45:22,565 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-22 06:45:28,033 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-22 06:45:28,033 [MONITOR] ⚠️ 2 项失败:
+2026-05-22 06:45:28,033 [MONITOR]   [CRITICAL] test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+1 failed, 14 passed
+2026-05-22 06:45:28,033 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-22 06:45:28,033 [MONITOR]   🔧 执行修复: test_suite_passing → cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q
+2026-05-22 06:45:30,248 [MONITOR] 🔴 1 CRITICAL 失败!
+2026-05-22 06:45:30,248 [MONITOR] 第 32 轮完成 (4/6). 下次: 2026-05-22T06:45:30.248403 + 3600s
+2026-05-22 07:45:30,093 [MONITOR] -- 第 33 轮检查 2026-05-22T07:45:30.092996 --
+2026-05-22 07:45:30,147 [MONITOR]   ✅ data_download_running: 18
+2026-05-22 07:45:31,026 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-22 07:45:33,554 [MONITOR]   ❌ test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+2026-05-22 07:45:34,030 [MONITOR]   ✅ factor_registry_importable: 23
+2026-05-22 07:45:58,291 [MONITOR]   ✅ baostock_reachable: 服务器连接失败，请稍后再试。
+[Errno 32] Broken pipe
+接收数据异常，请稍后再试。
+10002007
+[Errno 32] Broken p
+2026-05-22 07:46:03,820 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-22 07:46:03,820 [MONITOR] ⚠️ 2 项失败:
+2026-05-22 07:46:03,820 [MONITOR]   [CRITICAL] test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+1 failed, 14 passed
+2026-05-22 07:46:03,820 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-22 07:46:03,820 [MONITOR]   🔧 执行修复: test_suite_passing → cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q
+2026-05-22 07:46:06,032 [MONITOR] 🔴 1 CRITICAL 失败!
+2026-05-22 07:46:06,032 [MONITOR] 第 33 轮完成 (4/6). 下次: 2026-05-22T07:46:06.032783 + 3600s
