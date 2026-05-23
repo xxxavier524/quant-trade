@@ -1,6 +1,6 @@
 {
-  "last_check": "2026-05-22T20:53:24.981403",
-  "cycle": 46,
+  "last_check": "2026-05-23T17:58:17.036499",
+  "cycle": 67,
   "total": 6,
   "passed": 4,
   "failed": 2,
@@ -9,7 +9,7 @@
       "name": "data_download_running",
       "desc": "\u6570\u636e\u4e0b\u8f7d\u8fdb\u7a0b\u5b58\u6d3b",
       "passed": true,
-      "output": "18",
+      "output": "16",
       "severity": "WARN",
       "action": "cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && no_proxy='*' python -u scripts/_smart_downloader.py &"
     },
@@ -25,7 +25,7 @@
       "name": "test_suite_passing",
       "desc": "\u6d4b\u8bd5\u5957\u4ef6 100% \u901a\u8fc7",
       "passed": false,
-      "output": "FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...\n1 failed, 14 passed, 3 warnings in 2.09s",
+      "output": "FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...\n1 failed, 14 passed, 3 warnings in 2.02s",
       "severity": "CRITICAL",
       "action": "cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q"
     },
