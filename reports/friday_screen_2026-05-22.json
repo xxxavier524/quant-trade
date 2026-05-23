@@ -1,0 +1,786 @@
+{
+  "date": "2026-05-22",
+  "n_stocks_with_data": 4649,
+  "strategies": {
+    "B1_FORMULA": [
+      {
+        "symbol": "000027",
+        "last_signal": "2026-05-22",
+        "total_signals": 114
+      },
+      {
+        "symbol": "000036",
+        "last_signal": "2026-05-22",
+        "total_signals": 97
+      },
+      {
+        "symbol": "000063",
+        "last_signal": "2026-05-22",
+        "total_signals": 72
+      },
+      {
+        "symbol": "000151",
+        "last_signal": "2026-05-22",
+        "total_signals": 89
+      },
+      {
+        "symbol": "000301",
+        "last_signal": "2026-05-22",
+        "total_signals": 113
+      },
+      {
+        "symbol": "000402",
+        "last_signal": "2026-05-22",
+        "total_signals": 87
+      },
+      {
+        "symbol": "000531",
+        "last_signal": "2026-05-22",
+        "total_signals": 107
+      },
+      {
+        "symbol": "000537",
+        "last_signal": "2026-05-22",
+        "total_signals": 98
+      },
+      {
+        "symbol": "000539",
+        "last_signal": "2026-05-22",
+        "total_signals": 135
+      },
+      {
+        "symbol": "000553",
+        "last_signal": "2026-05-22",
+        "total_signals": 95
+      },
+      {
+        "symbol": "000565",
+        "last_signal": "2026-05-22",
+        "total_signals": 82
+      },
+      {
+        "symbol": "000567",
+        "last_signal": "2026-05-22",
+        "total_signals": 121
+      },
+      {
+        "symbol": "000570",
+        "last_signal": "2026-05-22",
+        "total_signals": 116
+      },
+      {
+        "symbol": "000589",
+        "last_signal": "2026-05-22",
+        "total_signals": 136
+      },
+      {
+        "symbol": "000601",
+        "last_signal": "2026-05-22",
+        "total_signals": 98
+      },
+      {
+        "symbol": "000620",
+        "last_signal": "2026-05-22",
+        "total_signals": 90
+      },
+      {
+        "symbol": "000628",
+        "last_signal": "2026-05-22",
+        "total_signals": 89
+      },
+      {
+        "symbol": "000338",
+        "last_signal": "2026-05-21",
+        "total_signals": 123
+      },
+      {
+        "symbol": "000509",
+        "last_signal": "2026-05-21",
+        "total_signals": 120
+      },
+      {
+        "symbol": "000552",
+        "last_signal": "2026-05-21",
+        "total_signals": 105
+      },
+      {
+        "symbol": "000039",
+        "last_signal": "2026-05-20",
+        "total_signals": 102
+      },
+      {
+        "symbol": "000060",
+        "last_signal": "2026-05-20",
+        "total_signals": 97
+      },
+      {
+        "symbol": "000066",
+        "last_signal": "2026-05-20",
+        "total_signals": 81
+      },
+      {
+        "symbol": "000420",
+        "last_signal": "2026-05-20",
+        "total_signals": 115
+      },
+      {
+        "symbol": "000426",
+        "last_signal": "2026-05-20",
+        "total_signals": 98
+      },
+      {
+        "symbol": "000517",
+        "last_signal": "2026-05-20",
+        "total_signals": 120
+      },
+      {
+        "symbol": "000546",
+        "last_signal": "2026-05-20",
+        "total_signals": 86
+      },
+      {
+        "symbol": "000560",
+        "last_signal": "2026-05-20",
+        "total_signals": 121
+      },
+      {
+        "symbol": "000605",
+        "last_signal": "2026-05-20",
+        "total_signals": 102
+      },
+      {
+        "symbol": "000626",
+        "last_signal": "2026-05-20",
+        "total_signals": 104
+      }
+    ],
+    "BRICK_ULTRA": [
+      {
+        "symbol": "000007",
+        "last_signal": "2026-05-22",
+        "total_signals": 163
+      },
+      {
+        "symbol": "000030",
+        "last_signal": "2026-05-22",
+        "total_signals": 163
+      },
+      {
+        "symbol": "000049",
+        "last_signal": "2026-05-22",
+        "total_signals": 164
+      },
+      {
+        "symbol": "000060",
+        "last_signal": "2026-05-22",
+        "total_signals": 159
+      },
+      {
+        "symbol": "000338",
+        "last_signal": "2026-05-22",
+        "total_signals": 161
+      },
+      {
+        "symbol": "000408",
+        "last_signal": "2026-05-22",
+        "total_signals": 154
+      },
+      {
+        "symbol": "000417",
+        "last_signal": "2026-05-22",
+        "total_signals": 165
+      },
+      {
+        "symbol": "000426",
+        "last_signal": "2026-05-22",
+        "total_signals": 164
+      },
+      {
+        "symbol": "000510",
+        "last_signal": "2026-05-22",
+        "total_signals": 161
+      },
+      {
+        "symbol": "000519",
+        "last_signal": "2026-05-22",
+        "total_signals": 155
+      },
+      {
+        "symbol": "000525",
+        "last_signal": "2026-05-22",
+        "total_signals": 155
+      },
+      {
+        "symbol": "000528",
+        "last_signal": "2026-05-22",
+        "total_signals": 140
+      },
+      {
+        "symbol": "000529",
+        "last_signal": "2026-05-22",
+        "total_signals": 162
+      },
+      {
+        "symbol": "000532",
+        "last_signal": "2026-05-22",
+        "total_signals": 159
+      },
+      {
+        "symbol": "000541",
+        "last_signal": "2026-05-22",
+        "total_signals": 152
+      },
+      {
+        "symbol": "000555",
+        "last_signal": "2026-05-22",
+        "total_signals": 168
+      },
+      {
+        "symbol": "000558",
+        "last_signal": "2026-05-22",
+        "total_signals": 162
+      },
+      {
+        "symbol": "000564",
+        "last_signal": "2026-05-22",
+        "total_signals": 171
+      },
+      {
+        "symbol": "000576",
+        "last_signal": "2026-05-22",
+        "total_signals": 155
+      },
+      {
+        "symbol": "000589",
+        "last_signal": "2026-05-22",
+        "total_signals": 159
+      },
+      {
+        "symbol": "000590",
+        "last_signal": "2026-05-22",
+        "total_signals": 161
+      },
+      {
+        "symbol": "000595",
+        "last_signal": "2026-05-22",
+        "total_signals": 163
+      },
+      {
+        "symbol": "000603",
+        "last_signal": "2026-05-22",
+        "total_signals": 180
+      },
+      {
+        "symbol": "000612",
+        "last_signal": "2026-05-22",
+        "total_signals": 157
+      },
+      {
+        "symbol": "000615",
+        "last_signal": "2026-05-22",
+        "total_signals": 157
+      },
+      {
+        "symbol": "000629",
+        "last_signal": "2026-05-22",
+        "total_signals": 178
+      },
+      {
+        "symbol": "000630",
+        "last_signal": "2026-05-22",
+        "total_signals": 158
+      },
+      {
+        "symbol": "000012",
+        "last_signal": "2026-05-21",
+        "total_signals": 153
+      },
+      {
+        "symbol": "000157",
+        "last_signal": "2026-05-21",
+        "total_signals": 170
+      },
+      {
+        "symbol": "000403",
+        "last_signal": "2026-05-21",
+        "total_signals": 153
+      }
+    ],
+    "NEEDLE_ENHANCED": [
+      {
+        "symbol": "603639",
+        "last_signal": "2026-05-08",
+        "total_signals": 1
+      },
+      {
+        "symbol": "688080",
+        "last_signal": "2026-04-27",
+        "total_signals": 1
+      },
+      {
+        "symbol": "301210",
+        "last_signal": "2026-04-24",
+        "total_signals": 1
+      },
+      {
+        "symbol": "603230",
+        "last_signal": "2026-04-17",
+        "total_signals": 1
+      },
+      {
+        "symbol": "002086",
+        "last_signal": "2026-03-24",
+        "total_signals": 2
+      },
+      {
+        "symbol": "002130",
+        "last_signal": "2026-03-24",
+        "total_signals": 1
+      },
+      {
+        "symbol": "002507",
+        "last_signal": "2026-03-24",
+        "total_signals": 1
+      },
+      {
+        "symbol": "301633",
+        "last_signal": "2026-03-24",
+        "total_signals": 1
+      },
+      {
+        "symbol": "603027",
+        "last_signal": "2026-03-24",
+        "total_signals": 1
+      },
+      {
+        "symbol": "603382",
+        "last_signal": "2026-03-24",
+        "total_signals": 1
+      },
+      {
+        "symbol": "301613",
+        "last_signal": "2026-03-18",
+        "total_signals": 1
+      },
+      {
+        "symbol": "688775",
+        "last_signal": "2026-03-09",
+        "total_signals": 1
+      },
+      {
+        "symbol": "600129",
+        "last_signal": "2026-02-24",
+        "total_signals": 1
+      },
+      {
+        "symbol": "600737",
+        "last_signal": "2026-02-06",
+        "total_signals": 1
+      },
+      {
+        "symbol": "002022",
+        "last_signal": "2026-02-03",
+        "total_signals": 1
+      },
+      {
+        "symbol": "002432",
+        "last_signal": "2026-02-03",
+        "total_signals": 1
+      },
+      {
+        "symbol": "002728",
+        "last_signal": "2026-02-03",
+        "total_signals": 1
+      },
+      {
+        "symbol": "300289",
+        "last_signal": "2026-02-03",
+        "total_signals": 2
+      },
+      {
+        "symbol": "300318",
+        "last_signal": "2026-02-03",
+        "total_signals": 1
+      },
+      {
+        "symbol": "301089",
+        "last_signal": "2026-02-03",
+        "total_signals": 1
+      },
+      {
+        "symbol": "301211",
+        "last_signal": "2026-02-03",
+        "total_signals": 1
+      },
+      {
+        "symbol": "601777",
+        "last_signal": "2026-02-03",
+        "total_signals": 1
+      },
+      {
+        "symbol": "603666",
+        "last_signal": "2026-02-03",
+        "total_signals": 1
+      },
+      {
+        "symbol": "603269",
+        "last_signal": "2026-01-30",
+        "total_signals": 3
+      },
+      {
+        "symbol": "600272",
+        "last_signal": "2026-01-21",
+        "total_signals": 1
+      },
+      {
+        "symbol": "600227",
+        "last_signal": "2026-01-20",
+        "total_signals": 1
+      },
+      {
+        "symbol": "600789",
+        "last_signal": "2026-01-20",
+        "total_signals": 1
+      },
+      {
+        "symbol": "600930",
+        "last_signal": "2026-01-20",
+        "total_signals": 1
+      },
+      {
+        "symbol": "600095",
+        "last_signal": "2026-01-19",
+        "total_signals": 1
+      },
+      {
+        "symbol": "002909",
+        "last_signal": "2026-01-05",
+        "total_signals": 2
+      }
+    ],
+    "B1_ENHANCED": [
+      {
+        "symbol": "000027",
+        "last_signal": "2026-05-22",
+        "total_signals": 149
+      },
+      {
+        "symbol": "000036",
+        "last_signal": "2026-05-22",
+        "total_signals": 132
+      },
+      {
+        "symbol": "000063",
+        "last_signal": "2026-05-22",
+        "total_signals": 103
+      },
+      {
+        "symbol": "000151",
+        "last_signal": "2026-05-22",
+        "total_signals": 116
+      },
+      {
+        "symbol": "000301",
+        "last_signal": "2026-05-22",
+        "total_signals": 140
+      },
+      {
+        "symbol": "000338",
+        "last_signal": "2026-05-22",
+        "total_signals": 166
+      },
+      {
+        "symbol": "000402",
+        "last_signal": "2026-05-22",
+        "total_signals": 110
+      },
+      {
+        "symbol": "000417",
+        "last_signal": "2026-05-22",
+        "total_signals": 138
+      },
+      {
+        "symbol": "000531",
+        "last_signal": "2026-05-22",
+        "total_signals": 151
+      },
+      {
+        "symbol": "000537",
+        "last_signal": "2026-05-22",
+        "total_signals": 118
+      },
+      {
+        "symbol": "000539",
+        "last_signal": "2026-05-22",
+        "total_signals": 174
+      },
+      {
+        "symbol": "000553",
+        "last_signal": "2026-05-22",
+        "total_signals": 120
+      },
+      {
+        "symbol": "000565",
+        "last_signal": "2026-05-22",
+        "total_signals": 124
+      },
+      {
+        "symbol": "000567",
+        "last_signal": "2026-05-22",
+        "total_signals": 162
+      },
+      {
+        "symbol": "000570",
+        "last_signal": "2026-05-22",
+        "total_signals": 152
+      },
+      {
+        "symbol": "000589",
+        "last_signal": "2026-05-22",
+        "total_signals": 170
+      },
+      {
+        "symbol": "000595",
+        "last_signal": "2026-05-22",
+        "total_signals": 121
+      },
+      {
+        "symbol": "000601",
+        "last_signal": "2026-05-22",
+        "total_signals": 121
+      },
+      {
+        "symbol": "000615",
+        "last_signal": "2026-05-22",
+        "total_signals": 90
+      },
+      {
+        "symbol": "000620",
+        "last_signal": "2026-05-22",
+        "total_signals": 115
+      },
+      {
+        "symbol": "000628",
+        "last_signal": "2026-05-22",
+        "total_signals": 132
+      },
+      {
+        "symbol": "000404",
+        "last_signal": "2026-05-21",
+        "total_signals": 165
+      },
+      {
+        "symbol": "000509",
+        "last_signal": "2026-05-21",
+        "total_signals": 162
+      },
+      {
+        "symbol": "000552",
+        "last_signal": "2026-05-21",
+        "total_signals": 140
+      },
+      {
+        "symbol": "000039",
+        "last_signal": "2026-05-20",
+        "total_signals": 139
+      },
+      {
+        "symbol": "000060",
+        "last_signal": "2026-05-20",
+        "total_signals": 132
+      },
+      {
+        "symbol": "000066",
+        "last_signal": "2026-05-20",
+        "total_signals": 107
+      },
+      {
+        "symbol": "000420",
+        "last_signal": "2026-05-20",
+        "total_signals": 152
+      },
+      {
+        "symbol": "000426",
+        "last_signal": "2026-05-20",
+        "total_signals": 145
+      },
+      {
+        "symbol": "000429",
+        "last_signal": "2026-05-20",
+        "total_signals": 163
+      }
+    ]
+  },
+  "consensus": {
+    "000027": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000036": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000063": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000151": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000301": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000402": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000531": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000537": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000539": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000553": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000565": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000567": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000570": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000589": {
+      "strategies": [
+        "B1_FORMULA",
+        "BRICK_ULTRA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000601": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000620": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000628": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000338": {
+      "strategies": [
+        "B1_FORMULA",
+        "BRICK_ULTRA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-21"
+    },
+    "000509": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-21"
+    },
+    "000552": {
+      "strategies": [
+        "B1_FORMULA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-21"
+    },
+    "000417": {
+      "strategies": [
+        "BRICK_ULTRA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000595": {
+      "strategies": [
+        "BRICK_ULTRA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000615": {
+      "strategies": [
+        "BRICK_ULTRA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-22"
+    },
+    "000404": {
+      "strategies": [
+        "BRICK_ULTRA",
+        "B1_ENHANCED"
+      ],
+      "last_signal": "2026-05-21"
+    }
+  }
+}
