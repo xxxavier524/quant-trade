@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.alphapulse.daily-update</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/qiushixuan/cc/quantan trade/.venv/bin/python</string>
+        <string>/Users/qiushixuan/cc/quantan trade/scripts/daily_update.py</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>1</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/qiushixuan</string>
+        <key>ALPHAPULSE_DATA_DIR</key>
+        <string>/Volumes/Mac-480g外接/quantan_data/day</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/qiushixuan/cc/quantan trade</string>
+
+    <key>StandardOutPath</key>
+    <string>/Users/qiushixuan/cc/quantan trade/logs/daily_update_stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/qiushixuan/cc/quantan trade/logs/daily_update_stderr.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>KeepAlive</key>
+    <false/>
+</dict>
+</plist>
