@@ -9,12 +9,25 @@ import numpy as np
 from pathlib import Path
 from functools import lru_cache
 import json
+import os
 
 # ── ST / Delisting filter ──
 
+_CACHE_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "st_cache.json"
+
 @lru_cache(maxsize=1)
 def _load_st_list() -> set:
-    """Load ST/delisted stock list from baostock (cached)."""
+    """Load ST/delisted stock list. Uses JSON cache if available, otherwise queries baostock."""
+    # Try JSON cache first
+    if _CACHE_PATH.exists():
+        try:
+            with open(_CACHE_PATH) as f:
+                data = json.load(f)
+            return set(data.get("st_stocks", [])), set(data.get("delisted_stocks", []))
+        except Exception:
+            pass
+
+    # Fallback: query baostock
     try:
         import baostock as bs
         bs.login()
