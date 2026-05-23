@@ -49,12 +49,15 @@ def main():
         d = json.loads(json_path.read_text())
         n_consensus = len(d.get("consensus", {}))
         n_stocks = d.get("n_stocks_screened", 0)
+        fs = d.get("filter_stats", {})
 
         print(f"\n{'='*60}")
         print(f" 今日选股完成")
         print(f"{'='*60}")
-        print(f"  扫描股票: {n_stocks}")
-        print(f"  共识信号(2+策略): {n_consensus} 只")
+        print(f"  过滤前: {d.get('n_before_filter', '?')} 只")
+        print(f"  ST排除: {fs.get('st', '?')} | 退市排除: {fs.get('delisted', '?')}")
+        print(f"  N型排除: {fs.get('n_struct', '?')} | 涨停排除: {fs.get('limit_up', '?')}")
+        print(f"  过滤后: {n_stocks} 只 → 共识信号: {n_consensus} 只")
         if isinstance(d["consensus"], dict):
             for sym, v in sorted(d["consensus"].items(), key=lambda x: -len(x[1]["strategies"])):
                 print(f"    {sym}: {', '.join(v['strategies'])}")

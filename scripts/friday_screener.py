@@ -11,6 +11,10 @@ from alphapulse.strategies.b1_formula_strategy import generate_signals as b1
 from alphapulse.strategies.brick_ultra_strategy import generate_signals as brick
 from alphapulse.strategies.needle_enhanced import generate_signals as needle
 from alphapulse.strategies.b1_enhanced import generate_signals as b1_enh
+from alphapulse.utils.filters import (
+    filter_universe, filter_signal, get_st_stocks, get_delisted_stocks,
+    is_at_limit_up,
+)
 
 DATA_DIR = "/Volumes/Mac-480g外接/quantan_data/day"
 TARGET_DATE = "2026-05-22"
@@ -41,12 +45,38 @@ def main():
 
     print(f"    With data >= 5/19: {len(recent_stocks)} stocks")
 
-    print("\n[2] Running strategies...")
+    # ── Pre-filters ──
+    print("\n[2] Applying filters...")
+    st_set = get_st_stocks()
+    dl_set = get_delisted_stocks()
+
+    # Hard filters: ST, delisted, limit-up (cannot trade)
+    filtered_stocks = {}
+    filter_stats = {"st": 0, "delisted": 0, "limit_up": 0, "ok": 0}
+    for sym, data in recent_stocks.items():
+        if sym in st_set:
+            filter_stats["st"] += 1
+            continue
+        if sym in dl_set:
+            filter_stats["delisted"] += 1
+            continue
+        if is_at_limit_up(data, sym):
+            filter_stats["limit_up"] += 1
+            continue
+        filtered_stocks[sym] = data
+        filter_stats["ok"] += 1
+
+    print(f"    ST excluded: {filter_stats['st']}")
+    print(f"    Delisted excluded: {filter_stats['delisted']}")
+    print(f"    Limit-up excluded: {filter_stats['limit_up']}")
+    print(f"    Passed filter: {filter_stats['ok']} stocks")
+
+    print("\n[3] Running strategies...")
     all_picks = {}
 
     for sname, sfn in STRATS.items():
         picks = []
-        for sym, data in sorted(recent_stocks.items()):
+        for sym, data in sorted(filtered_stocks.items()):
             try:
                 sigs = sfn(data, symbol=sym)
                 if "signal" in sigs.columns:
@@ -95,14 +125,16 @@ def main():
 
     if multi:
         for sym, v in multi:
-            print(f"  {sym}: {', '.join(v['strats'])} (last={v['date']}, total_sigs={v['total']})")
+            print(f"  {sym}: {', '.join(v['strats'])} (last={v['date']}, total={v['total']})")
     else:
         print("  No consensus picks this week.")
 
     # --- Save ---
     out = {
         "target_date": TARGET_DATE,
-        "n_stocks_screened": len(recent_stocks),
+        "n_stocks_screened": len(filtered_stocks),
+        "n_before_filter": len(recent_stocks),
+        "filter_stats": filter_stats,
         "strategies": {
             s: [{"symbol": x[0], "last_signal": x[1], "total_signals": x[2]} for x in picks]
             for s, picks in all_picks.items()

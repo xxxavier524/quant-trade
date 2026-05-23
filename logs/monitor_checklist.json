@@ -1,6 +1,6 @@
 {
-  "last_check": "2026-05-23T17:58:17.036499",
-  "cycle": 67,
+  "last_check": "2026-05-23T18:58:29.839182",
+  "cycle": 68,
   "total": 6,
   "passed": 4,
   "failed": 2,
@@ -25,7 +25,7 @@
       "name": "test_suite_passing",
       "desc": "\u6d4b\u8bd5\u5957\u4ef6 100% \u901a\u8fc7",
       "passed": false,
-      "output": "FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...\n1 failed, 14 passed, 3 warnings in 2.02s",
+      "output": "FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...\n1 failed, 14 passed, 3 warnings in 1.93s",
       "severity": "CRITICAL",
       "action": "cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q"
     },
