@@ -1,0 +1,11 @@
+[2026-05-24 02:00:06.450429] AlphaPulse-A 每日自动化开始
+[INFO] 目标日期: $(date +%Y-%m-%d)
+[INFO] 数据目录: /Volumes/Mac-480g外接/quantan_data/day
+[INFO] 已加载 0 只股票
+[INFO] 因子扫描中...
+[INFO] 因子扫描完成: 0 个因子
+[INFO] 策略信号生成中...
+[INFO] 信号快照: {}
+[INFO] 案例复核中...
+[INFO] 日报已保存至: /Users/qiushixuan/cc/quantan trade/daily_auto_report.md
+[DONE] 执行完成，耗时 9165.8秒
