@@ -165,10 +165,23 @@ async function loadDashboard() {
       `<div class="mc"><div class="v">${info.version}</div><div class="l">版本</div></div>`;
 
     const hist = await api('/api/backtest_history');
+    // Separate case detection entries from backtest entries
+    const btEntries = hist.filter(h => h.file !== 'case_detection_v2');
+    const caseEntries = hist.filter(h => h.file === 'case_detection_v2');
+
+    // Backtest history table
     const tbody = document.querySelector('#dash-history tbody');
-    tbody.innerHTML = hist.slice(0, 10).map(h =>
+    tbody.innerHTML = btEntries.slice(0, 10).map(h =>
       `<tr><td>${h.strategy}</td><td>${h.annual_return ?? '...'}</td><td>${h.max_drawdown ?? '...'}</td><td>${h.sharpe ?? '...'}</td><td>${h.trades ?? '...'}</td></tr>`
     ).join('');
+
+    // New strategies row (case detection hit rates)
+    if (caseEntries.length > 0) {
+      const newStratHtml = caseEntries.map(h =>
+        `<tr><td><b>${h.strategy}</b></td><td style="color:#3fb950">${h.annual_return ?? '...'}</td><td>${h.max_drawdown ?? '...'}</td><td>${h.sharpe ?? '...'}</td><td>${h.trades ?? '...'}</td></tr>`
+      ).join('');
+      tbody.innerHTML += newStratHtml;
+    }
 
     document.getElementById('sys-status').innerHTML = '● 系统就绪 | ' + info.stocks + '只股票 | ' + info.date;
   } catch(e) { toast('无法连接服务器: ' + e.message, false); }
@@ -184,9 +197,60 @@ async function runScreener() {
     let html = `<p style="color:#8b949e;margin-bottom:8px">扫描 ${r.n_stocks} 只股票</p>`;
     for (const [sname, sdata] of Object.entries(r.strategies)) {
       html += `<h4 style="margin-top:12px;color:#58a6ff">${sname}: ${sdata.total_stocks_with_signals} 只有信号</h4>`;
+
+      // Signal sub-type summary for B1_B2_B3
+      if (sdata.signal_types_summary && sname === 'B1_B2_B3') {
+        html += '<div style="font-size:12px;margin:4px 0;color:#8b949e">子类型: ';
+        const st = sdata.signal_types_summary;
+        const b1c = st['B1'] || 0, b2c = st['B2'] || 0, b3c = st['B3'] || 0;
+        html += `<span style="color:#58a6ff">B1=${b1c}</span> `;
+        html += `<span style="color:#3fb950">B2=${b2c}</span> `;
+        html += `<span style="color:#f0883e">B3=${b3c}</span>`;
+        html += '</div>';
+      }
+      // Signal sub-type summary for BRICK_THREE_TYPES
+      if (sdata.signal_types_summary && sname === 'BRICK_THREE_TYPES') {
+        html += '<div style="font-size:12px;margin:4px 0;color:#8b949e">子类型: ';
+        const st = sdata.signal_types_summary;
+        const nj = st['BRICK_N_JUMP'] || 0, cont = st['BRICK_CONTINUATION'] || 0, bo = st['BRICK_BREAKOUT'] || 0;
+        html += `<span style="color:#58a6ff">N_JUMP=${nj}</span> `;
+        html += `<span style="color:#3fb950">CONTINUATION=${cont}</span> `;
+        html += `<span style="color:#d29922">BREAKOUT=${bo}</span>`;
+        html += '</div>';
+      }
+
       if (sdata.top10 && sdata.top10.length > 0) {
-        html += '<table><thead><tr><th>代码</th><th>信号数</th></tr></thead><tbody>';
-        sdata.top10.forEach(x => { html += `<tr><td>${x.symbol}</td><td>${x.signals}</td></tr>`; });
+        html += '<table><thead><tr><th>代码</th><th>信号数</th>';
+        // Add sub-type columns if present
+        const hasSigTypes = sdata.top10.some(x => x.signal_types);
+        const hasBrickTypes = sdata.top10.some(x => x.brick_types);
+        if (hasSigTypes && sname === 'B1_B2_B3') html += '<th>B1</th><th>B2</th><th>B3</th>';
+        if (hasBrickTypes && sname === 'BRICK_THREE_TYPES') html += '<th>N_JUMP</th><th>CONT</th><th>BRKOUT</th>';
+        html += '<th>共识</th></tr></thead><tbody>';
+        sdata.top10.forEach(x => {
+          html += `<tr><td>${x.symbol}</td><td>${x.signals}</td>`;
+          if (hasSigTypes && sname === 'B1_B2_B3') {
+            const st = x.signal_types || {};
+            html += `<td>${st['B1'] || 0}</td><td>${st['B2'] || 0}</td><td>${st['B3'] || 0}</td>`;
+            // Consensus: B3 = trophy, B2 = check
+            let badge = '';
+            if (st['B3'] && st['B3'] > 0) badge = '&#x1F3C6; B3';
+            else if (st['B2'] && st['B2'] > 0) badge = '&#x2705; B2';
+            html += `<td>${badge}</td>`;
+          } else if (hasBrickTypes && sname === 'BRICK_THREE_TYPES') {
+            const bt = x.brick_types || {};
+            html += `<td>${bt['BRICK_N_JUMP'] || 0}</td><td>${bt['BRICK_CONTINUATION'] || 0}</td><td>${bt['BRICK_BREAKOUT'] || 0}</td>`;
+            // Consensus: multi-type = strong
+            const types = Object.keys(bt).filter(k => bt[k] > 0).length;
+            let badge = '';
+            if (types >= 3) badge = '&#x1F3C6; 全形态';
+            else if (types >= 2) badge = '&#x2705; 双确认';
+            html += `<td>${badge}</td>`;
+          } else {
+            html += '<td></td>';
+          }
+          html += '</tr>';
+        });
         html += '</tbody></table>';
       }
     }

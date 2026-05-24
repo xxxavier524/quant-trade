@@ -40,7 +40,7 @@ def api_info():
         "version": "2.0",
         "stocks": n_files,
         "factors": len(FACTOR_REGISTRY),
-        "strategies": ["B1_FORMULA", "BRICK_ULTRA", "NEEDLE_ENHANCED", "B1_ENHANCED", "TWO_STAGE"],
+        "strategies": ["B1_FORMULA", "BRICK_ULTRA", "NEEDLE_ENHANCED", "B1_ENHANCED", "TWO_STAGE", "B1_B2_B3", "BRICK_THREE_TYPES"],
         "date": date.today().isoformat(),
     }
 
@@ -66,6 +66,8 @@ def api_screen(sample: int = Query(200, ge=10, le=500)):
     from alphapulse.strategies.b1_formula_strategy import generate_signals as b1
     from alphapulse.strategies.brick_ultra_strategy import generate_signals as brick
     from alphapulse.strategies.needle_enhanced import generate_signals as needle
+    from alphapulse.strategies.b1_b2_b3_strategy import generate_signals as b1_b2_b3_fn
+    from alphapulse.strategies.brick_three_types import generate_signals as brick_three_types_fn
 
     data_path = Path(DATA_DIR)
     if not data_path.exists():
@@ -77,20 +79,38 @@ def api_screen(sample: int = Query(200, ge=10, le=500)):
         stocks = {k: stocks[k] for k in random.sample(list(stocks.keys()), sample)}
 
     results = {}
-    for strat_name, strat_fn in [("B1_FORMULA", b1), ("BRICK_ULTRA", brick), ("NEEDLE_ENHANCED", needle)]:
+    for strat_name, strat_fn in [
+        ("B1_FORMULA", b1), ("BRICK_ULTRA", brick), ("NEEDLE_ENHANCED", needle),
+        ("B1_B2_B3", b1_b2_b3_fn), ("BRICK_THREE_TYPES", brick_three_types_fn),
+    ]:
         signals_list = []
+        signal_types_summary = {}  # sub-type -> total count across all stocks
         for sym, data in stocks.items():
             try:
                 sigs = strat_fn(data, symbol=sym)
-                n = len(sigs[sigs["signal"] == 1]) if "signal" in sigs.columns else len(sigs)
+                signal_rows = sigs[sigs["signal"] == 1] if "signal" in sigs.columns else sigs
+                n = len(signal_rows)
                 if n > 0:
-                    signals_list.append({"symbol": sym, "signals": n})
+                    entry = {"symbol": sym, "signals": n}
+                    # signal sub-type breakdown
+                    if "signal_type" in signal_rows.columns:
+                        type_counts = signal_rows["signal_type"].value_counts().to_dict()
+                        entry["signal_types"] = type_counts
+                        for t, c in type_counts.items():
+                            signal_types_summary[t] = signal_types_summary.get(t, 0) + c
+                    if "brick_type" in signal_rows.columns:
+                        brick_counts = signal_rows["brick_type"].value_counts().to_dict()
+                        entry["brick_types"] = brick_counts
+                        for t, c in brick_counts.items():
+                            signal_types_summary[t] = signal_types_summary.get(t, 0) + c
+                    signals_list.append(entry)
             except Exception:
                 pass
         signals_list.sort(key=lambda x: -x["signals"])
         results[strat_name] = {
             "total_stocks_with_signals": len(signals_list),
             "top10": signals_list[:10],
+            "signal_types_summary": signal_types_summary if signal_types_summary else None,
         }
 
     return {"n_stocks": len(stocks), "strategies": results}
@@ -222,7 +242,26 @@ def api_backtest_history():
         except Exception:
             pass
 
-    return sorted(results, key=lambda x: x.get("annual_return", 0) or 0, reverse=True)
+    # Add case detection v2 summary (new strategies hit rates)
+    cd_path = reports_dir / "case_detection_v2.json"
+    if cd_path.exists():
+        try:
+            cd = json.loads(cd_path.read_text())
+            cd_summary = cd.get("summary", {})
+            for strat_name, strat_data in cd_summary.items():
+                if isinstance(strat_data, dict):
+                    results.append({
+                        "file": "case_detection_v2",
+                        "strategy": f"{strat_name} (案例命中)",
+                        "annual_return": f"{strat_data.get('rate', 'N/A')}%",
+                        "max_drawdown": "N/A",
+                        "sharpe": f"{strat_data.get('hit', 'N/A')}/{strat_data.get('total', 'N/A')}",
+                        "trades": "案例检测",
+                    })
+        except Exception:
+            pass
+
+    return sorted(results, key=lambda x: x.get("annual_return", 0) if isinstance(x.get("annual_return"), (int, float)) else 0, reverse=True)
 
 
 if __name__ == "__main__":
