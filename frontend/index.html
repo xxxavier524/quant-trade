@@ -8,16 +8,17 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e1e4e8;display:flex;min-height:100vh}
-.sidebar{width:200px;background:#161b22;border-right:1px solid #30363d;padding:12px 0;flex-shrink:0;display:flex;flex-direction:column}
+.sidebar{width:210px;background:#161b22;border-right:1px solid #30363d;padding:12px 0;flex-shrink:0;display:flex;flex-direction:column}
 .sidebar h2{color:#58a6ff;font-size:15px;padding:8px 16px;margin-bottom:4px}
 .sidebar .ver{color:#8b949e;font-size:11px;padding:0 16px 12px}
 .sidebar nav a{display:block;padding:9px 16px;color:#8b949e;text-decoration:none;font-size:13px;border-left:3px solid transparent;cursor:pointer}
 .sidebar nav a:hover,.sidebar nav a.active{color:#e1e4e8;background:#1c2129;border-left-color:#58a6ff}
-.sidebar .status{color:#3fb950;font-size:11px;padding:12px 16px;border-top:1px solid #30363d}
+.sidebar .status{color:#3fb950;font-size:11px;padding:12px 16px;border-top:1px solid #30363d;margin-top:auto}
 .main{flex:1;padding:20px;overflow-y:auto;max-height:100vh}
 .panel{display:none}
 .panel.active{display:block}
 .panel h3{color:#58a6ff;font-size:17px;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #30363d}
+.panel h4{color:#8b949e;font-size:14px;margin:14px 0 8px}
 .row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px}
 .col{flex:1;min-width:140px}
 label{display:block;font-size:12px;color:#8b949e;margin-bottom:3px}
@@ -28,6 +29,8 @@ button:hover{background:#2ea043}
 button.sm{font-size:11px;padding:4px 10px}
 button.s2{background:#30363d}
 button.s2:hover{background:#484f58}
+button.danger{background:#da3633}
+button.danger:hover{background:#f85149}
 .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
 .mc{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;text-align:center}
 .mc .v{font-size:24px;font-weight:700;color:#58a6ff}
@@ -45,25 +48,44 @@ tr:hover{background:#1c2129}
 .bg-sel{background:#23863633;color:#3fb950}
 .bg-ind{background:#d2992233;color:#d29922}
 .bg-exp{background:#da363333;color:#f85149}
+.bg-nlp{background:#b54cff33;color:#b54cff}
+.bg-url{background:#ff9033;color:#ff6a00}
 .spin{display:inline-block;animation:spin 1s linear infinite}
 @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 .loading{color:#d29922;font-size:13px;margin:12px 0}
 .toast{position:fixed;bottom:20px;right:20px;padding:10px 18px;border-radius:6px;color:#fff;font-size:13px;z-index:999}
 .toast.ok{background:#238636}
 .toast.err{background:#da3633}
+.cb-group{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+.cb-group label{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#c9d1d9;padding:3px 8px;background:#21262d;border-radius:4px;cursor:pointer}
+.cb-group input[type=checkbox]{width:auto}
+.card{background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:14px;margin:10px 0}
+.card h4{color:#58a6ff;margin:0 0 8px;font-size:14px}
+.code-block{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:12px;font-family:'SF Mono',Monaco,monospace;font-size:12px;overflow-x:auto;white-space:pre-wrap;color:#c9d1d9;max-height:400px;overflow-y:auto}
+.example-btns{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.example-btns button{font-size:11px;padding:4px 10px;background:#30363d}
+.example-btns button:hover{background:#484f58}
+.filter-stats{display:flex;gap:16px;font-size:12px;color:#8b949e;margin:6px 0}
+.consensus-bar{display:flex;gap:10px;align-items:center;padding:8px 12px;background:#0d1117;border-radius:6px;margin:8px 0}
+.consensus-item{font-size:13px;font-weight:600}
+.consensus-item.b3{color:#f0883e}
+.consensus-item.b2{color:#3fb950}
+.consensus-item.b1{color:#58a6ff}
+textarea.nlp-input{min-height:60px;font-size:14px;resize:vertical}
 </style>
 </head>
 <body>
 
 <div class="sidebar">
   <h2>AlphaPulse-A</h2>
-  <div class="ver">v2.0 · 量化选股系统</div>
+  <div class="ver">v2.1 · 量化选股系统</div>
   <nav>
     <a class="active" data-panel="dash">&#x1F4CA; 仪表盘</a>
     <a data-panel="screen">&#x1F50D; 选股扫描</a>
     <a data-panel="backtest">&#x1F4C8; 回测中心</a>
     <a data-panel="factors">&#x1F9EC; 因子体系</a>
     <a data-panel="cases">&#x1F3AF; 案例检测</a>
+    <a data-panel="url">&#x1F310; URL转因子</a>
     <a data-panel="risk">&#x1F6E1; 风控状态</a>
   </nav>
   <div class="status" id="sys-status">● 系统就绪</div>
@@ -83,10 +105,19 @@ tr:hover{background:#1c2129}
 <div id="panel-screen" class="panel">
   <h3>&#x1F50D; 选股扫描</h3>
   <div class="row">
-    <div class="col"><label>样本数</label><select id="sc-n"><option value="100">100只</option><option value="200" selected>200只</option><option value="300">300只</option></select></div>
+    <div class="col"><label>目标日期</label><input type="date" id="sc-date"></div>
+    <div class="col"><label>股票池</label><select id="sc-universe">
+      <option value="sample">抽样 (200只)</option><option value="100">100只</option>
+      <option value="300">300只</option><option value="500">500只</option><option value="all">全部</option>
+    </select></div>
     <div class="col"><label>&nbsp;</label><button onclick="runScreener()">&#x25B6; 开始扫描</button></div>
   </div>
+  <div style="margin-bottom:8px">
+    <label style="margin-bottom:4px">选择策略</label>
+    <div class="cb-group" id="sc-strategies"></div>
+  </div>
   <div id="sc-loading" class="loading" style="display:none">&#x23F3; 扫描中（约30-60秒）...</div>
+  <div id="sc-filter-stats" class="filter-stats" style="display:none"></div>
   <div id="sc-results"></div>
 </div>
 
@@ -104,8 +135,28 @@ tr:hover{background:#1c2129}
 
 <!-- ====== FACTORS ====== -->
 <div id="panel-factors" class="panel">
-  <h3>&#x1F9EC; 因子体系 (23项)</h3>
-  <table><thead><tr><th>名称</th><th>类型</th><th>描述</th><th>来源</th></tr></thead><tbody id="fac-table"></tbody></table>
+  <h3>&#x1F9EC; 因子体系</h3>
+
+  <!-- NLP to Factor section -->
+  <div class="card">
+    <h4>&#x1F9E0; 自然语言转因子 (NLP)</h4>
+    <div style="margin-bottom:8px">
+      <label>用中文描述你的因子条件</label>
+      <textarea class="nlp-input" id="nlp-desc" placeholder="例如：5日均线上穿10日均线且成交量大于2倍60日均量"></textarea>
+    </div>
+    <div class="example-btns" id="nlp-examples"></div>
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <button onclick="convertNLPFactor()">&#x1F504; 转换为因子</button>
+      <button onclick="backtestNLPFactor()" style="background:#1f6feb" id="nlp-bt-btn" disabled>&#x1F4C8; 一键回测</button>
+    </div>
+    <div id="nlp-loading" class="loading" style="display:none">&#x23F3; 处理中...</div>
+    <div id="nlp-code" style="margin-top:10px"></div>
+    <div id="nlp-metrics" class="metrics" style="display:none"></div>
+  </div>
+
+  <h4 style="margin-top:20px">已注册因子列表</h4>
+  <table><thead><tr><th>名称</th><th>类型</th><th>描述</th><th>来源</th><th>操作</th></tr></thead><tbody id="fac-table"></tbody></table>
+  <div id="fac-bt-metrics" class="metrics" style="display:none"></div>
 </div>
 
 <!-- ====== CASES ====== -->
@@ -114,6 +165,18 @@ tr:hover{background:#1c2129}
   <button onclick="runCaseCheck()">&#x25B6; 检测46只案例股</button>
   <div id="case-loading" class="loading" style="display:none">&#x23F3; 检测中...</div>
   <div id="case-results" style="margin-top:12px"></div>
+</div>
+
+<!-- ====== URL to Factor ====== -->
+<div id="panel-url" class="panel">
+  <h3>&#x1F310; URL转因子</h3>
+  <p style="color:#8b949e;font-size:13px;margin-bottom:12px">输入包含量化策略/因子描述的网页URL，系统将自动解析并提取因子逻辑</p>
+  <div class="row">
+    <div class="col" style="flex:3"><label>网页URL</label><input type="url" id="url-input" placeholder="https://..."></div>
+    <div class="col"><label>&nbsp;</label><button onclick="fetchURLFactor()">&#x1F50D; 获取并解析</button></div>
+  </div>
+  <div id="url-loading" class="loading" style="display:none">&#x23F3; 获取并解析中...</div>
+  <div id="url-results" style="margin-top:12px"></div>
 </div>
 
 <!-- ====== RISK ====== -->
@@ -135,6 +198,7 @@ document.querySelectorAll('[data-panel]').forEach(a => {
     document.getElementById('panel-' + a.dataset.panel).classList.add('active');
     if (a.dataset.panel === 'dash') loadDashboard();
     if (a.dataset.panel === 'factors') loadFactors();
+    if (a.dataset.panel === 'screen') initScreener();
   };
 });
 
@@ -148,8 +212,8 @@ function toast(msg, ok) {
 }
 
 // ── API helpers ──
-async function api(path) {
-  const r = await fetch(path);
+async function api(path, opts) {
+  const r = await fetch(path, opts);
   if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
   return r.json();
 }
@@ -165,86 +229,134 @@ async function loadDashboard() {
       `<div class="mc"><div class="v">${info.version}</div><div class="l">版本</div></div>`;
 
     const hist = await api('/api/backtest_history');
-    // Separate case detection entries from backtest entries
     const btEntries = hist.filter(h => h.file !== 'case_detection_v2');
     const caseEntries = hist.filter(h => h.file === 'case_detection_v2');
 
-    // Backtest history table
     const tbody = document.querySelector('#dash-history tbody');
     tbody.innerHTML = btEntries.slice(0, 10).map(h =>
       `<tr><td>${h.strategy}</td><td>${h.annual_return ?? '...'}</td><td>${h.max_drawdown ?? '...'}</td><td>${h.sharpe ?? '...'}</td><td>${h.trades ?? '...'}</td></tr>`
     ).join('');
 
-    // New strategies row (case detection hit rates)
     if (caseEntries.length > 0) {
-      const newStratHtml = caseEntries.map(h =>
+      tbody.innerHTML += caseEntries.map(h =>
         `<tr><td><b>${h.strategy}</b></td><td style="color:#3fb950">${h.annual_return ?? '...'}</td><td>${h.max_drawdown ?? '...'}</td><td>${h.sharpe ?? '...'}</td><td>${h.trades ?? '...'}</td></tr>`
       ).join('');
-      tbody.innerHTML += newStratHtml;
     }
 
     document.getElementById('sys-status').innerHTML = '● 系统就绪 | ' + info.stocks + '只股票 | ' + info.date;
   } catch(e) { toast('无法连接服务器: ' + e.message, false); }
 }
 
+// ── Screener Init ──
+async function initScreener() {
+  // Set default date to today
+  if (!document.getElementById('sc-date').value) {
+    document.getElementById('sc-date').value = new Date().toISOString().split('T')[0];
+  }
+  // Load strategy checkboxes
+  try {
+    const info = await api('/api/info');
+    const container = document.getElementById('sc-strategies');
+    const strategies = info.strategies || [];
+    container.innerHTML = strategies.map(s =>
+      `<label><input type="checkbox" value="${s}" checked> ${s}</label>`
+    ).join('');
+  } catch(e) {}
+}
+
 // ── Screener ──
 async function runScreener() {
   document.getElementById('sc-loading').style.display = 'block';
   document.getElementById('sc-results').innerHTML = '';
+  document.getElementById('sc-filter-stats').style.display = 'none';
   try {
-    const n = document.getElementById('sc-n').value;
-    const r = await api('/api/screen?sample=' + n);
-    let html = `<p style="color:#8b949e;margin-bottom:8px">扫描 ${r.n_stocks} 只股票</p>`;
-    for (const [sname, sdata] of Object.entries(r.strategies)) {
+    const dateVal = document.getElementById('sc-date').value;
+    const universeVal = document.getElementById('sc-universe').value;
+    const checked = document.querySelectorAll('#sc-strategies input:checked');
+    const strats = Array.from(checked).map(c => c.value).join(',');
+
+    let sample = 200;
+    if (universeVal === 'all') sample = 200;
+    else if (['100','200','300','500'].includes(universeVal)) sample = parseInt(universeVal);
+
+    let url = '/api/screen?sample=' + sample + '&universe=sample&strategies=' + encodeURIComponent(strats);
+    if (universeVal === 'all') url = '/api/screen?sample=500&universe=all&strategies=' + encodeURIComponent(strats);
+    else url = '/api/screen?sample=' + sample + '&universe=sample&strategies=' + encodeURIComponent(strats);
+
+    if (dateVal) url += '&date=' + dateVal;
+
+    const r = await api(url);
+
+    // Filter stats
+    const fs = r.filter_stats || {};
+    document.getElementById('sc-filter-stats').innerHTML =
+      `<span style="color:#f85149">排除ST: ${fs.st_filtered||0}</span>` +
+      `<span style="color:#f0883e">排除退市: ${fs.delisted_filtered||0}</span>` +
+      `<span style="color:#d29922">排除涨停: ${fs.limit_up_filtered||0}</span>` +
+      `<span>加载: ${r.total_loaded||r.n_stocks} / 扫描: ${r.n_stocks}</span>` +
+      `<span>目标日期: ${r.target_date||'最新'}</span>`;
+    document.getElementById('sc-filter-stats').style.display = 'flex';
+
+    let html = `<p style="color:#8b949e;margin-bottom:8px">扫描 ${r.n_stocks} 只股票，${Object.keys(r.strategies||{}).length} 个策略</p>`;
+
+    // Consensus summary across all strategies
+    let b3_total = 0, b2_total = 0, b1_total = 0;
+    const allSyms = new Set();
+
+    for (const [sname, sdata] of Object.entries(r.strategies || {})) {
       html += `<h4 style="margin-top:12px;color:#58a6ff">${sname}: ${sdata.total_stocks_with_signals} 只有信号</h4>`;
 
-      // Signal sub-type summary for B1_B2_B3
-      if (sdata.signal_types_summary && sname === 'B1_B2_B3') {
+      // Sub-type summary
+      if (sdata.signal_types_summary) {
         html += '<div style="font-size:12px;margin:4px 0;color:#8b949e">子类型: ';
         const st = sdata.signal_types_summary;
         const b1c = st['B1'] || 0, b2c = st['B2'] || 0, b3c = st['B3'] || 0;
-        html += `<span style="color:#58a6ff">B1=${b1c}</span> `;
-        html += `<span style="color:#3fb950">B2=${b2c}</span> `;
-        html += `<span style="color:#f0883e">B3=${b3c}</span>`;
-        html += '</div>';
-      }
-      // Signal sub-type summary for BRICK_THREE_TYPES
-      if (sdata.signal_types_summary && sname === 'BRICK_THREE_TYPES') {
-        html += '<div style="font-size:12px;margin:4px 0;color:#8b949e">子类型: ';
-        const st = sdata.signal_types_summary;
+        if (b1c) html += `<span style="color:#58a6ff">B1=${b1c}</span> `;
+        if (b2c) html += `<span style="color:#3fb950">B2=${b2c}</span> `;
+        if (b3c) html += `<span style="color:#f0883e">B3=${b3c}</span> `;
+
         const nj = st['BRICK_N_JUMP'] || 0, cont = st['BRICK_CONTINUATION'] || 0, bo = st['BRICK_BREAKOUT'] || 0;
-        html += `<span style="color:#58a6ff">N_JUMP=${nj}</span> `;
-        html += `<span style="color:#3fb950">CONTINUATION=${cont}</span> `;
-        html += `<span style="color:#d29922">BREAKOUT=${bo}</span>`;
+        if (nj) html += `<span style="color:#58a6ff">N_JUMP=${nj}</span> `;
+        if (cont) html += `<span style="color:#3fb950">CONT=${cont}</span> `;
+        if (bo) html += `<span style="color:#d29922">BO=${bo}</span> `;
+
+        b1_total += b1c; b2_total += b2c; b3_total += b3c;
         html += '</div>';
       }
 
       if (sdata.top10 && sdata.top10.length > 0) {
+        (sdata.top10 || []).forEach(x => allSyms.add(x.symbol));
+
         html += '<table><thead><tr><th>代码</th><th>信号数</th>';
-        // Add sub-type columns if present
-        const hasSigTypes = sdata.top10.some(x => x.signal_types);
-        const hasBrickTypes = sdata.top10.some(x => x.brick_types);
-        if (hasSigTypes && sname === 'B1_B2_B3') html += '<th>B1</th><th>B2</th><th>B3</th>';
-        if (hasBrickTypes && sname === 'BRICK_THREE_TYPES') html += '<th>N_JUMP</th><th>CONT</th><th>BRKOUT</th>';
-        html += '<th>共识</th></tr></thead><tbody>';
-        sdata.top10.forEach(x => {
+        const hasSigTypes = (sdata.top10 || []).some(x => x.signal_types);
+        const hasBrickTypes = (sdata.top10 || []).some(x => x.brick_types);
+        if (hasSigTypes && (sname === 'B1_B2_B3' || (sdata.signal_types_summary && (sdata.signal_types_summary['B1']||sdata.signal_types_summary['B2']||sdata.signal_types_summary['B3'])))) {
+          html += '<th>B1</th><th>B2</th><th>B3</th><th>置信度</th><th>共识</th>';
+        } else if (hasBrickTypes) {
+          html += '<th>N_JUMP</th><th>CONT</th><th>BRKOUT</th><th>共识</th>';
+        } else {
+          html += '<th>共识</th>';
+        }
+        html += '</tr></thead><tbody>';
+
+        (sdata.top10 || []).forEach(x => {
           html += `<tr><td>${x.symbol}</td><td>${x.signals}</td>`;
-          if (hasSigTypes && sname === 'B1_B2_B3') {
+          if (hasSigTypes && (sname === 'B1_B2_B3' || (sdata.signal_types_summary && (sdata.signal_types_summary['B1']||sdata.signal_types_summary['B2']||sdata.signal_types_summary['B3'])))) {
             const st = x.signal_types || {};
             html += `<td>${st['B1'] || 0}</td><td>${st['B2'] || 0}</td><td>${st['B3'] || 0}</td>`;
-            // Consensus: B3 = trophy, B2 = check
+            html += `<td>${x.confidence ? x.confidence.toFixed(2) : '-'}</td>`;
             let badge = '';
-            if (st['B3'] && st['B3'] > 0) badge = '&#x1F3C6; B3';
-            else if (st['B2'] && st['B2'] > 0) badge = '&#x2705; B2';
+            if (st['B3'] && st['B3'] > 0) badge = '<span style="color:#f0883e;font-weight:700">&#x1F3C6 B3</span>';
+            else if (st['B2'] && st['B2'] > 0) badge = '<span style="color:#3fb950;">&#x2705; B2</span>';
+            else badge = '<span style="color:#58a6ff">B1</span>';
             html += `<td>${badge}</td>`;
-          } else if (hasBrickTypes && sname === 'BRICK_THREE_TYPES') {
+          } else if (hasBrickTypes) {
             const bt = x.brick_types || {};
             html += `<td>${bt['BRICK_N_JUMP'] || 0}</td><td>${bt['BRICK_CONTINUATION'] || 0}</td><td>${bt['BRICK_BREAKOUT'] || 0}</td>`;
-            // Consensus: multi-type = strong
             const types = Object.keys(bt).filter(k => bt[k] > 0).length;
             let badge = '';
-            if (types >= 3) badge = '&#x1F3C6; 全形态';
-            else if (types >= 2) badge = '&#x2705; 双确认';
+            if (types >= 3) badge = '<span style="color:#f0883e;font-weight:700">&#x1F3C6; 全形态</span>';
+            else if (types >= 2) badge = '<span style="color:#3fb950">&#x2705; 双确认</span>';
             html += `<td>${badge}</td>`;
           } else {
             html += '<td></td>';
@@ -254,6 +366,18 @@ async function runScreener() {
         html += '</tbody></table>';
       }
     }
+
+    // Consensus bar
+    if (b1_total + b2_total + b3_total > 0) {
+      html += '<div class="consensus-bar" style="margin-top:12px">' +
+        '<span style="color:#8b949e">多策略共识: </span>' +
+        (b3_total > 0 ? `<span class="consensus-item b3">&#x1F3C6; B3推荐: ${b3_total}个</span>` : '') +
+        (b2_total > 0 ? `<span class="consensus-item b2">&#x2705; B2确认: ${b2_total}个</span>` : '') +
+        `<span class="consensus-item b1">B1信号: ${b1_total}个</span>` +
+        `<span style="color:#8b949e;font-size:12px">覆盖 ${allSyms.size} 只股票</span>` +
+        '</div>';
+    }
+
     document.getElementById('sc-results').innerHTML = html;
     toast('扫描完成', true);
   } catch(e) { toast('扫描失败: ' + e.message, false); }
@@ -269,6 +393,7 @@ async function runBacktest() {
     const n = document.getElementById('bt-n').value;
     const r = await api('/api/backtest?strategy=' + s + '&sample=' + n);
     const m = r.metrics;
+    if (m.error) { toast('回测错误: ' + m.error, false); return; }
     document.getElementById('bt-metrics').innerHTML =
       `<div class="mc ok"><div class="v">${m.annual_return}%</div><div class="l">年化收益</div></div>` +
       `<div class="mc bad"><div class="v">${m.max_drawdown}%</div><div class="l">最大回撤</div></div>` +
@@ -286,12 +411,126 @@ async function runBacktest() {
 async function loadFactors() {
   try {
     const factors = await api('/api/factors');
-    const typeMap = {core:'核心',selection:'选股',indicator:'指标',experimental:'实验'};
-    const clsMap = {core:'bg-core',selection:'bg-sel',indicator:'bg-ind',experimental:'bg-exp'};
+    const typeMap = {core:'核心',selection:'选股',indicator:'指标',experimental:'实验',nlp:'NLP',url:'URL',risk:'风控'};
+    const clsMap = {core:'bg-core',selection:'bg-sel',indicator:'bg-ind',experimental:'bg-exp',nlp:'bg-nlp',url:'bg-url',risk:'bg-exp'};
     document.getElementById('fac-table').innerHTML = factors.map(f =>
-      `<tr><td>${f.name}</td><td><span class="badge ${clsMap[f.type]||'bg-core'}">${typeMap[f.type]||f.type}</span></td><td>${f.desc}</td><td style="font-size:11px;color:#8b949e">${f.source||''}</td></tr>`
+      `<tr><td>${f.name}</td><td><span class="badge ${clsMap[f.type]||'bg-core'}">${typeMap[f.type]||f.type}</span></td><td>${f.desc}</td><td style="font-size:11px;color:#8b949e">${f.source||''}</td><td><button class="sm s2" onclick="backtestFactor('${f.name}')">回测</button></td></tr>`
+    ).join('');
+
+    // Init NLP examples
+    const examples = [
+      '5日均线上穿10日均线且成交量大于2倍60日均量',
+      'J值小于13且MACD的DIF大于0且涨幅大于3%',
+      '阳线且成交量大于1.5倍20日均量且涨幅大于5%',
+      'KDJ的J值低于20且缩量',
+      '上影线大于实体2倍且阴线',
+      '跌幅大于5%且振幅小于9%',
+    ];
+    document.getElementById('nlp-examples').innerHTML = examples.map(e =>
+      `<button onclick="document.getElementById('nlp-desc').value='${e.replace(/'/g, "\\'")}';resetNLP()">${e.length > 25 ? e.substring(0,25)+'...' : e}</button>`
     ).join('');
   } catch(e) { toast('加载因子失败', false); }
+}
+
+// ── NLP Factor ──
+let _currentNLPResult = null;
+
+function resetNLP() {
+  _currentNLPResult = null;
+  document.getElementById('nlp-code').innerHTML = '';
+  document.getElementById('nlp-metrics').style.display = 'none';
+  document.getElementById('nlp-bt-btn').disabled = true;
+}
+
+async function convertNLPFactor() {
+  const desc = document.getElementById('nlp-desc').value.trim();
+  if (!desc) { toast('请输入因子描述', false); return; }
+
+  document.getElementById('nlp-loading').style.display = 'block';
+  document.getElementById('nlp-code').innerHTML = '';
+  document.getElementById('nlp-metrics').style.display = 'none';
+  document.getElementById('nlp-bt-btn').disabled = true;
+  _currentNLPResult = null;
+
+  try {
+    const r = await api('/api/nlp_factor', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({description: desc}),
+    });
+
+    _currentNLPResult = r;
+
+    if (r.error) {
+      document.getElementById('nlp-code').innerHTML =
+        `<div style="color:#f85149;margin-bottom:8px">错误: ${r.error}</div>` +
+        (r.factor_code ? `<div class="code-block">${escapeHtml(r.factor_code)}</div>` : '');
+      toast('转换失败: ' + r.error, false);
+    } else {
+      const conds = (r.conditions || []).map(c => c.name).join(', ');
+      document.getElementById('nlp-code').innerHTML =
+        `<div style="color:#3fb950;margin-bottom:6px">因子名: <b>${r.factor_name}</b> | 条件数: ${(r.conditions||[]).length} | 逻辑: ${r.connector || 'and'}</div>` +
+        `<div style="color:#8b949e;margin-bottom:6px">条件: ${conds}</div>` +
+        `<div class="code-block">${escapeHtml(r.factor_code)}</div>`;
+      toast(`因子 ${r.factor_name} 转换成功`, true);
+
+      if (r.backtest_results && !r.backtest_results.error) {
+        document.getElementById('nlp-bt-btn').disabled = false;
+        showBacktestMetrics('nlp-metrics', r.backtest_results);
+      }
+    }
+  } catch(e) {
+    toast('NLP转换失败: ' + e.message, false);
+    document.getElementById('nlp-code').innerHTML = `<div style="color:#f85149">请求失败: ${e.message}</div>`;
+  }
+  document.getElementById('nlp-loading').style.display = 'none';
+}
+
+async function backtestNLPFactor() {
+  if (!_currentNLPResult || !_currentNLPResult.factor_name) {
+    toast('请先转换因子', false); return;
+  }
+  document.getElementById('nlp-loading').style.display = 'block';
+  try {
+    const r = await api('/api/factors/backtest?factor_name=' + encodeURIComponent(_currentNLPResult.factor_name) + '&sample=500');
+    if (r.metrics && !r.metrics.error) {
+      showBacktestMetrics('nlp-metrics', r.metrics);
+      toast('回测完成', true);
+    } else {
+      toast('回测失败: ' + (r.metrics?.error || '未知错误'), false);
+    }
+  } catch(e) { toast('回测失败: ' + e.message, false); }
+  document.getElementById('nlp-loading').style.display = 'none';
+}
+
+// ── Factor Backtest (from registry) ──
+async function backtestFactor(fname) {
+  document.getElementById('fac-bt-metrics').style.display = 'none';
+  try {
+    const r = await api('/api/factors/backtest?factor_name=' + encodeURIComponent(fname) + '&sample=500');
+    if (r.metrics && !r.metrics.error) {
+      showBacktestMetrics('fac-bt-metrics', r.metrics);
+      toast(fname + ' 回测完成', true);
+    } else {
+      toast(fname + ' 回测失败: ' + (r.metrics?.error || '未知错误'), false);
+    }
+  } catch(e) { toast('回测失败: ' + e.message, false); }
+}
+
+function showBacktestMetrics(containerId, m) {
+  const cls = (v, thresholds) => {
+    if (v >= thresholds[0]) return 'ok';
+    if (v >= thresholds[1]) return 'warn';
+    return 'bad';
+  };
+  document.getElementById(containerId).innerHTML =
+    `<div class="mc ok"><div class="v">${m.annual_return}%</div><div class="l">年化收益</div></div>` +
+    `<div class="mc bad"><div class="v">${m.max_drawdown}%</div><div class="l">最大回撤</div></div>` +
+    `<div class="mc"><div class="v">${m.sharpe_ratio}</div><div class="l">夏普比率</div></div>` +
+    `<div class="mc"><div class="v">${m.win_rate}%</div><div class="l">胜率</div></div>` +
+    `<div class="mc"><div class="v">${m.total_trades}</div><div class="l">交易次数</div></div>` +
+    `<div class="mc"><div class="v">${m.calmar_ratio}</div><div class="l">Calmar</div></div>`;
+  document.getElementById(containerId).style.display = 'grid';
 }
 
 // ── Cases ──
@@ -303,7 +542,7 @@ async function runCaseCheck() {
     let html = `<div style="margin-bottom:8px"><b>${r.detected}/${r.with_data}</b> 案例股被检测到 (${r.rate}%)</div>`;
     if (r.missing_data && r.missing_data.length > 0) html += `<div style="color:#d29922;font-size:12px">缺失数据: ${r.missing_data.join(', ')}</div>`;
     html += '<table style="margin-top:8px"><thead><tr><th>代码</th><th>检测策略</th></tr></thead><tbody>';
-    for (const [sym, found] of Object.entries(r.details).sort((a,b) => b[1].length - a[1].length)) {
+    for (const [sym, found] of Object.entries(r.details||{}).sort((a,b) => b[1].length - a[1].length)) {
       html += `<tr><td>${sym}</td><td>${found.length>0 ? found.join(', ') : '<span style="color:#f85149">未检测</span>'}</td></tr>`;
     }
     html += '</tbody></table>';
@@ -311,6 +550,77 @@ async function runCaseCheck() {
     toast(`${r.detected}/${r.with_data} 案例股命中 (${r.rate}%)`, true);
   } catch(e) { toast('案例检测失败', false); }
   document.getElementById('case-loading').style.display = 'none';
+}
+
+// ── URL to Factor ──
+async function fetchURLFactor() {
+  const url = document.getElementById('url-input').value.trim();
+  if (!url) { toast('请输入URL', false); return; }
+
+  document.getElementById('url-loading').style.display = 'block';
+  document.getElementById('url-results').innerHTML = '';
+
+  try {
+    const r = await api('/api/url_factor', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url: url}),
+    });
+
+    if (r.error) {
+      document.getElementById('url-results').innerHTML =
+        `<div class="card" style="border-color:#f85149">` +
+        `<h4 style="color:#f85149">错误</h4>` +
+        `<div style="color:#f85149">${escapeHtml(r.error)}</div></div>`;
+      toast('URL解析失败', false);
+    } else {
+      let html = '<div class="card"><h4>解析结果</h4>';
+      if (r.title) html += `<div style="color:#8b949e;margin-bottom:4px">页面标题: <b style="color:#e1e4e8">${escapeHtml(r.title)}</b></div>`;
+
+      if (r.indicators_found && r.indicators_found.length > 0) {
+        html += '<div style="margin:8px 0"><span style="color:#8b949e">检测到的指标: </span>';
+        html += r.indicators_found.map(i => `<span class="badge bg-nlp">${i.indicator}=${i.value}</span>`).join(' ');
+        html += '</div>';
+      }
+
+      if (r.extracted_description) {
+        html += `<div style="margin:8px 0"><span style="color:#8b949e">提取的描述: </span><span style="color:#3fb950">${escapeHtml(r.extracted_description)}</span></div>`;
+      }
+
+      if (r.factor_name) {
+        html += `<div style="color:#3fb950;margin:8px 0">因子名: <b>${r.factor_name}</b></div>`;
+      }
+
+      if (r.factor_code && r.factor_code.length > 10) {
+        html += `<div class="code-block" style="max-height:300px">${escapeHtml(r.factor_code)}</div>`;
+      } else if (r.factor_code) {
+        html += `<div style="color:#d29922;margin:8px 0">${escapeHtml(r.factor_code)}</div>`;
+      }
+
+      html += '</div>';
+
+      if (r.backtest_results && !r.backtest_results.error) {
+        html += '<h4 style="margin-top:12px">回测结果</h4>';
+        html += '<div class="metrics" style="display:grid">';
+        const m = r.backtest_results;
+        html +=
+          `<div class="mc ok"><div class="v">${m.annual_return}%</div><div class="l">年化收益</div></div>` +
+          `<div class="mc bad"><div class="v">${m.max_drawdown}%</div><div class="l">最大回撤</div></div>` +
+          `<div class="mc"><div class="v">${m.sharpe_ratio}</div><div class="l">夏普比率</div></div>` +
+          `<div class="mc"><div class="v">${m.win_rate}%</div><div class="l">胜率</div></div>` +
+          `<div class="mc"><div class="v">${m.total_trades}</div><div class="l">交易次数</div></div>`;
+        html += '</div>';
+      }
+
+      document.getElementById('url-results').innerHTML = html;
+      toast('URL解析完成', true);
+    }
+  } catch(e) {
+    document.getElementById('url-results').innerHTML =
+      `<div style="color:#f85149">请求失败: ${escapeHtml(e.message)}</div>`;
+    toast('URL解析失败: ' + e.message, false);
+  }
+  document.getElementById('url-loading').style.display = 'none';
 }
 
 // ── Risk ──
@@ -328,9 +638,18 @@ async function runRiskCheck() {
   } catch(e) { toast('风控检查失败', false); }
 }
 
+// ── Helpers ──
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 // ── Init ──
 loadDashboard();
 loadFactors();
+initScreener();
 </script>
 </body>
 </html>
