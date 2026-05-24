@@ -1,20 +1,20 @@
 """AlphaPulse-A B1->B2->B3 递进战法（基于B1选股公式）。
 
-三阶段递进逻辑（独立输出，非合并信号）：
+三阶段递进逻辑：
   B1（底部挖掘）: b1_formula (80%权重) + volume_b1 (20%增强)
-  B2（确认信号）: B1出现后任意时间，放量阳线+收盘>白线
-  B3（锁仓信号）: B2出现后任意时间，缩量阳线+主力锁仓
+                 过滤: N_STRUCT=0 + 近10日振幅<15%
+  B2（确认信号）: B1后5日内，阳线涨幅>3% + 成交量>前日2倍 + 收盘>白线
+  B3（锁仓信号）: B2后3日内，阳线缩量<前日0.7 + 收盘>前日 + 最低>=B2收盘
 
 核心原则：
-  - B1/B2/B3各自独立输出，不是合并信号
-  - B2不要求紧接B1后N天——只要B1曾经出现过，之后任何时间出现B2条件就算
-  - B3同理——只要B2出现过，之后任何时间出现B3条件就算
-  - B1必须基于原始b1_formula（80%权重），增强信号用量能B1（20%权重）
-  - 递进关系通过shift(1).cummax()实现，不设"B1后N天内"限制
+  - B1选股公式(b1_formula.py)是决定性因素，占80%权重
+  - 量能B1(volume_b1.py)作为增强条件，叠加时置信度从0.6提升到0.8
+  - N_STRUCT=0确保无已有N型上涨结构（避免追高）
+  - 近10日振幅<15%排除剧烈波动股
 
 因子依赖：
   b1_formula (主信号，80%权重), volume_b1 (增强信号，+20%),
-  zhixing_trend (白线), violent_kline (B2暴力K增强)
+  n_struct (N型结构过滤), zhixing_trend (白线), violent_kline (B2暴力K增强)
 """
 
 import pandas as pd
@@ -23,6 +23,7 @@ import numpy as np
 from alphapulse.factors.b1_formula import compute as b1_compute
 from alphapulse.factors.volume_b1 import compute as vol_b1_compute
 from alphapulse.factors.zhixing_trend import compute_short_trend
+from alphapulse.factors.n_struct import compute as n_struct_compute
 from alphapulse.factors.violent_kline import compute as violent_kline_compute
 
 
@@ -39,28 +40,24 @@ def generate_signals(
     symbol: str = "",
     **params,
 ) -> pd.DataFrame:
-    """生成 B1->B2->B3 递进战法信号（三列独立输出）。
+    """生成 B1->B2->B3 递进战法信号。
 
     B1 入场逻辑（b1_formula 80%权重 + volume_b1 20%权重）:
       - 主信号: b1_formula.compute() 触发（cond1~cond6全部满足，决定性因素）
-      - 增强信号: volume_b1.compute() 同时触发 -> 置信度 +0.2
-      - B1信号 = 原始b1_formula触发
+      - 增强信号: volume_b1.compute() 同时触发 → 置信度 +0.2
+      - 过滤条件: N_STRUCT=0（不能已有N型上涨结构）
+      - 过滤条件: 近10日振幅<15%（排除剧烈波动）
       - 置信度: b1_formula单独=0.6，量能B1叠加=0.8
 
-    B2 确认逻辑（B1出现后任意时间，不要求连续几天内）:
-      - has_b1_history = b1_signal.shift(1).cummax() 记录历史上是否出现过B1
-        同时支持同日触发: b1_signal当天触发时也标记B2（如果满足条件）
-      - 条件: 阳线涨幅>3% + 成交量>前日2倍 + 收盘>白线
-      - 暴力K触发 = 增强（置信度 0.75->0.85）
+    B2 确认逻辑（B1后5日内）:
+      - 阳线涨幅>3% + 成交量>前日2倍 + 收盘>白线
+      - 暴力K触发 = 增强（置信度 0.75→0.85）
+      - 参数参考b1_formula cond1(涨幅±3%)和cond2(振幅<9%)
 
-    B3 锁定逻辑（B2出现后任意时间，不要求连续几天内）:
-      - has_b2_history = b2_signal.shift(1).cummax() 记录历史上是否出现过B2
-      - 条件: 阳线 + 缩量(<前日0.7) + 收盘>前日 + 最低>=B2日收盘
+    B3 锁定逻辑（B2后3日内）:
+      - 阳线 + 缩量(<前日0.7) + 收盘>前日 + 最低≥B2收盘
+      - 参考volume_b1的half_down缩量逻辑
       - B3=主力锁仓，confidence最高0.9
-
-    注意:
-      - B1/B2在同一天可以同时出现（B1首次触发+当天就是放量阳线->同时标B1和B2）
-      - 递进关系通过历史cummax实现，不设"N天内"限制
 
     Args:
         data: 日线OHLCV DataFrame，index=date，
@@ -102,55 +99,67 @@ def generate_signals(
     # 增强信号 (20%权重): volume_b1 量能体系 -- 增强信心但不强制
     b1_vol = vol_b1_compute(data)
 
-    # B1 信号 = 原始b1_formula触发
-    b1_signal = b1_main.fillna(False).astype(bool)
+    # -- 过滤条件1: N_STRUCT = 0（不能已有N型上涨结构）--
+    ns_label = n_struct_compute(data)
+    no_n_struct = ns_label.isna()
+
+    # -- 过滤条件2: 近10日振幅 < 15%（排除剧烈波动）--
+    amp_10d = (high.rolling(10).max() / low.rolling(10).min() - 1)
+    amp_ok = amp_10d < 0.15
+
+    # B1 信号 = 原始b1_formula触发 + 过滤条件
+    b1_signal = b1_main & no_n_struct & amp_ok
+    b1_signal = b1_signal.fillna(False).astype(bool)
 
     # 量能B1叠加标记（用于置信度提升）
     b1_vol_on_signal = b1_signal & b1_vol.fillna(False)
 
     # ============================================================
-    # B2 确认信号（B1出现后任意时间，不要求连续几天内）
+    # B2 确认信号（B1后5日内）
     # ============================================================
 
-    # 历史上是否出现过B1：shift(1).cummax() 记录前日及之前是否有B1
-    # 同时允许当日B1触发时也满足B2（has_b1_history_or_today）
-    has_b1_history = b1_signal.shift(1).cummax().fillna(False)
-    has_b1_history_or_today = has_b1_history | b1_signal
+    # B1信号前推窗口：过去1~5个交易日内有B1
+    b1_int = b1_signal.astype(int)
+    in_b2_window = b1_int.shift(1).rolling(5, min_periods=1).sum().fillna(0) > 0
 
     # B2条件: 阳线涨幅>3% + 成交量>前日2倍 + 收盘>白线
+    # 涨幅>3%参考b1_formula cond1(±3%)——B2需要更明确的突破确认
     yang_big = (close > open_) & (close.pct_change() > 0.03)
+    # 成交量>前日2倍参考b1_formula的放量逻辑
     vol_double = volume > (volume.shift(1) * 2)
     above_white = close > white_line
     b2_conditions = yang_big & vol_double & above_white
 
-    b2_signal = has_b1_history_or_today & b2_conditions
+    b2_signal = in_b2_window & b2_conditions
     b2_signal = b2_signal.fillna(False).astype(bool)
 
-    # B2增强: 暴力K触发 -> 置信度从0.75提升到0.85
+    # B2增强: 暴力K触发 → 置信度从0.75提升到0.85
     violent = violent_kline_compute(data)
     b2_enhanced = b2_signal & violent.fillna(False)
 
     # ============================================================
-    # B3 锁定信号（B2出现后任意时间，不要求连续几天内）
+    # B3 锁定信号（B2后3日内）
     # ============================================================
 
-    # 历史上是否出现过B2：shift(1).cummax() 记录前日及之前是否有B2
-    has_b2_history = b2_signal.shift(1).cummax().fillna(False)
+    # B2信号前推窗口：过去1~3个交易日内有B2
+    b2_int = b2_signal.astype(int)
+    in_b3_window = b2_int.shift(1).rolling(3, min_periods=1).sum().fillna(0) > 0
 
     # B3条件: 阳线 + 缩量(<前日0.7) + 收盘>前日 + 最低>=B2日收盘
+    # 缩量<前日0.7参考volume_b1 half_down逻辑
     yang_line = close > open_
     vol_shrink = volume < (volume.shift(1) * 0.7)
     close_up = close > close.shift(1)
 
-    # 最低不破B2收盘：追踪最近一次B2日的收盘价（主力锁仓特征）
+    # 最低不破B2收盘：主仓锁仓特征（参考volume_b1的half_down缩量）
     last_b2_close = close.where(b2_signal).ffill()
     low_above_b2 = low >= last_b2_close
 
-    b3_signal = has_b2_history & yang_line & vol_shrink & close_up & low_above_b2
+    b3_signal = in_b3_window & yang_line & vol_shrink & close_up & low_above_b2
     b3_signal = b3_signal.fillna(False).astype(bool)
 
     # ============================================================
-    # 构建输出（三列独立信号: B1 / B2 / B3）
+    # 构建输出
     # ============================================================
 
     pct_change = close.pct_change()
@@ -175,6 +184,8 @@ def generate_signals(
                 "white_line": float(white_line[dt]) if pd.notna(white_line[dt]) else None,
                 "b1_main": True,
                 "volume_b1_enhanced": with_vol,
+                "no_n_struct": bool(no_n_struct[dt]),
+                "amp_10d_ok": bool(amp_ok[dt]),
             },
         })
 

@@ -66,23 +66,14 @@ def _check_output_format(df, strategy_name):
 def make_b1_b2_b3_friendly_data(n_days: int = 500) -> pd.DataFrame:
     """生成 B1->B2->B3 递进信号触发数据（适配b1_formula 6条件）。
 
-    b1_formula 6条件:
-      1. |pct_change| <= 3%        2. amplitude < 9%
-      3. market_cap > 10亿(default T) 4. KDJ J < 13
-      5. EMA12 > EMA26             6. MACD DIF > -0.1
-
-    关键洞察：b1_formula在急跌过程中触发（J因暴跌<13，而EMA12因前期大涨尚未跌破EMA26）。
-    所以设计为"高位大幅上涨后在急跌初期触发B1"。
-
     时序设计（500日）:
     0-99:    强势上涨(10->25) 建立大幅EMA12>EMA26多头趋势
-    100-149: 高位横盘(25) 巩固EMA结构，EMA12>>EMA26
-    150-199: 急跌(25->12) 0.26/天，J暴跌<13但EMA12仍>EMA26 → B1触发
-    200-249: 筑底反弹(12->15->13) 反弹+回踩形成N型
-    250-259: 横盘整理 稳定结构
-    260-269: 拉高(13->15.5) 接近前高
-    ~265-275: B2 倍量阳线突破(涨幅>3%, vol>2x, close>白线)
-    ~278-282: B3 缩量阳线锁仓(缩量<0.7, 不破B2收盘)
+    100-149: 高位横盘(25) 巩固EMA结构
+    150-199: 急跌(25->12) J暴跌<13，EMA12仍>EMA26 → B1第一阶段(~175-195)
+    200-214: 底部反弹(12->15.5) EMAs交叉向上，10日振幅压缩
+    215-219: 快速回落(15.5->14.5) J再次<13 (B1第二阶段触发~217-220)
+    220:     B2 倍量阳线（涨幅>3%, vol>2x, 收盘>白线）B1后5日内
+    223:     B3 缩量阳线锁仓（缩量<0.7, 不破B2收盘）B2后3日内
     """
     np.random.seed(42)
     dates = pd.date_range("2023-01-01", periods=n_days, freq="B")
@@ -94,79 +85,66 @@ def make_b1_b2_b3_friendly_data(n_days: int = 500) -> pd.DataFrame:
     low = np.full(N, np.nan)
     volume = np.ones(N) * 1_000_000
 
-    # ---- Phase 1: 0-99 强势上涨 10 -> 25 (EMA12大幅>EMA26) ----
+    # ---- Phase 1: 0-99 强势上涨 10 -> 25 ----
     for i in range(100):
         close[i] = 10.0 + 15.0 * i / 99 + np.random.randn() * 0.08
         low[i] = close[i] * 0.98
         high[i] = close[i] * 1.02
         open_arr[i] = close[i] * 0.995
 
-    # ---- Phase 2: 100-149 高位横盘 25 (巩固EMA结构) ----
+    # ---- Phase 2: 100-149 高位横盘 25 ----
     for i in range(100, 150):
         close[i] = 25.0 + np.random.randn() * 0.1
         low[i] = close[i] * 0.99
         high[i] = close[i] * 1.01
         open_arr[i] = close[i] * 0.998
 
-    # ---- Phase 3: 150-199 急跌 25 -> 12 (J<13, EMA12仍>EMA26 -> B1触发) ----
-    # 急跌速度0.26/天，EMA12从高点下降但初始差距大，未跌破EMA26
+    # ---- Phase 3: 150-199 急跌 25 -> 12 ----
     for i in range(150, 200):
         close[i] = 25.0 - 13.0 * (i - 150) / 50 + np.random.randn() * 0.06
-        open_arr[i] = close[i] * 1.005  # 阴线
+        open_arr[i] = close[i] * 1.005  # 阴线为主
         low[i] = close[i] * 0.985
         high[i] = max(open_arr[i], close[i]) * 1.005
 
-    # B1预期触发日: 约日165-175（J<13且EMA12仍>EMA26的窗口）
-    # B1_BASE = index ~170 (跌幅约-1.3%, J<10, EMA12>>EMA26)
-
-    # ---- Phase 4: 200-249 筑底反弹 ----
-    for i in range(200, 230):
-        close[i] = close[199] + 3.0 * (i - 200) / 30 + np.random.randn() * 0.05
+    # ---- Phase 4: 200-214 底部反弹 12 -> 15.5 (EMA交叉向上，振幅压缩) ----
+    for i in range(200, 215):
+        close[i] = close[199] + 3.5 * (i - 200) / 15 + np.random.randn() * 0.04
         open_arr[i] = close[i] * 0.998
         low[i] = close[i] * 0.98
         high[i] = close[i] * 1.02
-    for i in range(230, 250):
-        close[i] = close[229] - 2.0 * (i - 230) / 20 + np.random.randn() * 0.04
-        open_arr[i] = close[i] * 1.002
+
+    # ---- Phase 5: 215-219 快速回落 15.5 -> 14.5 (制造第二阶段B1) ----
+    for i in range(215, 220):
+        close[i] = close[214] - 1.0 * (i - 215) / 5 + np.random.randn() * 0.03
+        open_arr[i] = close[i] * 1.003  # 小阴线
         low[i] = close[i] * 0.985
-        high[i] = close[i] * 1.015
+        high[i] = max(open_arr[i], close[i]) * 1.005
 
-    # ---- Phase 5: 250-259 横盘整理 ----
-    for i in range(250, 260):
-        close[i] = close[249] + np.random.randn() * 0.05
-        open_arr[i] = close[i] * 0.999
-        low[i] = close[i] * 0.985
-        high[i] = close[i] * 1.015
-
-    # ---- Phase 6: 260-269 快速拉高(13->15.5) ----
-    for i in range(260, 270):
-        close[i] = close[259] + 2.5 * (i - 260) / 10 + np.random.randn() * 0.04
-        open_arr[i] = close[i] * 0.995
-        low[i] = close[i] * 0.98
-        high[i] = close[i] * 1.02
-
-    # ---- B2 倍量阳线: 日271 (涨幅>3%, vol>2x, close>白线) ----
-    b2_idx = 271
-    close[b2_idx] = close[270] * 1.045    # +4.5% 阳线
-    open_arr[b2_idx] = close[270] * 1.01
+    # ---- B2 倍量阳线: 日220 (涨幅>3%, vol>2x, close>白线, B1后5日内) ----
+    b2_idx = 220
+    close[b2_idx] = close[219] * 1.045    # +4.5% 阳线，涨幅>3%
+    open_arr[b2_idx] = close[219] * 1.01  # 阳线(close > open)
     high[b2_idx] = close[b2_idx] * 1.015
-    low[b2_idx] = close[270] * 0.99
-    volume[b2_idx] = max(volume[270] * 4.0, 5_000_000)
+    low[b2_idx] = close[219] * 0.99
+    volume[b2_idx] = 5_000_000            # >>前日
 
-    # ---- 回调: 272-275 ----
-    for i in range(272, 276):
-        close[i] = close[i - 1] * (1 - np.random.rand() * 0.008)
-        open_arr[i] = close[i] * (1 + np.random.rand() * 0.005)
+    # ---- 回调: 221-222 ----
+    for i in range(221, 223):
+        close[i] = close[b2_idx] * (1 - 0.004 * (i - b2_idx))
+        open_arr[i] = close[i] * (1 + np.random.rand() * 0.003)
         low[i] = close[i] * 0.985
         high[i] = close[i] * 1.015
+        volume[i] = 1_800_000
 
-    # ---- B3 缩量阳线锁仓: 日276附近 ----
-    b3_idx = 276
-    close[b3_idx] = close[275] * 1.015
-    open_arr[b3_idx] = close[275] * 0.997    # 阳线
+    # ---- B3 缩量阳线锁仓: 日223 (B2后3日内) ----
+    b3_idx = 223
+    # close需>open阳线, vol缩量<0.7, close>昨收, low>=B2收盘
+    # 注意：ensure循环会做 low=min(low,open,close)-0.01，所以需预补偿
+    close[b3_idx] = close[222] * 1.012
+    open_arr[b3_idx] = close[b2_idx] + 0.02  # 确保min(open,close) >= b2_close+0.01
     high[b3_idx] = close[b3_idx] * 1.015
-    low[b3_idx] = max(close[275] * 0.997, close[b2_idx])  # >= B2收盘
-    volume[b3_idx] = volume[275] * 0.55      # 缩量0.55x
+    low[b3_idx] = close[b3_idx]              # 预先设为>=b2_close
+    volume[b3_idx] = volume[222] * 0.55      # 缩量0.55x (<0.7)
 
     # ---- Fill remaining with random walk ----
     for i in range(b3_idx + 1, N):
@@ -175,7 +153,7 @@ def make_b1_b2_b3_friendly_data(n_days: int = 500) -> pd.DataFrame:
     for i in range(N):
         if np.isnan(close[i]):
             close[i] = 10.0
-        if np.isnan(volume[i]) or volume[i] == 1_000_000:
+        if np.isnan(volume[i]) or (volume[i] == 1_000_000 and i > b3_idx):
             volume[i] = max(300_000, volume[max(0, i - 1)] * (1 + np.random.randn() * 0.08))
         if np.isnan(open_arr[i]):
             open_arr[i] = close[i] * (1 - np.random.rand() * 0.015)
