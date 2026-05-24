@@ -64,62 +64,104 @@ def _check_output_format(df, strategy_name):
 
 
 def make_b1_b2_b3_friendly_data(n_days: int = 500) -> pd.DataFrame:
-    """生成更可能触发 B1->B2->B3 递进信号的数据。"""
-    np.random.seed(123)
+    """生成 B1->B2->B3 递进信号触发数据。
+
+    关键时序设计：
+    0-199:   温和上涨(10->18) 建立趋势
+    200-259: 高位横盘(18)
+    260-295: 快速下跌(18->~12) 60日跌幅>10% + J触底
+    296-313: 微跌筑底，白线惯性下行穿越收盘价
+    314-315: 放量异动
+    316-317: 极致缩量 + J仍<13 + close>白线 -> B1触发
+    318:     B2 倍量阳线
+    320:     B3 缩量阳线锁仓
+    """
+    np.random.seed(42)
     dates = pd.date_range("2023-01-01", periods=n_days, freq="B")
+    N = n_days
 
-    close = np.zeros(n_days)
-    open_ = np.zeros(n_days)
-    high = np.zeros(n_days)
-    low = np.zeros(n_days)
-    volume = np.ones(n_days) * 1_000_000
+    close = np.full(N, np.nan)
+    open_arr = np.full(N, np.nan)
+    high = np.full(N, np.nan)
+    low = np.full(N, np.nan)
+    volume = np.ones(N) * 1_000_000
 
-    base = 20.0
-    for i in range(60):
-        close[i] = base * (1 - 0.0033 * i) + np.random.randn() * 0.1
-    for i in range(60, 180):
-        close[i] = close[59] + np.random.randn() * 0.15
-    for i in range(180, 221):
-        close[i] = close[179] * (1 - 0.002 * (i - 180)) + np.random.randn() * 0.08
+    # ---- 0-199: 10 -> 18 ----
+    for i in range(200):
+        close[i] = 10.0 + 8.0 * i / 200 + np.random.randn() * 0.08
+    # ---- 200-259: 高位横盘 ----
+    for i in range(200, 260):
+        close[i] = 18.0 + np.random.randn() * 0.2
+    # ---- 260-295: 快速下跌 18 -> 11.8 ----
+    for i in range(260, 296):
+        close[i] = 18.0 - 0.175 * (i - 260) + np.random.randn() * 0.04
+    # ---- 296-313: 微跌/走平筑底 ----
+    # 白线(EMA(EMA(C,10),10))在跌势后有惯性，会继续下行穿过close
+    base_bottom = close[295]
+    for i in range(296, 314):
+        close[i] = base_bottom - 0.02 * (i - 296) + np.random.randn() * 0.03
 
-    idx = 221
-    for i in range(idx, idx + 20):
-        close[i] = close[idx - 1] * (1 - 0.005 * (i - idx)) + np.random.randn() * 0.1
+    # ---- 314-315: 放量异动 ----
+    volume[314] = 18_000_000
+    volume[315] = 14_000_000
 
-    volume[228] = 8_000_000
-    volume[229] = 6_000_000
-    close[232] = close[231] * 0.97
-    volume[232] = 150_000
-    volume[233] = 160_000
-    close[234] = close[233] * 0.99
-    close[235] = close[234] * 0.98
-    close[236] = close[235] * 0.97
-    volume[235] = 200_000
-    volume[236] = 180_000
-    close[238] = close[237] * 1.04
-    volume[238] = volume[237] * 3.0
-    open_[238] = close[237] * 0.99
-    close[240] = close[239] * 1.015
-    volume[240] = volume[239] * 0.5
+    # ---- 316: 极致缩量 (B1候选) ----
+    volume[316] = 70_000
+    close[316] = close[315] + 0.02  # 微涨，保持稳定
 
-    for i in range(241, n_days):
-        close[i] = close[i - 1] * (1 + np.random.randn() * 0.005)
-        volume[i] = max(500_000, volume[i - 1] * (1 + np.random.randn() * 0.1))
+    # ---- 317: B1触发日 (缩量 + J<13 + close>白线 + 近5日异动) ----
+    volume[317] = 75_000
+    close[317] = close[316] + 0.03
 
-    close = np.maximum(close, 0.5)
+    # ---- 318: B2 倍量阳线突破 ----
+    close[318] = close[317] * 1.045   # +4.5% 阳线
+    open_arr[318] = close[317] * 1.01
+    high[318] = close[318] * 1.02
+    low[318] = close[317] * 0.99
+    volume[318] = volume[317] * 4.0   # 4x倍量
 
-    for i in range(n_days):
-        if open_[i] == 0:
-            open_[i] = close[i] * (1 - np.random.rand() * 0.02)
-        if close[i] > open_[i]:
-            high[i] = close[i] * (1 + np.random.rand() * 0.02)
-            low[i] = open_[i] * (1 - np.random.rand() * 0.02)
-        else:
-            high[i] = open_[i] * (1 + np.random.rand() * 0.02)
-            low[i] = close[i] * (1 - np.random.rand() * 0.02)
+    # ---- 319: 正常回调 ----
+    close[319] = close[318] * 0.998
+    open_arr[319] = close[319] * 1.002
+    high[319] = close[319] * 1.015
+    low[319] = close[319] * 0.985
+    volume[319] = 1_800_000
+
+    # ---- 320: B3 缩量阳线锁仓 ----
+    close[320] = close[319] * 1.015
+    open_arr[320] = close[319] * 0.997    # 阳线
+    high[320] = close[320] * 1.015
+    low[320] = max(close[319] * 0.997, close[318])  # >= B2收盘
+    volume[320] = volume[319] * 0.55      # 缩量0.55x
+
+    # ---- Fill remaining ----
+    for i in range(321, N):
+        close[i] = close[i - 1] * (1 + np.random.randn() * 0.004)
+    for i in range(N):
+        if np.isnan(close[i]):
+            close[i] = 10.0
+        if volume[i] == 1_000_000 and i >= 321:
+            volume[i] = max(300_000, volume[i - 1] * (1 + np.random.randn() * 0.08))
+
+    # ---- OHLC for unspecified bars ----
+    for i in range(N):
+        if np.isnan(open_arr[i]):
+            open_arr[i] = close[i] * (1 - np.random.rand() * 0.015)
+        if np.isnan(high[i]):
+            if close[i] >= open_arr[i]:
+                high[i] = max(close[i], open_arr[i]) * (1 + np.random.rand() * 0.015)
+                low[i] = min(close[i], open_arr[i]) * (1 - np.random.rand() * 0.015)
+            else:
+                high[i] = max(close[i], open_arr[i]) * (1 + np.random.rand() * 0.015)
+                low[i] = min(close[i], open_arr[i]) * (1 - np.random.rand() * 0.015)
+
+    # Ensure high >= low, high >= open/close, low <= open/close
+    for i in range(N):
+        high[i] = max(high[i], open_arr[i], close[i]) + 0.01
+        low[i] = min(low[i], open_arr[i], close[i]) - 0.01
 
     return pd.DataFrame({
-        "open": open_,
+        "open": open_arr,
         "high": high,
         "low": low,
         "close": close,
@@ -281,6 +323,51 @@ def test_brick_three_types_signals():
     _check_output_format(result_loose, "BRICK_THREE_TYPES")
 
 
+def test_b1_b2_b3_signals():
+    """测试B1->B2->B3递进战法信号生成。"""
+    # 1. 标准数据：返回格式正确
+    data = make_synthetic_data(500)
+    result = b1b2b3_signals(data, symbol="TEST")
+    _check_output_format(result, "B1_B2_B3")
+
+    # 2. 验证 signal_type 和 confidence 列
+    if len(result) > 0:
+        assert "signal_type" in result.columns, "缺少 signal_type 列"
+        assert "confidence" in result.columns, "缺少 confidence 列"
+        valid_types = {"B1", "B2", "B3"}
+        actual_types = set(result["signal_type"].unique())
+        assert actual_types.issubset(valid_types), \
+            f"signal_type 包含非法值: {actual_types - valid_types}"
+        assert (result["confidence"] >= 0).all() and (result["confidence"] <= 1).all(), \
+            "confidence 应在 0-1 之间"
+
+    # 3. 友好数据：应产生信号，且信号类型按递进顺序
+    data2 = make_b1_b2_b3_friendly_data(500)
+    result2 = b1b2b3_signals(data2, symbol="TEST")
+    assert isinstance(result2, pd.DataFrame)
+    if len(result2) > 0:
+        _check_output_format(result2, "B1_B2_B3")
+        assert "signal_type" in result2.columns
+        for st, conf in zip(result2["signal_type"], result2["confidence"]):
+            if st == "B1":
+                assert conf == 0.6, f"B1 confidence 应为0.6，实际{conf}"
+            elif st == "B2":
+                assert conf in (0.75, 0.85), f"B2 confidence 应为0.75或0.85，实际{conf}"
+            elif st == "B3":
+                assert conf == 0.9, f"B3 confidence 应为0.9，实际{conf}"
+
+    # 4. 短数据：安全返回空
+    short = pd.DataFrame({
+        "open": np.ones(50) * 10,
+        "high": np.ones(50) * 10.2,
+        "low": np.ones(50) * 9.8,
+        "close": np.ones(50) * 10,
+        "volume": np.ones(50) * 1e6,
+    }, index=pd.date_range("2023-01-01", periods=50, freq="B"))
+    result_short = b1b2b3_signals(short, symbol="X")
+    assert isinstance(result_short, pd.DataFrame), "短数据应返回空DataFrame"
+
+
 def test_all_strategies_return_consistent_schema():
     """策略输出schema一致（含公共列）。"""
     data = make_synthetic_data(500)
@@ -290,6 +377,7 @@ def test_all_strategies_return_consistent_schema():
         needle_signals(data, symbol="TEST"),
         needle_washout_signals(data, symbol="TEST"),
         brick_three_types_signals(data, symbol="TEST"),
+        b1b2b3_signals(data, symbol="TEST"),
     ]
     common_cols = {"symbol", "signal", "strategy", "factor_snapshot"}
     for r in results:
@@ -314,6 +402,7 @@ def test_short_data_handling():
         (needle_signals, "NEEDLE"),
         (needle_washout_signals, "NEEDLE_WASHOUT"),
         (brick_three_types_signals, "BRICK_THREE_TYPES"),
+        (b1b2b3_signals, "B1_B2_B3"),
     ]:
         result = strategy_fn(short, symbol="X")
         assert isinstance(result, pd.DataFrame), f"{name}: 应返回DataFrame"
