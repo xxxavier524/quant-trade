@@ -20,6 +20,12 @@ from alphapulse.factors import (
     key_kline,
     violent_kline,
     double_volume_bar,
+    chip_concentration,
+    symmetric_structure,
+    fill_pit_exit_pit,
+    long_yin_short_column,
+    wave_identifier,
+    key_k_abc,
 )
 
 from alphapulse.factors.experimental import (
@@ -136,6 +142,47 @@ FACTOR_REGISTRY = {
         "type": "core",
         "description": "倍量柱：成交量>=前日2倍 + 阳线",
         "default_params": {"mult": 2.0},
+    },
+    # --- 形态识别因子（core） ---
+    "CHIP_CONCENTRATION": {
+        "module": chip_concentration,
+        "type": "core",
+        "description": "筹码集中度：20天振幅<15% + 10天振幅<20天×0.6 + 换手率下降，输出0-1连续值",
+        "default_params": {"window": 20, "amplitude_max": 15.0},
+    },
+    "SYMMETRIC_STRUCTURE": {
+        "module": symmetric_structure,
+        "type": "core",
+        "description": "对称结构：V型/W型对称形态识别，使用argrelextrema找极值点",
+        "default_params": {"tolerance": 0.05, "min_leg_len": 5},
+    },
+    "FILL_PIT_EXIT_PIT": {
+        "module": fill_pit_exit_pit,
+        "type": "core",
+        "description": "填坑出坑：回落>15%→横盘整理3-10天→放量>1.5倍突破上沿",
+        "default_params": {"drop_pct": 15.0, "consolidation_days": 3, "breakout_vol_mult": 1.5},
+    },
+    "LONG_YIN_SHORT_COLUMN": {
+        "module": long_yin_short_column,
+        "type": "core",
+        "description": "长阴短柱：阴线+成交量<前日0.7倍+实体>1%",
+        "default_params": {"vol_shrink": 0.7, "body_min_pct": 1.0},
+    },
+    "WAVE_IDENTIFIER": {
+        "module": wave_identifier,
+        "type": "core",
+        "description": "波段识别：建仓波(20日涨幅<10%+量温和)/拉升波(10日涨幅>15%+量放大>1.5倍)/冲刺波(5日涨幅>20%+量巨量>3倍)",
+        "default_params": {
+            "accumulation_max_return": 0.10, "vol_mild_ratio": 1.0,
+            "lift_min_return": 0.15, "vol_expand_ratio": 1.5,
+            "sprint_min_return": 0.20, "vol_huge_ratio": 3.0,
+        },
+    },
+    "KEY_K_ABC": {
+        "module": key_k_abc,
+        "type": "core",
+        "description": "关键K线ABC节点：A(20日最低+反弹>3%)/B(首次回调低点)/C(突破前高)，输出0-3",
+        "default_params": {"lookback": 20, "rebound_pct": 3.0, "min_leg_len": 3},
     },
     # --- 指标类因子（不含选股逻辑，仅输出数值） ---
     "BRICK_INDICATOR": {
