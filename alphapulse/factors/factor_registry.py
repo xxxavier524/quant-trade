@@ -269,7 +269,7 @@ FACTOR_REGISTRY = {
         "module": dynamic_stop_loss,
         "type": "risk",
         "description": "动态止损：止损价 = min(入场日最低价-3价位, 前N型结构低点-3价位)，最小变动价位0.01",
-        "default_params": {"tick_size": 0.01, "tick_offset": 3},
+        "default_params": {},
     },
     "FLY_AWAY": {
         "module": fly_away,

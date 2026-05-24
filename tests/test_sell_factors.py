@@ -5,7 +5,11 @@
 
 import pandas as pd
 import numpy as np
-from alphapulse.factors import s1_sell_signal, dd_sell_signal, trendline_break
+import pytest
+from alphapulse.factors import (
+    s1_sell_signal, dd_sell_signal, trendline_break,
+    dynamic_stop_loss, fly_away,
+)
 from alphapulse.factors.factor_registry import FACTOR_REGISTRY, compute_factor
 
 
@@ -341,6 +345,283 @@ def test_sell_factors_no_error():
 
     r3 = trendline_break.compute(data)
     assert len(r3) == len(data)
+
+
+# ============================================================
+# 动态止损因子测试
+# ============================================================
+
+class TestDynamicStopLoss:
+    """动态止损因子测试。"""
+
+    def test_basic_stop_from_entry_low(self):
+        """基本：从入场日最低价计算止损价。"""
+        data = make_synthetic_data(500)
+        entry_date = data.index[100]
+        entry_price = float(data.loc[entry_date, "close"])
+        entry_low = float(data.loc[entry_date, "low"])
+
+        stop = dynamic_stop_loss.compute(data, entry_date, entry_price)
+
+        assert isinstance(stop, float)
+        expected = entry_low - 3 * 0.01
+        assert stop == pytest.approx(expected, abs=0.02)
+
+    def test_with_n_pattern_low(self):
+        """提供N型结构低点时，取两者较小值。"""
+        data = make_synthetic_data(500)
+        entry_date = data.index[100]
+        entry_price = float(data.loc[entry_date, "close"])
+        entry_low = float(data.loc[entry_date, "low"])
+
+        # N型低点高于入场低点 → 入场低点-min更小
+        stop_high_n = dynamic_stop_loss.compute(
+            data, entry_date, entry_price, n_pattern_low=entry_low + 1.0
+        )
+        expected = entry_low - 3 * 0.01
+        assert stop_high_n == pytest.approx(expected, abs=0.02)
+
+        # N型低点低于入场低点 → N型低点-min更小
+        n_low_lower = entry_low - 2.0
+        stop_low_n = dynamic_stop_loss.compute(
+            data, entry_date, entry_price, n_pattern_low=n_low_lower
+        )
+        expected2 = n_low_lower - 3 * 0.01
+        assert stop_low_n == pytest.approx(expected2, abs=0.02)
+
+    def test_n_low_takes_min(self):
+        """明确验证取 min 逻辑：更低N低点→更低止损价。"""
+        data = make_synthetic_data(500)
+        entry_date = data.index[50]
+        entry_low = float(data.loc[entry_date, "low"])
+
+        stop1 = dynamic_stop_loss.compute(
+            data, entry_date, 10.0, n_pattern_low=entry_low + 5.0
+        )
+        stop2 = dynamic_stop_loss.compute(
+            data, entry_date, 10.0, n_pattern_low=entry_low - 5.0
+        )
+        assert stop1 > stop2, f"高N低点应产生更高止损价: {stop1} vs {stop2}"
+
+    def test_date_string_input(self):
+        """日期字符串输入正常工作。"""
+        data = make_synthetic_data(300)
+        stop = dynamic_stop_loss.compute(data, "2023-03-15", 10.0)
+        assert isinstance(stop, float)
+
+    def test_date_before_data_raises(self):
+        """日期早于数据起始日期时抛出错误。"""
+        data = make_synthetic_data(100)
+        with pytest.raises(ValueError, match="早于数据起始"):
+            dynamic_stop_loss.compute(data, "2022-01-01", 10.0)
+
+    def test_tick_size_default(self):
+        """验证默认 tick_size = 0.01。"""
+        assert dynamic_stop_loss.TICK_SIZE == 0.01
+        assert dynamic_stop_loss.TICK_OFFSET == 3
+
+
+# ============================================================
+# 放飞减仓因子测试
+# ============================================================
+
+def make_surge_data(n_days: int = 200) -> pd.DataFrame:
+    """生成包含连续大阳线的合成数据。"""
+    np.random.seed(99)
+    dates = pd.date_range("2023-01-01", periods=n_days, freq="B")
+
+    close = np.full(n_days, 10.0)
+    open_ = np.full(n_days, 10.0)
+    high = np.full(n_days, 10.1)
+    low = np.full(n_days, 9.9)
+    volume = np.full(n_days, 1_000_000.0)
+    turnover = np.random.uniform(0.5, 3.0, n_days)
+    amount = volume * close
+
+    # 构造连续大阳线（第50-54天，5连阳，涨幅均>3%）
+    for i, (c, o) in enumerate([
+        (10.40, 10.00),
+        (10.85, 10.40),
+        (11.30, 10.85),
+        (11.80, 11.30),
+        (12.30, 11.80),
+    ]):
+        idx = 50 + i
+        close[idx] = c
+        open_[idx] = o
+        high[idx] = c * 1.01
+        low[idx] = o * 0.99
+        volume[idx] = 1_000_000 * (1 + i * 0.5)
+
+    # 白线上方加速：前20天稳定小涨形成白线向上，第100天涨幅>5%
+    for i in range(80, 100):
+        close[i] = 10 + (i - 80) * 0.02
+        open_[i] = close[i] - 0.02
+        high[i] = close[i] + 0.03
+        low[i] = close[i] - 0.03
+
+    close[100] = close[99] * 1.06
+    open_[100] = close[99] * 1.01
+    high[100] = close[100] * 1.01
+    low[100] = open_[100] * 0.99
+    volume[100] = 2_000_000
+
+    data = pd.DataFrame({
+        "open": open_,
+        "high": high,
+        "low": low,
+        "close": close,
+        "volume": volume,
+        "amount": volume * close,
+        "turnover": turnover,
+    }, index=dates)
+    return data
+
+
+class TestFlyAway:
+    """放飞减仓因子测试。"""
+
+    def test_output_format(self):
+        """输出为 pd.DataFrame，含 fly_signal/reduce_ratio/reason 三列。"""
+        data = make_synthetic_data(500)
+        result = fly_away.compute(data)
+
+        assert isinstance(result, pd.DataFrame)
+        assert list(result.columns) == ["fly_signal", "reduce_ratio", "reason"]
+        assert len(result) == len(data)
+        assert result.index.equals(data.index)
+        assert result["fly_signal"].dtype == int
+        assert result["reduce_ratio"].dtype == float
+        assert result["reason"].dtype == object
+
+    def test_two_consecutive_yang_surge(self):
+        """连续2根涨幅>3%阳线触发减仓1/4信号。"""
+        data = make_surge_data(200)
+        result = fly_away.compute(data)
+
+        # 第50天+第51天都是大阳 -> 第52天收到信号
+        signal_day = data.index[52]
+        row = result.loc[signal_day]
+        assert row["fly_signal"] in [2, 3], \
+            f"应有2连阳信号，实际fly_signal={row['fly_signal']}"
+        assert row["reduce_ratio"] >= 0.25, \
+            f"减仓比例应>=0.25，实际={row['reduce_ratio']}"
+
+    def test_three_consecutive_yang_surge(self):
+        """连续3根涨幅>3%阳线触发减仓1/3信号。"""
+        data = make_surge_data(200)
+        result = fly_away.compute(data)
+
+        # 第50-52天三连大阳 -> 第53天收到信号
+        signal_day = data.index[53]
+        row = result.loc[signal_day]
+        assert row["fly_signal"] in [2, 3], \
+            f"应有3连阳信号，实际fly_signal={row['fly_signal']}"
+        assert row["reduce_ratio"] >= 0.25
+
+    def test_no_signal_before_first_surge(self):
+        """大阳线出现前的日期应无信号。"""
+        data = make_surge_data(200)
+        result = fly_away.compute(data)
+
+        early = result.iloc[:30]
+        assert (early["fly_signal"] == 0).all(), \
+            f"大阳线前不应有信号，实际信号数={(early['fly_signal'] != 0).sum()}"
+
+    def test_white_line_acceleration(self):
+        """白线上方加速触发减仓信号。"""
+        data = make_surge_data(200)
+        result = fly_away.compute(data)
+
+        # 第100天涨幅6%（白线上方加速），第101天应收到信号
+        signal_day = data.index[101]
+        row = result.loc[signal_day]
+
+        assert row["fly_signal"] == 4, \
+            f"白线加速应触发 fly_signal=4，实际={row['fly_signal']}"
+        assert row["reduce_ratio"] == pytest.approx(0.5), \
+            f"白线加速减仓比例应为0.5，实际={row['reduce_ratio']}"
+
+    def test_shift1_no_future_leak(self):
+        """验证 shift(1)：当日大阳不应在当日产生信号。"""
+        data = make_surge_data(200)
+        result = fly_away.compute(data)
+
+        day50 = data.index[50]
+        row = result.loc[day50]
+        assert row["fly_signal"] == 0, \
+            f"大阳当日不应有信号（shift(1)），实际fly_signal={row['fly_signal']}"
+
+    def test_reduce_ratio_range(self):
+        """减仓比例在 [0, 1] 范围内。"""
+        data = make_synthetic_data(500)
+        result = fly_away.compute(data)
+        assert result["reduce_ratio"].min() >= 0.0
+        assert result["reduce_ratio"].max() <= 1.0
+
+    def test_reason_not_empty_on_signal(self):
+        """有信号时 reason 不为空。"""
+        data = make_surge_data(200)
+        result = fly_away.compute(data)
+        signal_rows = result[result["fly_signal"] > 0]
+        if len(signal_rows) > 0:
+            assert (signal_rows["reason"] != "").all(), \
+                "有信号的行 reason 不应为空"
+
+    def test_short_data_no_error(self):
+        """数据过短时不报错，返回全0信号。"""
+        dates = pd.date_range("2023-01-01", periods=5, freq="B")
+        data = pd.DataFrame({
+            "open": [10.0] * 5,
+            "high": [10.2] * 5,
+            "low": [9.8] * 5,
+            "close": [10.1] * 5,
+            "volume": [1_000_000.0] * 5,
+            "amount": [10_100_000.0] * 5,
+            "turnover": [1.5] * 5,
+        }, index=dates)
+        result = fly_away.compute(data)
+        assert len(result) == 5
+        assert (result["fly_signal"] == 0).all()
+
+
+# ============================================================
+# 扩展注册表测试（含风控因子）
+# ============================================================
+
+def test_risk_factors_in_registry():
+    """两个风控因子已在注册表中，type='risk'。"""
+    for name in ["DYNAMIC_STOP_LOSS", "FLY_AWAY"]:
+        assert name in FACTOR_REGISTRY, f"因子 {name} 缺失"
+        entry = FACTOR_REGISTRY[name]
+        assert entry.get("type") == "risk", \
+            f"{name} type 应为 risk，实际: {entry.get('type')}"
+        assert "module" in entry
+        assert "description" in entry
+
+
+def test_dynamic_stop_loss_via_registry():
+    """通过注册表调用动态止损。"""
+    data = make_synthetic_data(300)
+    entry_date = data.index[50]
+    entry_price = float(data.loc[entry_date, "close"])
+
+    stop = compute_factor(
+        "DYNAMIC_STOP_LOSS", data,
+        entry_date=entry_date, entry_price=entry_price,
+    )
+    assert isinstance(stop, float)
+    assert stop > 0
+
+
+def test_fly_away_via_registry():
+    """通过注册表调用放飞减仓。"""
+    data = make_synthetic_data(300)
+    result = compute_factor("FLY_AWAY", data)
+
+    assert isinstance(result, pd.DataFrame)
+    assert list(result.columns) == ["fly_signal", "reduce_ratio", "reason"]
+    assert len(result) == len(data)
 
 
 if __name__ == "__main__":

@@ -192,7 +192,7 @@ def test_all_factors_no_error():
     # 指标类因子返回连续数值，N_STRUCT返回分类标签）
     NON_BOOL_FACTORS = {"N_STRUCT", "CHIP_CONCENTRATION", "KEY_K_ABC"}.union(
         name for name, entry in FACTOR_REGISTRY.items()
-        if entry.get("type") in ("experimental", "indicator")
+        if entry.get("type") in ("experimental", "indicator", "risk")
     )
 
     for name, entry in FACTOR_REGISTRY.items():
@@ -200,8 +200,11 @@ def test_all_factors_no_error():
         if not callable(getattr(entry["module"], "compute", None)):
             continue
         result = entry["module"].compute(data, **entry["default_params"])
-        # 跳过返回 DataFrame 的因子（如 WAVE_IDENTIFIER）
+        # 跳过返回 DataFrame 的因子（如 WAVE_IDENTIFIER, FLY_AWAY）
         if isinstance(result, pd.DataFrame):
+            continue
+        # 跳过返回标量值的因子（如 DYNAMIC_STOP_LOSS）
+        if not isinstance(result, pd.Series):
             continue
         assert len(result) == len(data), f"{name}: 长度不匹配"
         # 大部分因子返回布尔型；实验性因子和N_STRUCT返回连续值
