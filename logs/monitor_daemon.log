@@ -4186,3 +4186,59 @@ FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
 1 failed, 14 passed, 3 warnings in 1.70s
 2026-05-24 18:04:05,877 [MONITOR] 🔴 1 CRITICAL 失败!
 2026-05-24 18:04:05,877 [MONITOR] 第 91 轮完成 (4/6). 下次: 2026-05-24T18:04:05.877664 + 3600s
+2026-05-24 19:04:05,850 [MONITOR] -- 第 92 轮检查 2026-05-24T19:04:05.850465 --
+2026-05-24 19:04:05,932 [MONITOR]   ✅ data_download_running: 16
+2026-05-24 19:04:06,193 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-24 19:04:09,398 [MONITOR]   ❌ test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+2026-05-24 19:04:09,962 [MONITOR]   ✅ factor_registry_importable: 23
+2026-05-24 19:04:10,252 [MONITOR]   ✅ baostock_reachable: login success!
+0
+logout success!
+2026-05-24 19:04:16,143 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-24 19:04:16,143 [MONITOR] ⚠️ 2 项失败:
+2026-05-24 19:04:16,143 [MONITOR]   [CRITICAL] test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+1 failed, 14 passed
+2026-05-24 19:04:16,143 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-24 19:04:16,143 [MONITOR]   🔧 执行修复: test_suite_passing → cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q
+.........F.....                                                          [100%]
+=================================== FAILURES ===================================
+__________________________ test_all_factors_no_error ___________________________
+
+    def test_all_factors_no_error():
+        """所有因子在合成数据上运行不报错。"""
+        data = make_synthetic_data(500)
+    
+        # 这些因子返回非bool类型（实验性因子返回连续Z-Score值，
+        # 指标类因子返回连续数值，N_STRUCT返回分类标签）
+        NON_BOOL_FACTORS = {"N_STRUCT"}.union(
+            name for name, entry in FACTOR_REGISTRY.items()
+            if entry.get("type") in ("experimental", "indicator")
+        )
+    
+        for name, entry in FACTOR_REGISTRY.items():
+>           result = entry["module"].compute(data, **entry["default_params"])
+                     ^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'alphapulse.factors.industry_rotation' has no attribute 'compute'
+
+tests/test_factors.py:194: AttributeError
+=============================== warnings summary ===============================
+tests/test_factors.py::test_all_factors_no_error
+  /Users/qiushixuan/cc/quantan trade/alphapulse/factors/volume_b1.py:109: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+    plry_first = plry & ~plry.shift(1).fillna(False)
+
+tests/test_factors.py::test_all_factors_no_error
+  /Users/qiushixuan/cc/quantan trade/alphapulse/factors/volume_b1.py:110: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+    plry_cont = plry & plry.shift(1).fillna(False)
+
+tests/test_factors.py::test_all_factors_no_error
+  /Users/qiushixuan/cc/quantan trade/alphapulse/factors/volume_b1.py:111: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+    half_down = ~real_yin.shift(1).fillna(False) & (close < prev_close) & (volume <= half_down_ratio * volume.shift(1))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+1 failed, 14 passed, 3 warnings in 1.99s
+2026-05-24 19:04:18,798 [MONITOR] 🔴 1 CRITICAL 失败!
+2026-05-24 19:04:18,798 [MONITOR] 第 92 轮完成 (4/6). 下次: 2026-05-24T19:04:18.798495 + 3600s

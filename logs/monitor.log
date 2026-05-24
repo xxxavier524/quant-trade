@@ -1652,3 +1652,21 @@ logout success!
 2026-05-24 18:04:03,650 [MONITOR]   🔧 执行修复: test_suite_passing → cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q
 2026-05-24 18:04:05,877 [MONITOR] 🔴 1 CRITICAL 失败!
 2026-05-24 18:04:05,877 [MONITOR] 第 91 轮完成 (4/6). 下次: 2026-05-24T18:04:05.877664 + 3600s
+2026-05-24 19:04:05,850 [MONITOR] -- 第 92 轮检查 2026-05-24T19:04:05.850465 --
+2026-05-24 19:04:05,932 [MONITOR]   ✅ data_download_running: 16
+2026-05-24 19:04:06,193 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-24 19:04:09,398 [MONITOR]   ❌ test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+2026-05-24 19:04:09,962 [MONITOR]   ✅ factor_registry_importable: 23
+2026-05-24 19:04:10,252 [MONITOR]   ✅ baostock_reachable: login success!
+0
+logout success!
+2026-05-24 19:04:16,143 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-24 19:04:16,143 [MONITOR] ⚠️ 2 项失败:
+2026-05-24 19:04:16,143 [MONITOR]   [CRITICAL] test_suite_passing: FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
+1 failed, 14 passed
+2026-05-24 19:04:16,143 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-24 19:04:16,143 [MONITOR]   🔧 执行修复: test_suite_passing → cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q
+2026-05-24 19:04:18,798 [MONITOR] 🔴 1 CRITICAL 失败!
+2026-05-24 19:04:18,798 [MONITOR] 第 92 轮完成 (4/6). 下次: 2026-05-24T19:04:18.798495 + 3600s

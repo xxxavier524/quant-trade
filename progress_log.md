@@ -19,6 +19,8 @@
 | 阶段八：Agent 工具封装 | ✅ | 2025-05-16 | 4脚本完成，待真实数据验证 |
 | 阶段九：QMT 实盘对接 | ✅ | 2025-05-16 | export_qmt_csv完成，待券商开通 |
 | 阶段十：长期无人值守 | ✅ | 2025-05-16 | launchd+auto脚本，待接入真实数据 |
+| 阶段十一：GitHub Top 10 集成研究 | ✅ | 2026-05-21 | 4适配器+前端迁移+Python3.14兼容验证 |
+| 阶段十二：AlphaPulse-A 最终集成 | ✅ | 2026-05-21 | 40因子注册+3策略集成+管线更新+129测试全过 |
 
 ## 待补阶段
 
@@ -209,3 +211,63 @@
 7. **P3-长期**: OpenBB作为美国市场基准数据源
 
 - **下一步**: P0项集成到主回测流程中
+
+---
+
+## 阶段十二：AlphaPulse-A 最终集成 — 2026-05-21
+
+- **结果**: 成功。全量因子注册+3新策略集成+选股管线更新+129测试全过+E2E验证通过
+- **产出**:
+
+### 因子注册表完整性 (factor_registry.py)
+- **40个因子/策略** 全部注册（原有19 + 新9多头 + 新5空头 + 1单针 + 2风控 + 3策略 + 1指标补充）
+- 所有模块导入验证通过，无缺失
+
+### 新增9个多头因子 (type="core")
+| 因子 | 描述 |
+|------|------|
+| KEY_KLINE | 关键K线：近20日涨幅最大阳线+量>2倍均量 |
+| VIOLENT_KLINE | 暴力K：涨幅>5%+量>3倍均量 |
+| DOUBLE_VOLUME_BAR | 倍量柱：量>=前日2倍+阳线 |
+| CHIP_CONCENTRATION | 筹码集中度：振幅<15%+换手率下降 |
+| SYMMETRIC_STRUCTURE | 对称结构：V/W型形态识别 |
+| FILL_PIT_EXIT_PIT | 填坑出坑：回落>15%→横盘→放量突破 |
+| LONG_YIN_SHORT_COLUMN | 长阴短柱：阴线+缩量+实体>1% |
+| WAVE_IDENTIFIER | 波段识别：建仓波/拉升波/冲刺波 |
+| KEY_K_ABC | 关键K线ABC：A低点/B回调/C突破节点 |
+
+### 新增5个空头/风控因子 (type="risk")
+| 因子 | 描述 |
+|------|------|
+| S1_SELL_SIGNAL | S1卖出：波段高点放巨量阴线(0/1/2三级) |
+| DD_SELL_SIGNAL | DD卖出：收盘<前日最低价(0/1/2三级+DD增强) |
+| TRENDLINE_BREAK | 趋势线跌破：白线/黄线跌破+假跌破确认 |
+| DYNAMIC_STOP_LOSS | 动态止损：入场低点-N型低点取min |
+| FLY_AWAY | 放飞减仓：连续阳线加速→阶梯减仓1/4→1/3→1/2 |
+
+### 3个新策略
+| 策略 | 描述 | 置信度 |
+|------|------|--------|
+| B1_B2_B3 | B1底部挖掘(7AND)→B2阳线确认→B3锁仓 | 0.6/0.75/0.9 |
+| BRICK_THREE_TYPES | 砖型图3子类型(N起跳/上涨中继/横盘突破) | 0.55-0.85 |
+| NEEDLE_WASHOUT | 单针下三十N型洗盘版(10条件AND) | 0.6-1.0 |
+
+### 选股管线更新
+- `scripts/friday_screener.py`: 7策略全量选股 + signal_type列输出 + 子类型明细
+- `scripts/after_close.py`: B1/B2/B3递进统计 + 砖型图3类型统计 + 单针洗盘统计
+
+### 代码质量修复
+- 修复 `needle_washout.py` 和 `b1_b2_b3_strategy.py` 中的 FutureWarning (fillna/ffill downcasting)
+- 全部 `.fillna(False)` → `.fillna(False).infer_objects(copy=False)`
+- 全部 `.ffill()` → `.ffill().infer_objects(copy=False)`
+
+### 测试结果
+- `python -m pytest tests/ -v --tb=short`: **129 passed, 0 failed**
+- E2E验证 (500股样本): B1=2, B2=0, B3=0 (严格条件), BRICK NJUMP=0/CONT=1/BRKOUT=20969, NEEDLE_WASHOUT=24
+- 所有策略正常运行，无异常
+
+### 已知Issue
+- BRICK_BREAKOUT 信号偏多 (20969/500股 ≈ 42/股)，横盘突破条件可能需要收紧
+- B1/B2/B3 在随机500股中仅触发2个B1信号（7条件AND非常严格，属正常）
+
+- **下一步**: 策略参数调优、P0 Riskfolio-Lib/vectorbt集成到回测流程

@@ -62,6 +62,37 @@ def main():
             for sym, v in sorted(d["consensus"].items(), key=lambda x: -len(x[1]["strategies"])):
                 print(f"    {sym}: {', '.join(v['strategies'])}")
 
+        # ── 策略子类型统计 ──
+        strats_data = d.get("strategies", {})
+        if strats_data:
+            print(f"\n  --- 信号子类型统计 ---")
+
+            # B1_B2_B3 递进战法
+            b1b2b3_picks = strats_data.get("B1_B2_B3", [])
+            if b1b2b3_picks:
+                n_b1 = sum(1 for p in b1b2b3_picks for t in p.get("signal_types", []) if t == "B1")
+                n_b2 = sum(1 for p in b1b2b3_picks for t in p.get("signal_types", []) if t == "B2")
+                n_b3 = sum(1 for p in b1b2b3_picks for t in p.get("signal_types", []) if t == "B3")
+                print(f"  B1_B2_B3 递进战法: {len(b1b2b3_picks)} 只股票"
+                      f" (B1={n_b1}, B2={n_b2}, B3={n_b3})")
+            else:
+                print(f"  B1_B2_B3 递进战法: 0 只股票")
+
+            # BRICK_THREE_TYPES 砖型三类型
+            brick_picks = strats_data.get("BRICK_THREE_TYPES", [])
+            if brick_picks:
+                n_njump = sum(1 for p in brick_picks for t in p.get("signal_types", []) if t == "BRICK_N_JUMP")
+                n_cont = sum(1 for p in brick_picks for t in p.get("signal_types", []) if t == "BRICK_CONTINUATION")
+                n_brkout = sum(1 for p in brick_picks for t in p.get("signal_types", []) if t == "BRICK_BREAKOUT")
+                print(f"  砖型图3类型: {len(brick_picks)} 只股票"
+                      f" (NJUMP={n_njump}, CONTINUATION={n_cont}, BREAKOUT={n_brkout})")
+            else:
+                print(f"  砖型图3类型: 0 只股票")
+
+            # NEEDLE_WASHOUT 单针洗盘
+            nw_picks = strats_data.get("NEEDLE_WASHOUT", [])
+            print(f"  单针洗盘: {len(nw_picks)} 只股票")
+
     print(f"\n[{datetime.now():%H:%M:%S}] 收盘任务全部完成")
     return 0
 

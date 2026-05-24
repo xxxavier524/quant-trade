@@ -101,7 +101,7 @@ def _compute_b1(data: pd.DataFrame, ind: dict) -> pd.Series:
     b1_c7 = amp_10d < 0.15
 
     b1 = b1_c1 & b1_c2 & b1_c3 & b1_c4 & b1_c5 & b1_c6 & b1_c7
-    return b1.fillna(False)
+    return b1.fillna(False).infer_objects(copy=False)
 
 
 def _compute_b2(data: pd.DataFrame, ind: dict, b1_signal: pd.Series) -> tuple:
@@ -139,7 +139,7 @@ def _compute_b2(data: pd.DataFrame, ind: dict, b1_signal: pd.Series) -> tuple:
     violent = violent_kline.compute(data)
     b2_enhanced = b2_signal & violent
 
-    return b2_signal.fillna(False), b2_enhanced.fillna(False)
+    return b2_signal.fillna(False).infer_objects(copy=False), b2_enhanced.fillna(False).infer_objects(copy=False)
 
 
 def _compute_b3(
@@ -170,11 +170,11 @@ def _compute_b3(
     close_up = close > close.shift(1)
 
     # B3条件3: 最低价 >= B2日收盘价（主力锁仓，不破B2成本）
-    last_b2_close = close.where(b2_signal).ffill()
+    last_b2_close = close.where(b2_signal).ffill().infer_objects(copy=False)
     low_above_b2 = low >= last_b2_close
 
     b3_signal = in_b3_window & yang_shrink & close_up & low_above_b2
-    return b3_signal.fillna(False)
+    return b3_signal.fillna(False).infer_objects(copy=False)
 
 
 def generate_signals(
@@ -224,7 +224,7 @@ def generate_signals(
     in_bowl = (close < white) & (close > yellow)
 
     # B2收盘价前向填充（用于B3快照）
-    last_b2_close = close.where(b2).ffill()
+    last_b2_close = close.where(b2).ffill().infer_objects(copy=False)
 
     results = []
 

@@ -233,7 +233,7 @@ def generate_signals(
         (b_price_ctx[valid_ctx] - close[valid_ctx]) / ab_range[valid_ctx]
     )
     cond_fib_retrace = (fib_retrace_value >= fib_min) & (fib_retrace_value <= fib_max)
-    cond_fib_retrace = cond_fib_retrace.fillna(False)
+    cond_fib_retrace = cond_fib_retrace.fillna(False).infer_objects(copy=False)
 
     # ========================================================================
     # 入场条件 C5: 价格在近60日最低30%区间
@@ -250,7 +250,7 @@ def generate_signals(
     cond_trend_flat_rising = trend_slope >= 0
 
     # ---- 额外：确认前一日非长下影（单针，非连续下影） ----
-    prev_long_shadow = cond_long_shadow.shift(1).fillna(False)
+    prev_long_shadow = cond_long_shadow.shift(1).fillna(False).infer_objects(copy=False)
 
     # ========================================================================
     # 综合信号：全部前提 + 全部入场条件 + 单针确认
