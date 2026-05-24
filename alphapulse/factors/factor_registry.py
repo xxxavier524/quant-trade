@@ -41,7 +41,7 @@ from alphapulse.factors.experimental import (
     analyst_revision,
     capital_flow_big_order,
 )
-from alphapulse.factors import industry_rotation, beta_fundamental
+from alphapulse.factors import industry_rotation, beta_fundamental, knowledge_points
 
 FACTOR_REGISTRY = {
     "N_STRUCT": {
@@ -190,6 +190,63 @@ FACTOR_REGISTRY = {
         "description": "关键K线ABC节点：A(20日最低+反弹>3%)/B(首次回调低点)/C(突破前高)，输出0-3",
         "default_params": {"lookback": 20, "rebound_pct": 3.0, "min_leg_len": 3},
     },
+    # --- 7大交易知识点因子（core） ---
+    "PULL_ROPE": {
+        "module": knowledge_points,
+        "compute_func": "compute_pull_rope",
+        "type": "core",
+        "description": "牵牛绳：B1入场后未出现S1+持续在白线以上→继续持有信号，输出bool",
+        "source": "7大交易知识点",
+        "default_params": {},
+    },
+    "IN_THE_BOWL": {
+        "module": knowledge_points,
+        "compute_func": "compute_in_the_bowl",
+        "type": "core",
+        "description": "掉进碗里：股价在白线以下黄线以上区间+同时出现B1信号→增强买点，输出bool",
+        "source": "7大交易知识点",
+        "default_params": {},
+    },
+    "YELLOW_LINE_VALUE": {
+        "module": knowledge_points,
+        "compute_func": "compute_yellow_line_value",
+        "type": "core",
+        "description": "黄线交易价值：首次回踩黄线不破+无S1信号+出现B1买点→0-1连续评分",
+        "source": "7大交易知识点",
+        "default_params": {},
+    },
+    "PIERCE_COUNTERPART": {
+        "module": knowledge_points,
+        "compute_func": "compute_pierce_counterpart",
+        "type": "core",
+        "description": "击穿对手盘：缩量跌破黄线+观察次日是否站稳→0=无/1=击穿/2=击穿+恢复",
+        "source": "7大交易知识点",
+        "default_params": {},
+    },
+    "KEY_SUPPORT": {
+        "module": knowledge_points,
+        "compute_func": "compute_key_support",
+        "type": "core",
+        "description": "关键支撑价位：前N型低点-3价位/横盘区间下沿/SB1下沿→DataFrame三列",
+        "source": "7大交易知识点",
+        "default_params": {},
+    },
+    "MAIN_CAPITAL": {
+        "module": knowledge_points,
+        "compute_func": "compute_main_capital",
+        "type": "core",
+        "description": "主力资金判断：近60日跌破黄线次数判断主力行为→0=弱/1=不在/2=强",
+        "source": "7大交易知识点",
+        "default_params": {},
+    },
+    "DISTRIBUTION_PATTERNS": {
+        "module": knowledge_points,
+        "compute_func": "compute_distribution_patterns",
+        "type": "core",
+        "description": "5种出货方式：S1/加速上涨后放量长阴/新高后阶梯放量下跌/双头/顶部阴量>阳量→DataFrame五列bool",
+        "source": "7大交易知识点",
+        "default_params": {},
+    },
     # --- 指标类因子（不含选股逻辑，仅输出数值） ---
     "BRICK_INDICATOR": {
         "module": brick_ultra,
@@ -269,12 +326,12 @@ FACTOR_REGISTRY = {
     "NEEDLE_WASHOUT": {
         "module": needle_washout,
         "type": "selection",
-        "description": "单针下三十策略(N型洗盘版)：B1前期选中+N型回调阶段+长下影+J超卖+缩量+Fib30-62%+低位30%+知行趋势走平",
+        "description": "单针下三十策略(优化版v2)：长下影+J超卖+缩量+Fib20-70%+低位30%+知行趋势走平，B1前提可选关闭",
         "source": "AlphaPulse-A主力洗盘补票策略",
         "default_params": {
-            "b1_lookback": 60, "j_threshold": 13.0,
-            "volume_shrink_ratio": 0.7, "volume_ma_period": 20,
-            "fib_min": 0.30, "fib_max": 0.62,
+            "b1_lookback": 60, "require_b1_history": False,
+            "j_threshold": 20.0, "volume_shrink_ratio": 0.85,
+            "volume_ma_period": 20, "fib_min": 0.20, "fib_max": 0.70,
             "position_lookback": 60, "position_threshold": 0.30,
             "shadow_mult": 3.0, "trend_slope_window": 5,
         },

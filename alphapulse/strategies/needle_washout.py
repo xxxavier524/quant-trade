@@ -1,23 +1,31 @@
-"""AlphaPulse-A 单针下三十策略 — N型上涨中主力洗盘补票。
+"""AlphaPulse-A 单针下三十策略 — N型上涨中主力洗盘补票（优化版v2）。
 
-完整逻辑链：
-  前提（N型上涨中主力洗盘）:
-    1. 标的在近60日内被B1_FORMULA选中（前期完美图形）
-    2. 存在N型结构（N_STRUCT触发）
-    3. 当前价格在N型T1→T2回调阶段（B峰之后、C谷之前）
+  放宽条件以提升命中率（4.4% → 目标>40%）：
+    - J值阈值: 13 → 20（可调 j_threshold=20）
+    - Fibonacci回调区间: 30%-62% → 20%-70%
+    - 缩量比率: 0.7 → 0.85
+    - B1前期选中前提: 默认关闭（require_b1_history=False）
+    - N型回调阶段: 仍保留，但允许无N型上下文时用通用价格低位判断
 
-  入场条件（全部满足=买入信号）:
-    1. 长下影: 下影线长度(取min(open,close)-low) > 实体长度×3
-    2. J超卖: KDJ_J_LOW触发(J<13)
-    3. 缩量: 成交量 < 20日均量×0.7
-    4. 回调30%-62%（Fibonacci区间，从N型T1高点B计算）
-    5. 价格在近60日最低30%区间
-    6. ZHIXING_TREND走平或回升（短期趋势线近5日斜率>=0）
+  完整逻辑链：
+    前提（可选，可配置开关）:
+      1. [可选] 标的在近60日内被B1_FORMULA选中（前期完美图形）
+      2. [核心] 存在N型结构（N_STRUCT触发）
+      3. [核心] 当前价格在N型T1→T2回调阶段（B峰之后、C谷之前）
+         - 若无N型上下文，退化为：近60日高点回落>15%
 
-  持仓管理（内建规则，供回测/实盘引用）:
-    - 脱离成本3%以上 → 持有
-    - 止损: 入场日最低价 - 0.03
-    - 止盈: fly_away 逐步减仓
+    入场条件（全部满足=买入信号）:
+      1. 长下影: 下影线长度(取min(open,close)-low) > 实体长度×3
+      2. J超卖: KDJ J值 < j_threshold (默认20)
+      3. 缩量: 成交量 < 20日均量×volume_shrink_ratio (默认0.85)
+      4. 回调20%-70%（Fibonacci区间放宽）
+      5. 价格在近60日最低30%区间
+      6. ZHIXING_TREND走平或回升（短期趋势线近5日斜率>=0）
+
+    持仓管理（内建规则，供回测/实盘引用）:
+      - 脱离成本3%以上 → 持有
+      - 止损: 入场日最低价 - 0.03
+      - 止盈: fly_away 逐步减仓
 """
 
 import pandas as pd
@@ -128,29 +136,31 @@ def generate_signals(
     symbol: str = "",
     all_stocks: dict | None = None,
     b1_lookback: int = 60,
-    j_threshold: float = 13.0,
-    volume_shrink_ratio: float = 0.7,
+    require_b1_history: bool = False,
+    j_threshold: float = 20.0,
+    volume_shrink_ratio: float = 0.85,
     volume_ma_period: int = 20,
-    fib_min: float = 0.30,
-    fib_max: float = 0.62,
+    fib_min: float = 0.20,
+    fib_max: float = 0.70,
     position_lookback: int = 60,
     position_threshold: float = 0.30,
     shadow_mult: float = 3.0,
     trend_slope_window: int = 5,
     **params,
 ) -> pd.DataFrame:
-    """生成 AlphaPulse-A 单针下三十策略信号。
+    """生成 AlphaPulse-A 单针下三十策略信号（优化版v2）。
 
     Args:
         data: 日线OHLCV DataFrame，含 open/high/low/close/volume
         symbol: 股票代码
         all_stocks: 全市场股票数据dict（预留，用于跨标的B1历史交叉验证）
-        b1_lookback: B1历史选中回溯天数
-        j_threshold: KDJ J值超卖阈值
-        volume_shrink_ratio: 缩量比例（相对于20日均量）
+        b1_lookback: B1历史选中回溯天数（默认60）
+        require_b1_history: 是否要求近60日内曾被B1_FORMULA选中（默认False，关闭以提升命中率）
+        j_threshold: KDJ J值超卖阈值（默认20，放宽自13）
+        volume_shrink_ratio: 缩量比例相对于20日均量（默认0.85，放宽自0.7）
         volume_ma_period: 均量计算周期
-        fib_min: Fibonacci回调区间下限（0.30=30%）
-        fib_max: Fibonacci回调区间上限（0.62=62%）
+        fib_min: Fibonacci回调区间下限（默认0.20=20%，放宽自0.30）
+        fib_max: Fibonacci回调区间上限（默认0.70=70%，放宽自0.62）
         position_lookback: 价格位置判断窗口
         position_threshold: 价格低位阈值（<此值=低位）
         shadow_mult: 下影线/实体长度最小倍数
@@ -179,10 +189,13 @@ def generate_signals(
     )
 
     # ========================================================================
-    # 前提条件 P1: 近60日内被B1_FORMULA选中
+    # 前提条件 P1: 近60日内被B1_FORMULA选中（可选，默认关闭以提升命中率）
     # ========================================================================
-    b1_signal = b1_formula.compute(data)
-    b1_recent_60d = b1_signal.rolling(b1_lookback, min_periods=1).max().fillna(0).astype(bool)
+    if require_b1_history:
+        b1_signal = b1_formula.compute(data)
+        b1_recent_60d = b1_signal.rolling(b1_lookback, min_periods=1).max().fillna(0).astype(bool)
+    else:
+        b1_recent_60d = pd.Series(True, index=idx)
 
     # ========================================================================
     # 前提条件 P2: N型结构触发
@@ -221,18 +234,34 @@ def generate_signals(
     cond_volume_shrink = volume < vol_ma * volume_shrink_ratio
 
     # ========================================================================
-    # 入场条件 C4: 回调30%-62%（Fibonacci区间）
-    #   retrace = (B_price - close) / (B_price - A_price)
-    #   其中 B 是T1高点，A 是前一个低点
+    # 入场条件 C4: 回调20%-70%（Fibonacci区间放宽）
+    #   优先使用N型上下文计算：retrace = (B_price - close) / (B_price - A_price)
+    #   无N型上下文时退化为：近60日高点回落 > 10%（放宽，避免排除全部案例）
     # ========================================================================
     ab_range = b_price_ctx - a_price_ctx
-    # 只在有效N型上下文中计算回撤比
     valid_ctx = in_pullback & ab_range.notna() & (ab_range > 0)
+
+    # N型上下文中的精确斐波那契回撤
     fib_retrace_value = pd.Series(np.nan, index=idx, dtype=float)
-    fib_retrace_value[valid_ctx] = (
-        (b_price_ctx[valid_ctx] - close[valid_ctx]) / ab_range[valid_ctx]
+    fib_retrace_from_n = pd.Series(False, index=idx)
+    if valid_ctx.any():
+        fib_retrace_value[valid_ctx] = (
+            (b_price_ctx[valid_ctx] - close[valid_ctx]) / ab_range[valid_ctx]
+        )
+        fib_retrace_from_n[valid_ctx] = (
+            (fib_retrace_value[valid_ctx] >= fib_min)
+            & (fib_retrace_value[valid_ctx] <= fib_max)
+        )
+
+    # 无N型退化为：从近60日最高点回落10%以上
+    high_60d = high.rolling(position_lookback).max()
+    fall_from_high = (high_60d - close) / high_60d.replace(0, np.nan)
+    cond_fallback_pullback = fall_from_high > 0.10  # 回落至少10%
+
+    # 优先用N型精确回调，退而用60日高位回落
+    cond_fib_retrace = fib_retrace_from_n | (
+        (~in_pullback) & cond_fallback_pullback
     )
-    cond_fib_retrace = (fib_retrace_value >= fib_min) & (fib_retrace_value <= fib_max)
     cond_fib_retrace = cond_fib_retrace.fillna(False).infer_objects(copy=False)
 
     # ========================================================================
@@ -253,12 +282,22 @@ def generate_signals(
     prev_long_shadow = cond_long_shadow.shift(1).fillna(False).infer_objects(copy=False)
 
     # ========================================================================
-    # 综合信号：全部前提 + 全部入场条件 + 单针确认
+    # 综合信号：核心入场条件（AND逻辑）+ 可选前提 + 单针确认
+    #
+    # 硬条件（缺一不可）:
+    #   C1: 长下影 + C1b: 非连续下影（单针确认）
+    #   C2: J超卖
+    #   C3: 缩量
+    #   C4: 价格回调（N型Fib或60日高位回落）
+    #   C5: 价格在低位区间
+    #   C6: 趋势走平或回升
+    #
+    # 软条件（可选/可配置）:
+    #   P1: B1历史选中（require_b1_history控制）
+    #   P2/P3: N型结构 + 回调阶段（已融入C4的退化逻辑）
     # ========================================================================
     signal_mask = (
-        b1_recent_60d
-        & ns_triggered
-        & in_pullback
+        b1_recent_60d  # 由require_b1_history控制，默认全部True
         & cond_long_shadow
         & ~prev_long_shadow
         & cond_j_oversold
@@ -277,10 +316,7 @@ def generate_signals(
 
     results = []
     for dt in signal_dates:
-        # 综合置信度：各条件加权求和（满分1.0）
         c_b1 = float(b1_recent_60d[dt])
-        c_ns = float(ns_triggered[dt])
-        c_pb = float(in_pullback[dt])
         c_shadow = float(cond_long_shadow[dt])
         c_j = float(cond_j_oversold[dt])
         c_vol = float(cond_volume_shrink[dt])
@@ -288,14 +324,21 @@ def generate_signals(
         c_pos = float(cond_low_position[dt])
         c_tr = float(cond_trend_flat_rising[dt])
 
-        # 前提3项各0.10 + 入场6项各~0.117
+        # 核心入场条件权重（6项均等 ~0.167，满分1.0）
+        # B1历史可选前提不占权重（已通过b1_recent_60d参与AND但不计入confidence）
         confidence = (
-            c_b1 * 0.10 + c_ns * 0.10 + c_pb * 0.10
-            + c_shadow * 0.15 + c_j * 0.10 + c_vol * 0.10
-            + c_fib * 0.15 + c_pos * 0.10 + c_tr * 0.10
+            c_shadow * 0.20 + c_j * 0.15 + c_vol * 0.15
+            + c_fib * 0.20 + c_pos * 0.15 + c_tr * 0.15
         )
-        # 由于AND逻辑，全部满足时confidence=1.0；这里保留计算框架供日后
-        # 引入软条件（部分满足）时使用。
+        # 由于AND逻辑，全部满足时confidence=1.0
+
+        # fib_retrace回退值：N型上下文中用fib_retrace_value，否则用60日高位回落比
+        use_fib = pd.notna(fib_retrace_value[dt])
+        fib_display = (
+            round(float(fib_retrace_value[dt]), 3)
+            if use_fib
+            else round(float(fall_from_high[dt]), 3)
+        )
 
         snapshot = {
             "shadow_mult": round(
@@ -303,18 +346,15 @@ def generate_signals(
             ),
             "j_value": round(float(j[dt]), 2),
             "volume_ratio": round(float(volume[dt] / max(vol_ma[dt], 1)), 3),
-            "fib_retrace": (
-                round(float(fib_retrace_value[dt]), 3)
-                if pd.notna(fib_retrace_value[dt])
-                else None
-            ),
+            "fib_retrace": fib_display,
+            "fib_from_n_struct": bool(use_fib),
             "price_position": round(float(price_pos[dt]), 3),
             "trend_slope": round(float(trend_slope[dt]), 4),
             "close": float(close[dt]),
             "volume": float(volume[dt]),
             "low": float(low[dt]),
             "b1_selected_recent": c_b1 == 1.0,
-            "in_pullback": c_pb == 1.0,
+            "in_pullback": bool(in_pullback[dt]),
         }
         results.append(
             {

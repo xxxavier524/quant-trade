@@ -94,7 +94,11 @@ def generate_signals(
     # ============================================================
 
     # 主信号 (80%权重): b1_formula 6条件AND -- 决定性因素
-    b1_main = b1_compute(data, **params)
+    # 过滤仅传给 b1_compute 的参数
+    _b1_keys = {"pct_change_range", "amplitude_max", "j_threshold",
+                "dif_threshold", "trend_fast", "trend_slow"}
+    _b1_params = {k: v for k, v in params.items() if k in _b1_keys}
+    b1_main = b1_compute(data, **_b1_params)
 
     # 增强信号 (20%权重): volume_b1 量能体系 -- 增强信心但不强制
     b1_vol = vol_b1_compute(data)
@@ -123,10 +127,12 @@ def generate_signals(
     in_b2_window = b1_int.shift(1).rolling(5, min_periods=1).sum().fillna(0) > 0
 
     # B2条件: 阳线涨幅>3% + 成交量>前日2倍 + 收盘>白线
-    # 涨幅>3%参考b1_formula cond1(±3%)——B2需要更明确的突破确认
-    yang_big = (close > open_) & (close.pct_change() > 0.03)
-    # 成交量>前日2倍参考b1_formula的放量逻辑
-    vol_double = volume > (volume.shift(1) * 2)
+    #  可参数化: vol_mult_b2 (放量倍数), yang_pct_b2 (涨幅阈值)
+    vol_mult_b2 = params.get("vol_mult_b2", 2.0)
+    yang_pct_b2 = params.get("yang_pct_b2", 0.03)
+    yang_big = (close > open_) & (close.pct_change() > yang_pct_b2)
+    # 成交量>前日N倍参考b1_formula的放量逻辑
+    vol_double = volume > (volume.shift(1) * vol_mult_b2)
     above_white = close > white_line
     b2_conditions = yang_big & vol_double & above_white
 
@@ -166,12 +172,19 @@ def generate_signals(
     vol_ratio = volume / volume.shift(1)
     last_b2_close_filled = close.where(b2_signal).ffill()
 
+    # 置信度阈值过滤（可通过params覆盖）
+    min_conf_b1 = params.get("min_conf_b1", 0.0)
+    min_conf_b2 = params.get("min_conf_b2", 0.0)
+    min_conf_b3 = params.get("min_conf_b3", 0.0)
+
     results = []
 
     # B1 signals
     for dt in data.index[b1_signal]:
         with_vol = bool(b1_vol_on_signal.loc[dt]) if dt in b1_vol_on_signal.index else False
         conf = 0.8 if with_vol else 0.6
+        if conf < min_conf_b1:
+            continue
         results.append({
             "symbol": symbol,
             "date": dt,
@@ -192,6 +205,8 @@ def generate_signals(
     # B2 signals
     for dt in data.index[b2_signal]:
         conf = 0.85 if bool(b2_enhanced.loc[dt]) else 0.75
+        if conf < min_conf_b2:
+            continue
         results.append({
             "symbol": symbol,
             "date": dt,
@@ -210,6 +225,9 @@ def generate_signals(
 
     # B3 signals
     for dt in data.index[b3_signal]:
+        conf = 0.9  # B3 base confidence
+        if conf < min_conf_b3:
+            continue
         b2c = float(last_b2_close_filled[dt]) if pd.notna(last_b2_close_filled[dt]) else None
         results.append({
             "symbol": symbol,
