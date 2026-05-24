@@ -26,6 +26,11 @@ from alphapulse.factors import (
     long_yin_short_column,
     wave_identifier,
     key_k_abc,
+    dynamic_stop_loss,
+    fly_away,
+    s1_sell_signal,
+    dd_sell_signal,
+    trendline_break,
 )
 
 from alphapulse.factors.experimental import (
@@ -258,6 +263,37 @@ FACTOR_REGISTRY = {
         "description": "两阶段AI选股：行业轮动(Top5主线行业) + 个股β排序(每行业Top10)。双层垂直AI体系(宏观→微观)",
         "source": "AI量化选股模型——行业配置+个股精选双层垂直体系",
         "default_params": {"top_industries": 5, "stocks_per_industry": 10, "min_trend_score": 0.45},
+    },
+    # --- 风控因子（type="risk"） ---
+    "DYNAMIC_STOP_LOSS": {
+        "module": dynamic_stop_loss,
+        "type": "risk",
+        "description": "动态止损：止损价 = min(入场日最低价-3价位, 前N型结构低点-3价位)，最小变动价位0.01",
+        "default_params": {"tick_size": 0.01, "tick_offset": 3},
+    },
+    "FLY_AWAY": {
+        "module": fly_away,
+        "type": "risk",
+        "description": "放飞减仓：连续阳线加速/白线上方加速/砖型图连续红砖→阶梯减仓(1/4→1/3→1/2)，全部shift(1)防未来函数",
+        "default_params": {},
+    },
+    "S1_SELL_SIGNAL": {
+        "module": s1_sell_signal,
+        "type": "risk",
+        "description": "S1最强卖出信号：波段最高点放巨量阴线（阴线+量近20日最高+量>20日阳量均值2x+前5日≥3日涨），假阴真阳降级",
+        "default_params": {"vol_window": 20, "vol_mult": 2.0},
+    },
+    "DD_SELL_SIGNAL": {
+        "module": dd_sell_signal,
+        "type": "risk",
+        "description": "DD卖出信号：收盘价<前日最低价，连续2天DD增强，全部shift(1)防未来函数",
+        "default_params": {},
+    },
+    "TRENDLINE_BREAK": {
+        "module": trendline_break,
+        "type": "risk",
+        "description": "趋势线跌破：白线(EMA(EMA(C,10),10))与黄线(4MA均值)跌破检测，含假跌破确认，全部shift(1)防未来函数",
+        "default_params": {},
     },
 }
 
