@@ -17,6 +17,9 @@ from alphapulse.factors import (
     brick_ultra,
     zhixing_washout,
     volume_b1,
+    key_kline,
+    violent_kline,
+    double_volume_bar,
 )
 
 from alphapulse.factors.experimental import (
@@ -114,6 +117,25 @@ FACTOR_REGISTRY = {
             "j_threshold": 13.0, "min_market_cap": 40,
             "surge_ratio": 1.85, "half_down_ratio": 0.5,
         },
+    },
+    # --- 多头K线因子（core） ---
+    "KEY_KLINE": {
+        "module": key_kline,
+        "type": "core",
+        "description": "关键K线：近20日涨幅最大阳线 + 成交量>2倍20日均量",
+        "default_params": {"lookback": 20, "vol_mult": 2.0},
+    },
+    "VIOLENT_KLINE": {
+        "module": violent_kline,
+        "type": "core",
+        "description": "暴力K：涨幅>5% + 成交量>3倍20日均量",
+        "default_params": {"pct_threshold": 5.0, "vol_mult": 3.0},
+    },
+    "DOUBLE_VOLUME_BAR": {
+        "module": double_volume_bar,
+        "type": "core",
+        "description": "倍量柱：成交量>=前日2倍 + 阳线",
+        "default_params": {"mult": 2.0},
     },
     # --- 指标类因子（不含选股逻辑，仅输出数值） ---
     "BRICK_INDICATOR": {
