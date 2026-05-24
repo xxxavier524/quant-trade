@@ -64,17 +64,17 @@ def _check_output_format(df, strategy_name):
 
 
 def make_b1_b2_b3_friendly_data(n_days: int = 500) -> pd.DataFrame:
-    """生成 B1->B2->B3 递进信号触发数据。
+    """生成 B1->B2->B3 递进信号触发数据（适配b1_formula 6条件）。
 
     关键时序设计：
-    0-199:   温和上涨(10->18) 建立趋势
-    200-259: 高位横盘(18)
-    260-295: 快速下跌(18->~12) 60日跌幅>10% + J触底
-    296-313: 微跌筑底，白线惯性下行穿越收盘价
-    314-315: 放量异动
-    316-317: 极致缩量 + J仍<13 + close>白线 -> B1触发
-    318:     B2 倍量阳线
-    320:     B3 缩量阳线锁仓
+    0-99:    温和上涨(10->18) 建立EMA12>EMA26多头趋势
+    100-199: 高位横盘(18) 维持EMA结构
+    200-259: 快速下跌(18->10) J触底，EMA12<EMA26
+    260-369: 慢速筑底(10->9.6) 长周期让EMAs收敛
+    370-384: 急跌反弹(9.6->9.1->10.3) 制造J<13 + EMA12>EMA26交叉窗口
+    ~383-386: B1触发窗口
+    387:     B2 倍量阳线突破(涨幅>3%, vol>2x, close>白线)
+    389:     B3 缩量阳线锁仓(缩量<0.7, 不破B2收盘)
     """
     np.random.seed(42)
     dates = pd.date_range("2023-01-01", periods=n_days, freq="B")
@@ -86,61 +86,91 @@ def make_b1_b2_b3_friendly_data(n_days: int = 500) -> pd.DataFrame:
     low = np.full(N, np.nan)
     volume = np.ones(N) * 1_000_000
 
-    # ---- 0-199: 10 -> 18 ----
-    for i in range(200):
-        close[i] = 10.0 + 8.0 * i / 200 + np.random.randn() * 0.08
-    # ---- 200-259: 高位横盘 ----
+    # ---- Phase 1: 0-99 温和上涨 10 -> 18 (建立EMA12>EMA26) ----
+    for i in range(100):
+        close[i] = 10.0 + 8.0 * i / 100 + np.random.randn() * 0.06
+        low[i] = close[i] * 0.98
+        high[i] = close[i] * 1.02
+
+    # ---- Phase 2: 100-199 高位横盘 18 (维持EMA结构) ----
+    for i in range(100, 200):
+        close[i] = 18.0 + np.random.randn() * 0.15
+        low[i] = close[i] * 0.985
+        high[i] = close[i] * 1.015
+
+    # ---- Phase 3: 200-259 快速下跌 18 -> 10 (J触底, EMA12<EMA26, 制造9日高值) ----
     for i in range(200, 260):
-        close[i] = 18.0 + np.random.randn() * 0.2
-    # ---- 260-295: 快速下跌 18 -> 11.8 ----
-    for i in range(260, 296):
-        close[i] = 18.0 - 0.175 * (i - 260) + np.random.randn() * 0.04
-    # ---- 296-313: 微跌/走平筑底 ----
-    # 白线(EMA(EMA(C,10),10))在跌势后有惯性，会继续下行穿过close
-    base_bottom = close[295]
-    for i in range(296, 314):
-        close[i] = base_bottom - 0.02 * (i - 296) + np.random.randn() * 0.03
+        close[i] = 18.0 - 8.0 * (i - 200) / 60 + np.random.randn() * 0.05
+        # 阴线为主: open > close
+        open_arr[i] = close[i] * 1.01
+        low[i] = close[i] * 0.99
+        high[i] = max(open_arr[i], close[i]) * 1.005
 
-    # ---- 314-315: 放量异动 ----
-    volume[314] = 18_000_000
-    volume[315] = 14_000_000
+    # ---- Phase 4: 260-369 慢速筑底 10 -> 9.6 (110天, EMAs充分收敛) ----
+    # 极其缓慢的下跌让EMA12和EMA26都收敛到当前价格附近
+    for i in range(260, 370):
+        close[i] = close[259] - 0.4 * (i - 260) / 110 + np.random.randn() * 0.03
+        low[i] = close[i] * 0.99
+        high[i] = close[i] * 1.01
 
-    # ---- 316: 极致缩量 (B1候选) ----
-    volume[316] = 70_000
-    close[316] = close[315] + 0.02  # 微涨，保持稳定
+    # ---- Phase 5: 370-384 急跌反弹 (制造J<13 + EMA12>EMA26交叉窗口) ----
+    # 370-371: 急跌到9.1 (J暴跌, 制造9日低点)
+    close[370] = close[369] * 0.97   # ~9.3
+    close[371] = close[370] * 0.975  # ~9.1 (底部)
+    low[370] = close[370] * 0.985
+    high[370] = close[370] * 1.01
+    low[371] = close[371] * 0.985
+    high[371] = close[371] * 1.01
 
-    # ---- 317: B1触发日 (缩量 + J<13 + close>白线 + 近5日异动) ----
-    volume[317] = 75_000
-    close[317] = close[316] + 0.03
+    # 372-384: 反弹回10.3 (EMA12快速响应超越EMA26, 9日高值来自Phase4/跌前)
+    # 反弹分两段: 372-378缓慢(EMAs靠近), 379-384加速(EMA12交叉)
+    for i in range(372, 379):
+        close[i] = close[371] + 1.2 * (i - 371) / 8 + np.random.randn() * 0.02
+        low[i] = close[i] * 0.99
+        high[i] = close[i] * 1.01
+    for i in range(379, 385):
+        close[i] = close[378] + 0.6 * (i - 378) / 7 + np.random.randn() * 0.02
+        low[i] = close[i] * 0.99
+        high[i] = close[i] * 1.01
 
-    # ---- 318: B2 倍量阳线突破 ----
-    close[318] = close[317] * 1.045   # +4.5% 阳线
-    open_arr[318] = close[317] * 1.01
-    high[318] = close[318] * 1.02
-    low[318] = close[317] * 0.99
-    volume[318] = volume[317] * 4.0   # 4x倍量
+    # 在385-386: 制造B1信号日条件 (小涨, J仍低, EMA12>EMA26已交叉)
+    close[385] = close[384] + 0.02
+    low[385] = close[385] * 0.99
+    high[385] = close[385] * 1.01
 
-    # ---- 319: 正常回调 ----
-    close[319] = close[318] * 0.998
-    open_arr[319] = close[319] * 1.002
-    high[319] = close[319] * 1.015
-    low[319] = close[319] * 0.985
-    volume[319] = 1_800_000
+    # 386: B1信号日 (涨幅小<3%, 振幅小, EMA12>EMA26, DIF>-0.1, J<13)
+    close[386] = close[385] + 0.01
+    low[386] = close[386] * 0.985
+    high[386] = close[386] * 1.01
 
-    # ---- 320: B3 缩量阳线锁仓 ----
-    close[320] = close[319] * 1.015
-    open_arr[320] = close[319] * 0.997    # 阳线
-    high[320] = close[320] * 1.015
-    low[320] = max(close[319] * 0.997, close[318])  # >= B2收盘
-    volume[320] = volume[319] * 0.55      # 缩量0.55x
+    # ---- 387: B2 倍量阳线突破 (涨幅>3%, vol>2x前日, close>白线) ----
+    close[387] = close[386] * 1.045   # +4.5% 阳线
+    open_arr[387] = close[386] * 1.01
+    high[387] = close[387] * 1.02
+    low[387] = close[386] * 0.99
+    volume[387] = volume[386] * 4.0   # 4x倍量
+
+    # ---- 388: 正常回调 ----
+    close[388] = close[387] * 0.998
+    open_arr[388] = close[388] * 1.002
+    high[388] = close[388] * 1.015
+    low[388] = close[388] * 0.985
+    volume[388] = 1_800_000
+
+    # ---- 389: B3 缩量阳线锁仓 ----
+    close[389] = close[388] * 1.015
+    open_arr[389] = close[388] * 0.997    # 阳线
+    high[389] = close[389] * 1.015
+    low[389] = max(close[388] * 0.997, close[387])  # >= B2收盘
+    volume[389] = volume[388] * 0.55      # 缩量0.55x
 
     # ---- Fill remaining ----
-    for i in range(321, N):
+    for i in range(390, N):
         close[i] = close[i - 1] * (1 + np.random.randn() * 0.004)
     for i in range(N):
         if np.isnan(close[i]):
             close[i] = 10.0
-        if volume[i] == 1_000_000 and i >= 321:
+        if volume[i] == 1_000_000 and i >= 390:
             volume[i] = max(300_000, volume[i - 1] * (1 + np.random.randn() * 0.08))
 
     # ---- OHLC for unspecified bars ----
@@ -350,7 +380,7 @@ def test_b1_b2_b3_signals():
         assert "signal_type" in result2.columns
         for st, conf in zip(result2["signal_type"], result2["confidence"]):
             if st == "B1":
-                assert conf == 0.6, f"B1 confidence 应为0.6，实际{conf}"
+                assert conf in (0.6, 0.8), f"B1 confidence 应为0.6(单独)或0.8(量能增强)，实际{conf}"
             elif st == "B2":
                 assert conf in (0.75, 0.85), f"B2 confidence 应为0.75或0.85，实际{conf}"
             elif st == "B3":
