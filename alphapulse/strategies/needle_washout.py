@@ -243,15 +243,13 @@ def generate_signals(
 
     # N型上下文中的精确斐波那契回撤
     fib_retrace_value = pd.Series(np.nan, index=idx, dtype=float)
-    fib_retrace_from_n = pd.Series(False, index=idx)
     if valid_ctx.any():
         fib_retrace_value[valid_ctx] = (
             (b_price_ctx[valid_ctx] - close[valid_ctx]) / ab_range[valid_ctx]
         )
-        fib_retrace_from_n[valid_ctx] = (
-            (fib_retrace_value[valid_ctx] >= fib_min)
-            & (fib_retrace_value[valid_ctx] <= fib_max)
-        )
+    fib_retrace_from_n = (
+        (fib_retrace_value >= fib_min) & (fib_retrace_value <= fib_max)
+    ).fillna(False).astype(bool)
 
     # 无N型退化为：从近60日最高点回落10%以上
     high_60d = high.rolling(position_lookback).max()
@@ -279,7 +277,10 @@ def generate_signals(
     cond_trend_flat_rising = trend_slope >= 0
 
     # ---- 额外：确认前一日非长下影（单针，非连续下影） ----
-    prev_long_shadow = cond_long_shadow.shift(1).fillna(False).infer_objects(copy=False)
+    prev_long_shadow = cond_long_shadow.shift(1, fill_value=False)
+    # 确保 bool dtype
+    if prev_long_shadow.dtype != bool:
+        prev_long_shadow = prev_long_shadow.astype(bool)
 
     # ========================================================================
     # 综合信号：核心入场条件（AND逻辑）+ 可选前提 + 单针确认

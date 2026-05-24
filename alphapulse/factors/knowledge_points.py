@@ -34,7 +34,10 @@ def _rolling_count(condition: pd.Series, window: int) -> pd.Series:
 
 def _consecutive_count(condition: pd.Series) -> pd.Series:
     """向量化计算连续满足条件的天数。"""
-    group = (condition != condition.shift(1).fillna(False).infer_objects(copy=False)).cumsum()
+    shifted = condition.shift(1)
+    shifted.iloc[0] = shifted.iloc[0] if pd.notna(shifted.iloc[0]) else False
+    shifted = shifted.infer_objects(copy=False)
+    group = (condition != shifted).cumsum()
     consecutive = condition.astype(int).groupby(group).cumsum()
     return consecutive.where(condition, 0)
 
@@ -254,7 +257,10 @@ def compute_pierce_counterpart(data: pd.DataFrame) -> pd.Series:
     next_close = close.shift(-1)
     next_yellow = yellow_line.shift(-1)
     pierce_next = pierce.shift(-1)  # 前一日是击穿日
-    recovered_yesterday = pierce_next.fillna(False).infer_objects(copy=False) & (close > yellow_line)
+    pierce_next_nona = pierce_next.copy()
+    pierce_next_nona[pierce_next_nona.isna()] = False
+    pierce_next_nona = pierce_next_nona.infer_objects(copy=False)
+    recovered_yesterday = pierce_next_nona & (close > yellow_line)
     result[recovered_yesterday] = 2
 
     return result
