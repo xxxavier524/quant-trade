@@ -66,15 +66,23 @@ def _check_output_format(df, strategy_name):
 def make_b1_b2_b3_friendly_data(n_days: int = 500) -> pd.DataFrame:
     """生成 B1->B2->B3 递进信号触发数据（适配b1_formula 6条件）。
 
-    关键时序设计：
-    0-99:    温和上涨(10->18) 建立EMA12>EMA26多头趋势
-    100-199: 高位横盘(18) 维持EMA结构
-    200-259: 快速下跌(18->10) J触底，EMA12<EMA26
-    260-369: 慢速筑底(10->9.6) 长周期让EMAs收敛
-    370-384: 急跌反弹(9.6->9.1->10.3) 制造J<13 + EMA12>EMA26交叉窗口
-    ~383-386: B1触发窗口
-    387:     B2 倍量阳线突破(涨幅>3%, vol>2x, close>白线)
-    389:     B3 缩量阳线锁仓(缩量<0.7, 不破B2收盘)
+    b1_formula 6条件:
+      1. |pct_change| <= 3%        2. amplitude < 9%
+      3. market_cap > 10亿(default T) 4. KDJ J < 13
+      5. EMA12 > EMA26             6. MACD DIF > -0.1
+
+    关键洞察：b1_formula在急跌过程中触发（J因暴跌<13，而EMA12因前期大涨尚未跌破EMA26）。
+    所以设计为"高位大幅上涨后在急跌初期触发B1"。
+
+    时序设计（500日）:
+    0-99:    强势上涨(10->25) 建立大幅EMA12>EMA26多头趋势
+    100-149: 高位横盘(25) 巩固EMA结构，EMA12>>EMA26
+    150-199: 急跌(25->12) 0.26/天，J暴跌<13但EMA12仍>EMA26 → B1触发
+    200-249: 筑底反弹(12->15->13) 反弹+回踩形成N型
+    250-259: 横盘整理 稳定结构
+    260-269: 拉高(13->15.5) 接近前高
+    ~265-275: B2 倍量阳线突破(涨幅>3%, vol>2x, close>白线)
+    ~278-282: B3 缩量阳线锁仓(缩量<0.7, 不破B2收盘)
     """
     np.random.seed(42)
     dates = pd.date_range("2023-01-01", periods=n_days, freq="B")
@@ -86,104 +94,95 @@ def make_b1_b2_b3_friendly_data(n_days: int = 500) -> pd.DataFrame:
     low = np.full(N, np.nan)
     volume = np.ones(N) * 1_000_000
 
-    # ---- Phase 1: 0-99 温和上涨 10 -> 18 (建立EMA12>EMA26) ----
+    # ---- Phase 1: 0-99 强势上涨 10 -> 25 (EMA12大幅>EMA26) ----
     for i in range(100):
-        close[i] = 10.0 + 8.0 * i / 100 + np.random.randn() * 0.06
+        close[i] = 10.0 + 15.0 * i / 99 + np.random.randn() * 0.08
         low[i] = close[i] * 0.98
         high[i] = close[i] * 1.02
+        open_arr[i] = close[i] * 0.995
 
-    # ---- Phase 2: 100-199 高位横盘 18 (维持EMA结构) ----
-    for i in range(100, 200):
-        close[i] = 18.0 + np.random.randn() * 0.15
+    # ---- Phase 2: 100-149 高位横盘 25 (巩固EMA结构) ----
+    for i in range(100, 150):
+        close[i] = 25.0 + np.random.randn() * 0.1
+        low[i] = close[i] * 0.99
+        high[i] = close[i] * 1.01
+        open_arr[i] = close[i] * 0.998
+
+    # ---- Phase 3: 150-199 急跌 25 -> 12 (J<13, EMA12仍>EMA26 -> B1触发) ----
+    # 急跌速度0.26/天，EMA12从高点下降但初始差距大，未跌破EMA26
+    for i in range(150, 200):
+        close[i] = 25.0 - 13.0 * (i - 150) / 50 + np.random.randn() * 0.06
+        open_arr[i] = close[i] * 1.005  # 阴线
+        low[i] = close[i] * 0.985
+        high[i] = max(open_arr[i], close[i]) * 1.005
+
+    # B1预期触发日: 约日165-175（J<13且EMA12仍>EMA26的窗口）
+    # B1_BASE = index ~170 (跌幅约-1.3%, J<10, EMA12>>EMA26)
+
+    # ---- Phase 4: 200-249 筑底反弹 ----
+    for i in range(200, 230):
+        close[i] = close[199] + 3.0 * (i - 200) / 30 + np.random.randn() * 0.05
+        open_arr[i] = close[i] * 0.998
+        low[i] = close[i] * 0.98
+        high[i] = close[i] * 1.02
+    for i in range(230, 250):
+        close[i] = close[229] - 2.0 * (i - 230) / 20 + np.random.randn() * 0.04
+        open_arr[i] = close[i] * 1.002
         low[i] = close[i] * 0.985
         high[i] = close[i] * 1.015
 
-    # ---- Phase 3: 200-259 快速下跌 18 -> 10 (J触底, EMA12<EMA26, 制造9日高值) ----
-    for i in range(200, 260):
-        close[i] = 18.0 - 8.0 * (i - 200) / 60 + np.random.randn() * 0.05
-        # 阴线为主: open > close
-        open_arr[i] = close[i] * 1.01
-        low[i] = close[i] * 0.99
-        high[i] = max(open_arr[i], close[i]) * 1.005
+    # ---- Phase 5: 250-259 横盘整理 ----
+    for i in range(250, 260):
+        close[i] = close[249] + np.random.randn() * 0.05
+        open_arr[i] = close[i] * 0.999
+        low[i] = close[i] * 0.985
+        high[i] = close[i] * 1.015
 
-    # ---- Phase 4: 260-369 慢速筑底 10 -> 9.6 (110天, EMAs充分收敛) ----
-    # 极其缓慢的下跌让EMA12和EMA26都收敛到当前价格附近
-    for i in range(260, 370):
-        close[i] = close[259] - 0.4 * (i - 260) / 110 + np.random.randn() * 0.03
-        low[i] = close[i] * 0.99
-        high[i] = close[i] * 1.01
+    # ---- Phase 6: 260-269 快速拉高(13->15.5) ----
+    for i in range(260, 270):
+        close[i] = close[259] + 2.5 * (i - 260) / 10 + np.random.randn() * 0.04
+        open_arr[i] = close[i] * 0.995
+        low[i] = close[i] * 0.98
+        high[i] = close[i] * 1.02
 
-    # ---- Phase 5: 370-384 急跌反弹 (制造J<13 + EMA12>EMA26交叉窗口) ----
-    # 370-371: 急跌到9.1 (J暴跌, 制造9日低点)
-    close[370] = close[369] * 0.97   # ~9.3
-    close[371] = close[370] * 0.975  # ~9.1 (底部)
-    low[370] = close[370] * 0.985
-    high[370] = close[370] * 1.01
-    low[371] = close[371] * 0.985
-    high[371] = close[371] * 1.01
+    # ---- B2 倍量阳线: 日271 (涨幅>3%, vol>2x, close>白线) ----
+    b2_idx = 271
+    close[b2_idx] = close[270] * 1.045    # +4.5% 阳线
+    open_arr[b2_idx] = close[270] * 1.01
+    high[b2_idx] = close[b2_idx] * 1.015
+    low[b2_idx] = close[270] * 0.99
+    volume[b2_idx] = max(volume[270] * 4.0, 5_000_000)
 
-    # 372-384: 反弹回10.3 (EMA12快速响应超越EMA26, 9日高值来自Phase4/跌前)
-    # 反弹分两段: 372-378缓慢(EMAs靠近), 379-384加速(EMA12交叉)
-    for i in range(372, 379):
-        close[i] = close[371] + 1.2 * (i - 371) / 8 + np.random.randn() * 0.02
-        low[i] = close[i] * 0.99
-        high[i] = close[i] * 1.01
-    for i in range(379, 385):
-        close[i] = close[378] + 0.6 * (i - 378) / 7 + np.random.randn() * 0.02
-        low[i] = close[i] * 0.99
-        high[i] = close[i] * 1.01
+    # ---- 回调: 272-275 ----
+    for i in range(272, 276):
+        close[i] = close[i - 1] * (1 - np.random.rand() * 0.008)
+        open_arr[i] = close[i] * (1 + np.random.rand() * 0.005)
+        low[i] = close[i] * 0.985
+        high[i] = close[i] * 1.015
 
-    # 在385-386: 制造B1信号日条件 (小涨, J仍低, EMA12>EMA26已交叉)
-    close[385] = close[384] + 0.02
-    low[385] = close[385] * 0.99
-    high[385] = close[385] * 1.01
+    # ---- B3 缩量阳线锁仓: 日276附近 ----
+    b3_idx = 276
+    close[b3_idx] = close[275] * 1.015
+    open_arr[b3_idx] = close[275] * 0.997    # 阳线
+    high[b3_idx] = close[b3_idx] * 1.015
+    low[b3_idx] = max(close[275] * 0.997, close[b2_idx])  # >= B2收盘
+    volume[b3_idx] = volume[275] * 0.55      # 缩量0.55x
 
-    # 386: B1信号日 (涨幅小<3%, 振幅小, EMA12>EMA26, DIF>-0.1, J<13)
-    close[386] = close[385] + 0.01
-    low[386] = close[386] * 0.985
-    high[386] = close[386] * 1.01
-
-    # ---- 387: B2 倍量阳线突破 (涨幅>3%, vol>2x前日, close>白线) ----
-    close[387] = close[386] * 1.045   # +4.5% 阳线
-    open_arr[387] = close[386] * 1.01
-    high[387] = close[387] * 1.02
-    low[387] = close[386] * 0.99
-    volume[387] = volume[386] * 4.0   # 4x倍量
-
-    # ---- 388: 正常回调 ----
-    close[388] = close[387] * 0.998
-    open_arr[388] = close[388] * 1.002
-    high[388] = close[388] * 1.015
-    low[388] = close[388] * 0.985
-    volume[388] = 1_800_000
-
-    # ---- 389: B3 缩量阳线锁仓 ----
-    close[389] = close[388] * 1.015
-    open_arr[389] = close[388] * 0.997    # 阳线
-    high[389] = close[389] * 1.015
-    low[389] = max(close[388] * 0.997, close[387])  # >= B2收盘
-    volume[389] = volume[388] * 0.55      # 缩量0.55x
-
-    # ---- Fill remaining ----
-    for i in range(390, N):
+    # ---- Fill remaining with random walk ----
+    for i in range(b3_idx + 1, N):
         close[i] = close[i - 1] * (1 + np.random.randn() * 0.004)
+
     for i in range(N):
         if np.isnan(close[i]):
             close[i] = 10.0
-        if volume[i] == 1_000_000 and i >= 390:
-            volume[i] = max(300_000, volume[i - 1] * (1 + np.random.randn() * 0.08))
-
-    # ---- OHLC for unspecified bars ----
-    for i in range(N):
+        if np.isnan(volume[i]) or volume[i] == 1_000_000:
+            volume[i] = max(300_000, volume[max(0, i - 1)] * (1 + np.random.randn() * 0.08))
         if np.isnan(open_arr[i]):
             open_arr[i] = close[i] * (1 - np.random.rand() * 0.015)
         if np.isnan(high[i]):
-            if close[i] >= open_arr[i]:
-                high[i] = max(close[i], open_arr[i]) * (1 + np.random.rand() * 0.015)
-                low[i] = min(close[i], open_arr[i]) * (1 - np.random.rand() * 0.015)
-            else:
-                high[i] = max(close[i], open_arr[i]) * (1 + np.random.rand() * 0.015)
-                low[i] = min(close[i], open_arr[i]) * (1 - np.random.rand() * 0.015)
+            high[i] = max(open_arr[i], close[i]) * (1 + np.random.rand() * 0.015)
+        if np.isnan(low[i]):
+            low[i] = min(open_arr[i], close[i]) * (1 - np.random.rand() * 0.015)
 
     # Ensure high >= low, high >= open/close, low <= open/close
     for i in range(N):

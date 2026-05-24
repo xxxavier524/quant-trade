@@ -4242,3 +4242,18 @@ FAILED tests/test_factors.py::test_all_factors_no_error - AttributeError: mod...
 1 failed, 14 passed, 3 warnings in 1.99s
 2026-05-24 19:04:18,798 [MONITOR] 🔴 1 CRITICAL 失败!
 2026-05-24 19:04:18,798 [MONITOR] 第 92 轮完成 (4/6). 下次: 2026-05-24T19:04:18.798495 + 3600s
+2026-05-24 20:04:18,840 [MONITOR] -- 第 93 轮检查 2026-05-24T20:04:18.840215 --
+2026-05-24 20:04:18,924 [MONITOR]   ✅ data_download_running: 16
+2026-05-24 20:04:19,191 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-24 20:04:24,976 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+129 pass
+2026-05-24 20:04:25,955 [MONITOR]   ✅ factor_registry_importable: 40
+2026-05-24 20:04:26,500 [MONITOR]   ✅ baostock_reachable: login success!
+0
+logout success!
+2026-05-24 20:04:32,353 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-24 20:04:32,353 [MONITOR] ⚠️ 1 项失败:
+2026-05-24 20:04:32,353 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-24 20:04:32,354 [MONITOR] 第 93 轮完成 (5/6). 下次: 2026-05-24T20:04:32.354422 + 3600s
