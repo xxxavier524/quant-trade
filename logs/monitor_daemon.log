@@ -4257,3 +4257,18 @@ logout success!
 2026-05-24 20:04:32,353 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
   File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
 2026-05-24 20:04:32,354 [MONITOR] 第 93 轮完成 (5/6). 下次: 2026-05-24T20:04:32.354422 + 3600s
+2026-05-24 21:04:32,393 [MONITOR] -- 第 94 轮检查 2026-05-24T21:04:32.370946 --
+2026-05-24 21:04:32,624 [MONITOR]   ✅ data_download_running: 16
+2026-05-24 21:04:34,224 [MONITOR]   ✅ data_files_growing: 5229
+2026-05-24 21:04:46,261 [MONITOR]   ✅ test_suite_passing: -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+129 pass
+2026-05-24 21:04:49,287 [MONITOR]   ✅ factor_registry_importable: 40
+2026-05-24 21:04:50,018 [MONITOR]   ✅ baostock_reachable: login success!
+0
+logout success!
+2026-05-24 21:04:57,502 [MONITOR]   ❌ akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.v
+2026-05-24 21:04:57,509 [MONITOR] ⚠️ 1 项失败:
+2026-05-24 21:04:57,509 [MONITOR]   [WARN] akshare_reachable: Traceback (most recent call last):
+  File "/Users/qiushixuan/cc/quantan trade/.venv/lib/python3.14/s
+2026-05-24 21:04:57,512 [MONITOR] 第 94 轮完成 (5/6). 下次: 2026-05-24T21:04:57.512864 + 3600s
