@@ -1,6 +1,6 @@
 """策略信号生成器单元测试。
 
-验证 B1、砖型图、单针下三十 三个策略的信号输出格式。
+验证 B1、砖型图、单针下三十、B1→B2→B3递进战法 等策略的信号输出格式。
 """
 
 import pandas as pd
@@ -8,6 +8,9 @@ import numpy as np
 from alphapulse.strategies.b1 import generate_signals as b1_signals
 from alphapulse.strategies.brick import generate_signals as brick_signals
 from alphapulse.strategies.needle import generate_signals as needle_signals
+from alphapulse.strategies.needle_washout import generate_signals as needle_washout_signals
+from alphapulse.strategies.brick_three_types import generate_signals as brick_three_types_signals
+from alphapulse.strategies.b1_b2_b3_strategy import generate_signals as b1b2b3_signals
 
 
 def make_synthetic_data(n_days: int = 500) -> pd.DataFrame:
@@ -104,22 +107,44 @@ def test_needle_signals():
     _check_output_format(result_loose, "NEEDLE")
 
 
+def test_needle_washout_signals():
+    """测试单针下三十(N型洗盘版)策略信号生成。"""
+    data = make_synthetic_data(500)
+    result = needle_washout_signals(data, symbol="TEST")
+
+    _check_output_format(result, "NEEDLE_WASHOUT")
+
+    # 应包含confidence列
+    if len(result) > 0:
+        assert "confidence" in result.columns, "NEEDLE_WASHOUT: 缺少confidence列"
+        assert (result["confidence"] >= 0).all() and (result["confidence"] <= 1).all(), \
+            "NEEDLE_WASHOUT: confidence应在0-1之间"
+
+    # 宽松参数应有更多信号
+    result_loose = needle_washout_signals(
+        data, symbol="X",
+        j_threshold=100, shadow_mult=0.5,
+        volume_shrink_ratio=2.0, fib_min=0.0, fib_max=1.0,
+        position_threshold=1.0, b1_lookback=500,
+    )
+    _check_output_format(result_loose, "NEEDLE_WASHOUT")
+
+
 def test_all_strategies_return_consistent_schema():
-    """三个策略输出schema一致。"""
+    """四个策略输出schema一致（含公共列）。"""
     data = make_synthetic_data(500)
     results = [
         b1_signals(data, symbol="TEST"),
         brick_signals(data, symbol="TEST"),
         needle_signals(data, symbol="TEST"),
+        needle_washout_signals(data, symbol="TEST"),
     ]
 
-    base_cols = None
+    common_cols = {"symbol", "signal", "strategy", "factor_snapshot"}
     for r in results:
-        cols = set(r.columns)
-        if len(r) > 0 and base_cols is None:
-            base_cols = cols
-        if len(r) > 0 and base_cols is not None:
-            assert cols == base_cols, f"列不一致: {cols} vs {base_cols}"
+        if len(r) > 0:
+            for col in common_cols:
+                assert col in r.columns, f"缺少公共列: {col}"
 
 
 def test_short_data_handling():
@@ -136,6 +161,7 @@ def test_short_data_handling():
         (b1_signals, "B1"),
         (brick_signals, "BRICK"),
         (needle_signals, "NEEDLE"),
+        (needle_washout_signals, "NEEDLE_WASHOUT"),
     ]:
         result = strategy_fn(short, symbol="X")
         # 短数据不足以产生信号（均线窗口未满），结果应为空

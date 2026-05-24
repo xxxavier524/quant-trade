@@ -32,6 +32,7 @@ from alphapulse.factors import (
     dd_sell_signal,
     trendline_break,
 )
+from alphapulse.strategies import needle_washout, brick_three_types, b1_b2_b3_strategy
 
 from alphapulse.factors.experimental import (
     northbound_capital_flow,
@@ -263,6 +264,39 @@ FACTOR_REGISTRY = {
         "description": "两阶段AI选股：行业轮动(Top5主线行业) + 个股β排序(每行业Top10)。双层垂直AI体系(宏观→微观)",
         "source": "AI量化选股模型——行业配置+个股精选双层垂直体系",
         "default_params": {"top_industries": 5, "stocks_per_industry": 10, "min_trend_score": 0.45},
+    },
+    # --- AlphaPulse-A 策略（module指向strategies而非factors） ---
+    "NEEDLE_WASHOUT": {
+        "module": needle_washout,
+        "type": "selection",
+        "description": "单针下三十策略(N型洗盘版)：B1前期选中+N型回调阶段+长下影+J超卖+缩量+Fib30-62%+低位30%+知行趋势走平",
+        "source": "AlphaPulse-A主力洗盘补票策略",
+        "default_params": {
+            "b1_lookback": 60, "j_threshold": 13.0,
+            "volume_shrink_ratio": 0.7, "volume_ma_period": 20,
+            "fib_min": 0.30, "fib_max": 0.62,
+            "position_lookback": 60, "position_threshold": 0.30,
+            "shadow_mult": 3.0, "trend_slope_window": 5,
+        },
+    },
+    "BRICK_THREE_TYPES": {
+        "module": brick_three_types,
+        "type": "selection",
+        "description": "砖型图3子类型策略：N型起跳(BRICK_N_JUMP)+上涨中继(BRICK_CONTINUATION)+横盘突破(BRICK_BREAKOUT)，基于brick_ultra.compute_brick_indicator红绿砖定义",
+        "source": "AlphaPulse-A砖型图策略3子类型版本",
+        "default_params": {
+            "vol_mult_n_jump": 1.5, "vol_mult_breakout": 1.3,
+            "bull_bear_tolerance": 0.03, "consolidation_days": (3, 5),
+            "consolidation_amplitude": 0.15, "continuation_lookback": (5, 10),
+            "pullback_days": (1, 2), "vol_expand_mult": 1.3,
+        },
+    },
+    "B1_B2_B3": {
+        "module": b1_b2_b3_strategy,
+        "type": "selection",
+        "description": "B1→B2→B3递进战法：B1底部挖掘(7条件AND)→B2确认(阳线放量突破白线)→B3锁定(缩量阳线+主力锁仓)，三阶段递进置信度0.6/0.75/0.9",
+        "source": "AlphaPulse-A B1→B2→B3递进战法",
+        "default_params": {},
     },
     # --- 风控因子（type="risk"） ---
     "DYNAMIC_STOP_LOSS": {
