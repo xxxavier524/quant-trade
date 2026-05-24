@@ -24,14 +24,15 @@ import numpy as np
 def _sma(series: pd.Series, n: int, m: float) -> pd.Series:
     """通达信SMA实现: SMA(X,N,M) = (M*X + (N-M)*Y')/N。
 
-    其中 Y' 是前一日的SMA值。
+    使用 numpy 数组加速替代 pandas .iloc 逐行访问。
     """
-    y = series.copy()
+    values = series.values.astype(np.float64)
     alpha = m / n
-    for i in range(1, len(y)):
-        if pd.notna(y.iloc[i]) and pd.notna(y.iloc[i-1]):
-            y.iloc[i] = alpha * series.iloc[i] + (1 - alpha) * y.iloc[i-1]
-    return y
+    result = values.copy()
+    for i in range(1, len(values)):
+        if not np.isnan(values[i]) and not np.isnan(result[i - 1]):
+            result[i] = alpha * values[i] + (1 - alpha) * result[i - 1]
+    return pd.Series(result, index=series.index)
 
 
 def compute_brick_indicator(data: pd.DataFrame) -> pd.Series:
