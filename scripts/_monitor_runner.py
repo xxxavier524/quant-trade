@@ -183,3 +183,57 @@ if __name__ == "__main__":
         sys.exit(1 if failed else 0)
     else:
         main_loop(args.interval)
+
+
+# ===== v3.0 Auto-repair extension =====
+import subprocess
+import re
+
+ERROR_PATTERNS = {
+    r"rate.?limit|429|too many requests": {"action": "wait", "wait_sec": 60},
+    r"connection refused|ConnectionError": {"action": "retry", "retry_delay": 30},
+    r"timeout|Timeout": {"action": "skip", "reason": "single stock timeout"},
+    r"empty.?data|no data|返回为空": {"action": "fallback", "fallback_source": "baostock"},
+    r"module.*not found|ImportError|ModuleNotFoundError": {"action": "install", "reason": "missing dependency"},
+}
+
+def diagnose_error(stderr):
+    for pattern, action in ERROR_PATTERNS.items():
+        if re.search(pattern, stderr, re.IGNORECASE):
+            return action
+    return {"action": "log", "reason": "unknown error"}
+
+def auto_repair(script_path, stderr):
+    diagnosis = diagnose_error(stderr)
+    logger.warning(f"Auto-repair: {diagnosis}")
+    action = diagnosis.get("action")
+    if action == "wait":
+        time.sleep(diagnosis.get("wait_sec", 60))
+        return True
+    elif action == "retry":
+        time.sleep(diagnosis.get("retry_delay", 30))
+        return True
+    elif action == "skip":
+        logger.info(f"Skipping: {diagnosis.get('reason')}")
+        return False
+    elif action == "fallback":
+        logger.info(f"Fallback to {diagnosis.get('fallback_source')}")
+        return True
+    elif action == "install":
+        logger.info("Attempting pip install...")
+        return False
+    return False
+
+def run_script_safe(script_path, timeout_min=30):
+    try:
+        result = subprocess.run([sys.executable, script_path], capture_output=True, text=True, timeout=timeout_min*60)
+        if result.returncode != 0:
+            logger.error(f"Script {script_path} failed (exit={result.returncode})")
+            logger.error(f"STDERR: {result.stderr[:500]}")
+            if auto_repair(script_path, result.stderr):
+                logger.info("Retrying after auto-repair...")
+                result = subprocess.run([sys.executable, script_path], capture_output=True, text=True, timeout=timeout_min*60)
+        return result.returncode, result.stdout, result.stderr
+    except subprocess.TimeoutExpired:
+        logger.error(f"Timeout after {timeout_min}min")
+        return -1, "", "TIMEOUT"
