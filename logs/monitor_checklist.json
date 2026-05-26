@@ -1,9 +1,9 @@
 {
-  "last_check": "2026-05-24T22:05:09.129475",
-  "cycle": 95,
+  "last_check": "2026-05-26T22:24:59.247896",
+  "cycle": 143,
   "total": 6,
-  "passed": 5,
-  "failed": 1,
+  "passed": 4,
+  "failed": 2,
   "details": [
     {
       "name": "data_download_running",
@@ -24,8 +24,8 @@
     {
       "name": "test_suite_passing",
       "desc": "\u6d4b\u8bd5\u5957\u4ef6 100% \u901a\u8fc7",
-      "passed": true,
-      "output": "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n129 passed, 68 warnings in 2.55s",
+      "passed": false,
+      "output": "FAILED tests/test_factors.py::test_all_factors_no_error - ValueError: \u672a\u77e5\u77e5...\n1 failed, 128 passed, 62 warnings in 5.11s",
       "severity": "CRITICAL",
       "action": "cd '/Users/qiushixuan/cc/quantan trade' && source .venv/bin/activate && python -m pytest tests/ -q"
     },
@@ -33,7 +33,7 @@
       "name": "factor_registry_importable",
       "desc": "\u56e0\u5b50\u6ce8\u518c\u8868\u53ef\u5bfc\u5165",
       "passed": true,
-      "output": "40",
+      "output": "47",
       "severity": "CRITICAL",
       "action": "NONE"
     },

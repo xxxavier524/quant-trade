@@ -56,3 +56,31 @@ GRID_SEARCH = {
     "j_threshold": [8, 10, 13, 15],
     "K": [1.5, 2.0, 2.5, 3.0],
 }
+
+# ===== AlphaPulse v3.0 settings (appended) =====
+DATA_SOURCES_PRIORITY = ["akshare", "baostock", "pytdx", "yfinance"]
+MAX_CONCURRENT_WORKERS = 3
+REQUEST_INTERVAL_RANGE = (0.5, 1.5)
+CIRCUIT_BREAKER_FAILS = 5
+CIRCUIT_BREAKER_PAUSE_SEC = 600
+SINGLE_STOCK_TIMEOUT_SEC = 30
+GLOBAL_SCREEN_TIMEOUT_MIN = 30
+
+MACRO_SCORE_THRESHOLDS = {
+    "bull": 80, "slightly_bull": 60, "neutral": 40, "slightly_bear": 20
+}
+SELECTION_TOP_PCT = 0.5
+DIAGNOSIS_WEIGHTS = {
+    "technical": 30, "volume": 20, "pattern": 20, "risk": 15, "sector": 15
+}
+DIAGNOSIS_GRADE_THRESHOLDS = {"S": 85, "A": 70, "B": 55, "C": 40}
+
+AUTO_RESEARCH_START_HOUR = 3
+AUTO_RESEARCH_END_HOUR = 5.5
+AUTO_RESEARCH_IMPROVEMENT_RATIO = 1.05
+AUTO_RESEARCH_SNAPSHOT_KEEP = 3
+
+FEISHU_WEBHOOK_URL = ""
+VIBE_TRADING_URL = "http://localhost:8899"
+STREAMLIT_PORT = 8501
+SQLITE_DB_PATH = "backtest_results/short_term.db"
