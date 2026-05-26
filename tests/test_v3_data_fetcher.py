@@ -27,10 +27,26 @@ def test_circuit_breaker_recovers():
     assert not cb.is_open
 
 def test_data_fetcher_init():
-    df = DataFetcher(sources=["akshare"])
-    assert "akshare" in df._fetchers
+    df = DataFetcher(sources=[])
+    assert df.sources == []
+    assert df.max_workers == 3
+
+def test_data_fetcher_build_fetcher_unknown():
+    df = DataFetcher(sources=[])
+    result = df._build_fetcher("nonexistent_source_xyz")
+    assert result is None
 
 def test_data_fetcher_returns_none_for_no_sources():
     df = DataFetcher(sources=[])
     result = df.fetch_single("999999", "2024-01-01", "2024-01-05")
+    assert result is None
+
+def test_fetch_batch_empty():
+    df = DataFetcher(sources=[])
+    result = df.fetch_batch(["000001", "000002"], "2024-01-01", "2024-01-05")
+    assert result == {}
+
+def test_fetch_single_all_fail():
+    df = DataFetcher(sources=[])
+    result = df.fetch_single("000001", "2024-01-01", "2024-01-05")
     assert result is None

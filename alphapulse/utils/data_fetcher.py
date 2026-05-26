@@ -1,6 +1,7 @@
 """Multi-source data fetcher with auto-fallback and rate limiting."""
 import time
 import random
+import threading
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional, Callable
@@ -10,47 +11,57 @@ logger = logging.getLogger(__name__)
 
 class RateLimiter:
     """Token-bucket-like rate limiter with random jitter."""
+
     def __init__(self, min_interval=0.5, max_interval=1.5):
         self.min = min_interval
         self.max = max_interval
         self._last_call = 0
+        self._lock = threading.Lock()
 
     def wait(self):
-        elapsed = time.monotonic() - self._last_call
-        target = random.uniform(self.min, self.max)
-        if elapsed < target:
-            time.sleep(target - elapsed)
-        self._last_call = time.monotonic()
+        with self._lock:
+            elapsed = time.monotonic() - self._last_call
+            target = random.uniform(self.min, self.max)
+            if elapsed < target:
+                time.sleep(target - elapsed)
+            self._last_call = time.monotonic()
 
 class CircuitBreaker:
     """Open after N consecutive failures, auto-recover after pause."""
+
     def __init__(self, fail_threshold=5, pause_sec=600):
         self.threshold = fail_threshold
         self.pause = pause_sec
         self.failures = 0
         self.open_until = 0
+        self._lock = threading.Lock()
 
     @property
     def is_open(self):
-        if self.failures >= self.threshold:
-            if time.monotonic() < self.open_until:
-                return True
-            self.failures = 0
-        return False
+        with self._lock:
+            if self.failures >= self.threshold:
+                if time.monotonic() < self.open_until:
+                    return True
+                self.failures = 0
+            return False
 
     def record_failure(self):
-        self.failures += 1
-        if self.failures >= self.threshold:
-            self.open_until = time.monotonic() + self.pause
+        with self._lock:
+            self.failures += 1
+            if self.failures >= self.threshold:
+                self.open_until = time.monotonic() + self.pause
 
     def record_success(self):
-        self.failures = 0
+        with self._lock:
+            self.failures = 0
 
 class DataFetcher:
     """Fetch stock data with priority-ordered source fallback."""
 
     def __init__(self, sources=None, max_workers=3):
-        self.sources = sources or ["akshare", "baostock", "pytdx"]
+        if sources is None:
+            sources = ["akshare", "baostock", "pytdx"]
+        self.sources = sources
         self.max_workers = max_workers
         self.rate_limiter = RateLimiter()
         self.breakers = {s: CircuitBreaker() for s in self.sources}
@@ -116,17 +127,26 @@ class DataFetcher:
                     api = TdxHq_API()
                     try:
                         with api.connect("119.147.212.81", 7709):
-                            data = api.get_k_data(symbol, start_date, end_date)
+                            # Use get_security_bars: category=9(daily), market, code, start(0=latest), count
+                            data = api.get_security_bars(9, market, symbol, 0, 800)
                             if data is None or len(data) == 0:
                                 raise RuntimeError(f"pytdx empty data for {symbol}")
-                            df = api.to_df(data)
-                            df = df.rename(columns={
-                                "date": "date", "open": "open", "high": "high",
-                                "low": "low", "close": "close", "volume": "volume",
-                                "amount": "amount"
-                            })
-                            df["turnover"] = 0.0
-                            return df[["date", "open", "high", "low", "close", "volume", "amount", "turnover"]]
+                            rows = []
+                            for d in data:
+                                rows.append({
+                                    "date": f"{d['year']:04d}-{d['month']:02d}-{d['day']:02d}",
+                                    "open": d["open"],
+                                    "high": d["high"],
+                                    "low": d["low"],
+                                    "close": d["close"],
+                                    "volume": d["vol"],
+                                    "amount": d.get("amount", 0),
+                                    "turnover": 0.0,
+                                })
+                            df = pd.DataFrame(rows)
+                            # Filter by date range
+                            df = df[(df["date"] >= start_date) & (df["date"] <= end_date)]
+                            return df
                     finally:
                         api.disconnect()
                 return _fetch
@@ -136,22 +156,16 @@ class DataFetcher:
 
         if name == "yfinance":
             try:
-                import yfinance as yf
+                from alphapulse.utils.yfinance_adapter import YFinanceAdapter
+                adapter = YFinanceAdapter()
                 def _fetch(symbol, start_date, end_date):
-                    ticker = yf.Ticker(symbol)
-                    df = ticker.history(start=start_date, end=end_date)
-                    df = df.reset_index()
-                    df = df.rename(columns={
-                        "Date": "date", "Open": "open", "High": "high",
-                        "Low": "low", "Close": "close", "Volume": "volume"
-                    })
-                    df["amount"] = 0.0
-                    df["turnover"] = 0.0
-                    df["date"] = df["date"].dt.strftime("%Y-%m-%d")
-                    return df[["date", "open", "high", "low", "close", "volume", "amount", "turnover"]]
+                    df = adapter.fetch_history(symbol, start_date, end_date)
+                    if df is None or df.empty:
+                        return None
+                    return df
                 return _fetch
             except ImportError:
-                logger.warning("yfinance not installed")
+                logger.warning("yfinance adapter not available")
                 return None
 
         return None
