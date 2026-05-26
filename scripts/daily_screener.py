@@ -1,176 +1,108 @@
 #!/usr/bin/env python3
-"""每日选股器。
-
-从数据目录加载所有股票的日线CSV，运行B1/砖型图/单针下三十
-三大策略，输出当日信号的Markdown列表。
-
-用法:
-    python scripts/daily_screener.py                    # 当日数据
-    python scripts/daily_screener.py --date 2025-01-15  # 指定日期
-    python scripts/daily_screener.py --data-dir ./data/day --output signals.md
+"""Daily screening pipeline - runs at 15:30 after market close.
+Usage: python scripts/daily_screener.py [--full] [--output report.md]
 """
-
-import argparse
-import sys
+import sys, time, logging, argparse
 from pathlib import Path
-from datetime import date, timedelta
+from datetime import datetime
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import pandas as pd
+from alphapulse.market.macro_position import compute_macro_score
+from alphapulse.market.sector_strength import rank_sectors, get_strong_sectors
+from alphapulse.ranking.factor_weighter import FactorWeighter
+from alphapulse.ranking.stock_ranker import rank_stocks
+from alphapulse.diagnosis.stock_scorer import compute_diagnosis
+from alphapulse.diagnosis.llm_diagnosis import generate_diagnosis_summary
+from alphapulse.notify.feishu_bot import push_daily_screening
+from alphapulse.config.settings import (
+    DATA_SOURCES_PRIORITY, FEISHU_WEBHOOK_URL, STREAMLIT_PORT,
+    SELECTION_TOP_PCT)
+from alphapulse.utils.data_fetcher import DataFetcher
 
-# 添加项目根目录到路径
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("daily_screener")
 
-from alphapulse.strategies.b1 import generate_signals as b1_signals
-from alphapulse.strategies.brick import generate_signals as brick_signals
-from alphapulse.strategies.needle import generate_signals as needle_signals
-from alphapulse.config.settings import DATA_DIR, FACTOR_PARAMS
+DATA_DIR = Path("/Volumes/Mac-480g外接/quantan_data/day/")
+OUTPUT_DIR = Path(__file__).parent.parent / "reports"
 
+def load_stock_data(symbol):
+    path = DATA_DIR / f"{symbol}.csv"
+    if not path.exists(): return pd.DataFrame()
+    return pd.read_csv(path, parse_dates=["date"])
 
-def load_stock_data(data_dir: str, target_date: str, min_days: int = 120) -> dict[str, pd.DataFrame]:
-    """加载所有股票的日线数据，截取到目标日期。
+def _check_timeout(start_time, timeout_min, context):
+    elapsed = (time.monotonic() - start_time) / 60
+    if elapsed > timeout_min:
+        logger.warning(f"TIMEOUT at {elapsed:.0f}min: {context}")
+        return True
+    return False
 
-    Returns:
-        dict: symbol -> DataFrame（数据截至target_date）
-    """
-    data_path = Path(data_dir)
-    if not data_path.exists():
-        print(f"[ERROR] 数据目录不存在: {data_dir}")
-        return {}
+def _generate_report(macro, results, strong_sectors):
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    report = f"# AlphaPulse 选股日报 ({date_str})\n\n## 大盘\n评分: {macro['score']}/100 档位: {macro['level']}\n\n## 强势板块\n{', '.join(strong_sectors[:5]) if strong_sectors else '无数据'}\n\n"
+    for name, key in [("B1B2","B1B2"),("砖型图","BRICK"),("单针","NEEDLE")]:
+        report += f"## {name} 信号 ({len(results.get(key,[]))}个)\n"
+        for s in results.get(key, [])[:10]:
+            report += f"- {s.get('symbol','')} ({s.get('signal_type','')})\n"
+        report += "\n"
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    with open(OUTPUT_DIR / f"daily_report_{date_str}.md", "w") as f: f.write(report)
+    logger.info(f"Report: {OUTPUT_DIR / f'daily_report_{date_str}.md'}")
 
-    stocks = {}
-    for csv_file in sorted(data_path.glob("*.csv")):
-        symbol = csv_file.stem
-        try:
-            df = pd.read_csv(csv_file)
-            # 尝试将第一列解析为日期索引
-            first_col = df.columns[0]
+def run_screening(force_full=False):
+    start_time = time.monotonic()
+    results = {"B1B2":[],"BRICK":[],"NEEDLE":[]}
+    macro_result = {"score":50,"level":"震荡","sub_scores":{}}
+    try:
+        logger.info("Step 1/7: Data update...")
+        fetcher = DataFetcher(sources=DATA_SOURCES_PRIORITY, max_workers=3)
+        today = datetime.now().strftime("%Y-%m-%d")
+        symbols = [p.stem for p in DATA_DIR.glob("*.csv")]
+        for sym in symbols[:10]:
+            df = fetcher.fetch_single(sym, today, today)
+            if df is not None and len(df) > 0:
+                existing = load_stock_data(sym)
+                if not existing.empty:
+                    pd.concat([existing, df]).drop_duplicates(subset=["date"]).to_csv(DATA_DIR/f"{sym}.csv", index=False)
+        logger.info("Step 2/7: Macro position...")
+        sh_idx = load_stock_data("000001")
+        sz_idx = load_stock_data("399001")
+        cyb_idx = load_stock_data("399006")
+        if not sh_idx.empty:
+            macro_result = compute_macro_score(sh_idx, sz_idx, cyb_idx)
+            logger.info(f"Macro: {macro_result['score']}/100 {macro_result['level']}")
+        logger.info("Step 3/7: Sector strength...")
+        strong_sectors = get_strong_sectors(0.5)
+        logger.info(f"Strong sectors: {strong_sectors[:5]}...")
+        logger.info("Step 4/7: Strategy screening (sample 500)...")
+        sample_symbols = [p.stem for p in DATA_DIR.glob("*.csv")][:500]
+        for sym in sample_symbols:
+            if _check_timeout(start_time, 30, f"screening {sym}"): break
+            df = load_stock_data(sym)
+            if df.empty or len(df) < 60: continue
             try:
-                maybe_dates = pd.to_datetime(df[first_col])
-                if len(maybe_dates.dropna()) > 0.8 * len(df):
-                    df["date"] = maybe_dates
-                    df = df.set_index("date")
-                elif "date" in df.columns:
-                    df["date"] = pd.to_datetime(df["date"])
-                    df = df.set_index("date")
-            except Exception:
-                if "date" in df.columns:
-                    df["date"] = pd.to_datetime(df["date"])
-                    df = df.set_index("date")
-
-            if not isinstance(df.index, pd.DatetimeIndex):
-                continue
-
-            df = df[df.index <= target_date]
-            if len(df) >= min_days:
-                stocks[symbol] = df.sort_index()
-        except Exception as e:
-            print(f"[WARN] 跳过 {symbol}: {e}")
-
-    return stocks
-
-
-def run_screener(
-    stocks: dict[str, pd.DataFrame],
-    target_date: str,
-) -> pd.DataFrame:
-    """运行三大策略，汇总所有信号。
-
-    Returns:
-        DataFrame: 所有信号合并，含 symbol/date/signal/strategy/factor_snapshot
-    """
-    all_signals = []
-
-    for symbol, data in stocks.items():
-        # B1策略
-        try:
-            b1_result = b1_signals(data, symbol=symbol)
-            b1_result = b1_result[b1_result.index == target_date] if target_date in b1_result.index else b1_result.iloc[:0]
-            all_signals.append(b1_result)
-        except Exception as e:
-            print(f"[WARN] B1 {symbol}: {e}")
-
-        # 砖型图策略
-        try:
-            brick_result = brick_signals(data, symbol=symbol)
-            brick_result = brick_result[brick_result.index == target_date] if target_date in brick_result.index else brick_result.iloc[:0]
-            all_signals.append(brick_result)
-        except Exception as e:
-            print(f"[WARN] BRICK {symbol}: {e}")
-
-        # 单针策略
-        try:
-            needle_result = needle_signals(data, symbol=symbol)
-            needle_result = needle_result[needle_result.index == target_date] if target_date in needle_result.index else needle_result.iloc[:0]
-            all_signals.append(needle_result)
-        except Exception as e:
-            print(f"[WARN] NEEDLE {symbol}: {e}")
-
-    if not all_signals:
-        return pd.DataFrame()
-
-    return pd.concat(all_signals, ignore_index=False).sort_index()
-
-
-def format_markdown(signals: pd.DataFrame, target_date: str) -> str:
-    """将信号DataFrame格式化为Markdown报告。"""
-    if len(signals) == 0:
-        return f"# AlphaPulse-A 每日选股报告\n\n**日期**: {target_date}\n\n> 无信号。"
-
-    lines = [
-        f"# AlphaPulse-A 每日选股报告",
-        f"",
-        f"**日期**: {target_date}",
-        f"**信号总数**: {len(signals)}",
-        f"",
-        f"## 信号列表",
-        f"",
-    ]
-
-    # 按策略分组
-    for strategy in ["B1", "BRICK", "NEEDLE"]:
-        subset = signals[signals["strategy"] == strategy]
-        if len(subset) == 0:
-            continue
-        lines.append(f"### {strategy} ({len(subset)} 个)")
-        lines.append("")
-        lines.append("| 代码 | 信号 | 关键信息 |")
-        lines.append("|------|------|----------|")
-        for _, row in subset.iterrows():
-            snap = row.get("factor_snapshot", {})
-            key_info = ", ".join(f"{k}={v}" for k, v in snap.items())
-            signal_str = "买入" if row["signal"] == 1 else "卖出" if row["signal"] == -1 else "-"
-            lines.append(f"| {row['symbol']} | {signal_str} | {key_info} |")
-        lines.append("")
-
-    return "\n".join(lines)
-
-
-def main():
-    parser = argparse.ArgumentParser(description="AlphaPulse-A 每日选股")
-    parser.add_argument("--date", default=None, help="目标日期 (YYYY-MM-DD)，默认当日")
-    parser.add_argument("--data-dir", default=str(DATA_DIR), help="日线CSV数据目录")
-    parser.add_argument("--output", default=None, help="输出文件路径，默认打印到stdout")
-    args = parser.parse_args()
-
-    target_date = args.date or date.today().isoformat()
-    print(f"[INFO] 数据目录: {args.data_dir}")
-    print(f"[INFO] 目标日期: {target_date}")
-
-    stocks = load_stock_data(args.data_dir, target_date)
-    print(f"[INFO] 已加载 {len(stocks)} 只股票")
-
-    if not stocks:
-        print("[WARN] 无可用数据。请确保 data/day/ 下有CSV文件。")
-        return
-
-    signals = run_screener(stocks, target_date)
-    report = format_markdown(signals, target_date)
-
-    if args.output:
-        Path(args.output).write_text(report, encoding="utf-8")
-        print(f"[INFO] 报告已保存至: {args.output}")
-    else:
-        print(report)
-
+                from alphapulse.strategies.b1_b2_b3_strategy import generate_signals as b1b2
+                b = b1b2(df, symbol=sym)
+                if len(b) > 0 and b.iloc[-1]["signal"]: results["B1B2"].append({"symbol":sym, "signal_type":b.iloc[-1].get("signal_type","")})
+                from alphapulse.strategies.brick_three_types import generate_signals as brick
+                br = brick(df, symbol=sym)
+                if len(br) > 0 and br.iloc[-1]["signal"]: results["BRICK"].append({"symbol":sym, "signal_type":br.iloc[-1].get("brick_type","")})
+                from alphapulse.strategies.needle_washout import generate_signals as needle
+                n = needle(df, symbol=sym)
+                if len(n) > 0 and n.iloc[-1]["signal"]: results["NEEDLE"].append({"symbol":sym, "signal_type":n.iloc[-1].get("signal_type","")})
+            except Exception as e: logger.debug(f"Error {sym}: {e}")
+        logger.info(f"Signals: B1B2={len(results['B1B2'])}, BRICK={len(results['BRICK'])}, NEEDLE={len(results['NEEDLE'])}")
+        if FEISHU_WEBHOOK_URL:
+            push_daily_screening(FEISHU_WEBHOOK_URL, macro_result, {"strong_sectors":strong_sectors},
+                                 results["B1B2"], results["BRICK"], results["NEEDLE"], web_url=f"http://localhost:{STREAMLIT_PORT}")
+        _generate_report(macro_result, results, strong_sectors)
+    except Exception as e: logger.error(f"Pipeline error: {e}", exc_info=True)
+    logger.info(f"Screening done in {(time.monotonic()-start_time)/60:.0f}min")
+    return results
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--full", action="store_true")
+    args = parser.parse_args()
+    run_screening(force_full=args.full)
