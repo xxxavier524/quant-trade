@@ -19,7 +19,7 @@ data/day/*.csv
 *.day
 
 # Backtest outputs
-backtest_results/*.html
+backtest_results/
 
 # Secrets
 .env
@@ -32,3 +32,9 @@ Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Logs
+logs/
+
+# Reports
+reports/daily_report_*.md

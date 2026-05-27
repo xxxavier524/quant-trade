@@ -195,13 +195,20 @@ def rank_sectors() -> pd.DataFrame:
     results: list[dict] = []
     total = len(df)
 
-    for i, (_, row) in enumerate(df.iterrows()):
-        code = str(row[code_col])
-        name = str(row[name_col])
-        logger.debug("Ranking sector %s/%s: %s", i + 1, total, name)
-        res = compute_sector_strength(code, name)
-        if res.get("score", 0) > 0:
-            results.append(res)
+    # Parallel execution for sector network calls
+    import concurrent.futures as cf
+    with cf.ThreadPoolExecutor(max_workers=5) as ex:
+        fut_map = {
+            ex.submit(compute_sector_strength, str(row[code_col]), str(row[name_col])): row
+            for _, row in df.iterrows()
+        }
+        for f in cf.as_completed(fut_map, timeout=120):
+            try:
+                res = f.result()
+                if res.get("score", 0) > 0:
+                    results.append(res)
+            except Exception as e:
+                logger.warning("Sector fetch failed: %s", e)
 
     if not results:
         return pd.DataFrame()

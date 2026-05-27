@@ -30,6 +30,14 @@ from collections import defaultdict
 
 import pandas as pd
 
+# v3.0: Use DataFetcher for multi-source fallback
+try:
+    from alphapulse.utils.data_fetcher import DataFetcher
+    _fetcher = DataFetcher(max_workers=3)
+    _HAS_V3 = True
+except ImportError:
+    _HAS_V3 = False
+
 # ── Paths ──────────────────────────────────────────────────
 DATA_DIR = "/Volumes/Mac-480g外接/quantan_data/day"
 LOG_DIR  = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")

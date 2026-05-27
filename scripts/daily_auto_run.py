@@ -10,11 +10,11 @@ from alphapulse.backtest.bt_storage import query_strategy_stats
 from alphapulse.ml.auto_research import AutoResearch
 from alphapulse.ranking.factor_weighter import FactorWeighter
 from alphapulse.notify.feishu_bot import send_feishu
-from alphapulse.config.settings import FEISHU_WEBHOOK_URL, AUTO_RESEARCH_START_HOUR, AUTO_RESEARCH_END_HOUR
+from alphapulse.config.settings import FEISHU_WEBHOOK_URL, AUTO_RESEARCH_START_HOUR, AUTO_RESEARCH_END_HOUR, DATA_DIR
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("nightly_runner")
-DATA_DIR = Path("/Volumes/Mac-480g外接/quantan_data/day/")
+DATA_DIR = Path(DATA_DIR) if DATA_DIR else Path("/Volumes/Mac-480g外接/quantan_data/day/")
 
 def validate_data():
     files = list(DATA_DIR.glob("*.csv"))
@@ -27,9 +27,13 @@ def run_nightly_backtest():
     init_db()
     stock_data = {}
     for f in list(DATA_DIR.glob("*.csv"))[:100]:
+        # TODO: Increase to full universe (5229 stocks) once performance validates
+        # Currently limited to 100 for development speed
         sym = f.stem
         df = pd.read_csv(f, parse_dates=["date"])
         if len(df) >= 60: stock_data[sym] = df.tail(120)
+    # TODO: Replace mock signals with real strategy output from daily_screener
+    # Currently using placeholder data for demo purposes
     mock_signals = pd.DataFrame([{"symbol":s,"name":"","strategy":"B1B2","date":"2026-05-01",
         "signal_type":"B1","buy_price":10.0,"sector":"","macro_level":"震荡偏多","score":75,"grade":"A"}
         for s in list(stock_data.keys())[:20]])
@@ -43,6 +47,8 @@ def run_nightly_optimization():
     for task in ar.get_optimization_tasks():
         strategy = task["strategy"]
         logger.info(f"Optimizing {strategy}...")
+        # TODO: Replace with real backtest evaluation running actual strategies
+        # Currently returns arbitrary score based on parameter sum
         def make_eval(s):
             def eval_fn(params):
                 return sum(v for v in params.values() if isinstance(v,(int,float))) / 100

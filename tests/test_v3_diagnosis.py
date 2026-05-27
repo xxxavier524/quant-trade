@@ -17,7 +17,8 @@ def test_score_technical_bullish():
 
 
 def test_score_technical_empty():
-    assert score_technical({}) == 3
+    # No KDJ trigger = no score (previously added 3 incorrectly via unreachable elif)
+    assert score_technical({}) == 0
 
 
 def test_score_volume_full():

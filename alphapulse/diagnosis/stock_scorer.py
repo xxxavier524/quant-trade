@@ -13,8 +13,7 @@ def score_technical(factor_snapshot: dict) -> float:
     kdj = factor_snapshot.get("KDJ_J_LOW", 0)
     if kdj:
         score += 10
-    elif kdj == 0:
-        score += 3
+    # No score if KDJ not triggered - don't penalize, but don't reward
     if factor_snapshot.get("MACD_BULL_DEAD", 0):
         score += 10
     return min(score, 30)
@@ -75,15 +74,16 @@ def compute_diagnosis(factor_snapshot: dict, sector_strength_score: float = 50,
         "risk": score_risk(factor_snapshot),
         "sector": score_sector_resonance(sector_strength_score, rank_in_sector, total_in_sector),
     }
+    max_subs = {"technical": 30, "volume": 20, "pattern": 20, "risk": 15, "sector": 15}
     total = sum(subs[k] * w[k] / 100 for k in subs)
-    max_possible = sum(w.values())
-    total_scaled = round(total / max_possible * 100, 1)
+    max_possible_raw = sum(max_subs[k] * w[k] / 100 for k in max_subs)
+    total_scaled = round(total / max_possible_raw * 100, 1) if max_possible_raw > 0 else 0
     grade = "D"
     for g, t in sorted(GRADE_THRESHOLDS.items(), key=lambda x: x[1], reverse=True):
         if total_scaled >= t:
             grade = g
             break
-    dim_scores = {k: round(subs[k] * w[k] / max_possible * 100, 1) for k in subs}
+    dim_scores = {k: round(subs[k] * w[k] / sum(w.values()) * 100, 1) for k in subs}
     return {
         "total_score": total_scaled,
         "grade": grade,

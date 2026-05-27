@@ -9,6 +9,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 st.set_page_config(page_title="AlphaPulse-A", page_icon="📊", layout="wide")
 
+# TODO: Connect to real pipeline data. All tabs currently use placeholder/sample data.
+# Tab 1 should load from daily_screener output (reports/daily_report_*.md or SQLite)
+# Tab 2 should load from alphapulse/backtest/bt_storage.py query_strategy_stats()
+# Tab 3 should load from alphapulse/market/macro_position.compute_macro_score() + sector_strength.rank_sectors()
+# Tab 4 should load from alphapulse/ranking/factor_weighter.FactorWeighter
+# Tab 5 should call alphapulse/diagnosis classes with real factor values
+# Tab 6 should call Vibe-Trading REST API at localhost:8899
+
 # Sidebar
 st.sidebar.title("📊 AlphaPulse-A v3.0")
 strategy_filter = st.sidebar.selectbox("策略", ["全部", "B1B2", "砖型图超短", "单针"])

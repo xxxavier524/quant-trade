@@ -9,8 +9,8 @@
 """
 
 import argparse
-import sys
 import json
+import sys
 import time
 from pathlib import Path
 from datetime import date
@@ -364,8 +364,16 @@ def main():
     parser.add_argument("--symbols", default=None, help="逗号分隔代码，默认全部")
     parser.add_argument("--sample", type=int, default=None, help="随机抽样N只")
     parser.add_argument("--capital", type=float, default=INITIAL_CAPITAL)
+    parser.add_argument("--mode", default="standard", help="standard or short")
     parser.add_argument("--output", default=None)
     args = parser.parse_args()
+
+    # v3.0: Short-term backtest mode
+    if args.mode == "short":
+        from alphapulse.backtest.short_term_bt import run_short_backtest
+        stats = run_short_backtest(signals, stock_data)
+        print(json.dumps(stats, indent=2))
+        return
 
     print(f"[INFO] 加载数据: {args.data_dir}")
     stocks = load_stocks(args.data_dir)

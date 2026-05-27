@@ -19,11 +19,12 @@ from alphapulse.config.settings import (
     DATA_SOURCES_PRIORITY, FEISHU_WEBHOOK_URL, STREAMLIT_PORT,
     SELECTION_TOP_PCT)
 from alphapulse.utils.data_fetcher import DataFetcher
+from alphapulse.config.settings import DATA_DIR as ALPHAPULSE_DATA_DIR
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("daily_screener")
 
-DATA_DIR = Path("/Volumes/Mac-480g外接/quantan_data/day/")
+DATA_DIR = Path(ALPHAPULSE_DATA_DIR) if ALPHAPULSE_DATA_DIR else Path("/Volumes/Mac-480g外接/quantan_data/day/")
 OUTPUT_DIR = Path(__file__).parent.parent / "reports"
 
 def load_stock_data(symbol):
@@ -59,12 +60,16 @@ def run_screening(force_full=False):
         fetcher = DataFetcher(sources=DATA_SOURCES_PRIORITY, max_workers=3)
         today = datetime.now().strftime("%Y-%m-%d")
         symbols = [p.stem for p in DATA_DIR.glob("*.csv")]
-        for sym in symbols[:10]:
-            df = fetcher.fetch_single(sym, today, today)
-            if df is not None and len(df) > 0:
-                existing = load_stock_data(sym)
-                if not existing.empty:
-                    pd.concat([existing, df]).drop_duplicates(subset=["date"]).to_csv(DATA_DIR/f"{sym}.csv", index=False)
+        # If not full mode, only update recent data for stocks with signals
+        if not force_full:
+            logger.info("Incremental mode: downloading latest data for all stocks")
+            # Use small sample for speed; full update via _smart_downloader.py
+            for sym in symbols[:100]:
+                df = fetcher.fetch_single(sym, today, today)
+                if df is not None and len(df) > 0:
+                    existing = load_stock_data(sym)
+                    if not existing.empty:
+                        pd.concat([existing, df]).drop_duplicates(subset=["date"]).to_csv(DATA_DIR/f"{sym}.csv", index=False)
         logger.info("Step 2/7: Macro position...")
         sh_idx = load_stock_data("000001")
         sz_idx = load_stock_data("399001")
