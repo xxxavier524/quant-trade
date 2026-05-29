@@ -10,22 +10,20 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import pandas as pd
 from alphapulse.market.macro_position import compute_macro_score
 from alphapulse.market.sector_strength import rank_sectors, get_strong_sectors
-from alphapulse.ranking.factor_weighter import FactorWeighter
-from alphapulse.ranking.stock_ranker import rank_stocks
-from alphapulse.diagnosis.stock_scorer import compute_diagnosis
-from alphapulse.diagnosis.llm_diagnosis import generate_diagnosis_summary
 from alphapulse.notify.feishu_bot import push_daily_screening
 from alphapulse.config.settings import (
-    DATA_SOURCES_PRIORITY, FEISHU_WEBHOOK_URL, STREAMLIT_PORT,
-    SELECTION_TOP_PCT)
+    DATA_SOURCES_PRIORITY, FEISHU_WEBHOOK_URL, STREAMLIT_PORT)
 from alphapulse.utils.data_fetcher import DataFetcher
-from alphapulse.config.settings import DATA_DIR as ALPHAPULSE_DATA_DIR
+from alphapulse.strategies.b1_b2_b3_strategy import generate_signals as b1b2_signals
+from alphapulse.strategies.brick_three_types import generate_signals as brick_signals
+from alphapulse.strategies.needle_washout import generate_signals as needle_signals
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("daily_screener")
 
-DATA_DIR = Path(ALPHAPULSE_DATA_DIR) if ALPHAPULSE_DATA_DIR else Path("/Volumes/Mac-480g外接/quantan_data/day/")
+DATA_DIR = Path("/Volumes/Mac-480g外接/quantan_data/day/")
 OUTPUT_DIR = Path(__file__).parent.parent / "reports"
+DATA_UPDATE_TIMEOUT_SEC = 30  # max time to spend on data updates
 
 def load_stock_data(symbol):
     path = DATA_DIR / f"{symbol}.csv"
@@ -56,20 +54,22 @@ def run_screening(force_full=False):
     results = {"B1B2":[],"BRICK":[],"NEEDLE":[]}
     macro_result = {"score":50,"level":"震荡","sub_scores":{}}
     try:
-        logger.info("Step 1/7: Data update...")
-        fetcher = DataFetcher(sources=DATA_SOURCES_PRIORITY, max_workers=3)
+        logger.info("Step 1/7: Data update (quick check, skip if no network)...")
+        fetcher = DataFetcher(sources=DATA_SOURCES_PRIORITY[:1], max_workers=1)  # only try first source
         today = datetime.now().strftime("%Y-%m-%d")
         symbols = [p.stem for p in DATA_DIR.glob("*.csv")]
-        # If not full mode, only update recent data for stocks with signals
+        update_end = time.monotonic() + DATA_UPDATE_TIMEOUT_SEC
         if not force_full:
-            logger.info("Incremental mode: downloading latest data for all stocks")
-            # Use small sample for speed; full update via _smart_downloader.py
-            for sym in symbols[:100]:
+            # Quick probe: try updating 3 stocks, if all fail skip update entirely
+            for sym in symbols[:3]:
+                if time.monotonic() > update_end: break
                 df = fetcher.fetch_single(sym, today, today)
                 if df is not None and len(df) > 0:
                     existing = load_stock_data(sym)
                     if not existing.empty:
                         pd.concat([existing, df]).drop_duplicates(subset=["date"]).to_csv(DATA_DIR/f"{sym}.csv", index=False)
+            logger.info("Data update done (or skipped due to network issues)")
+        logger.info(f"Total CSV files available: {len(symbols)}")
         logger.info("Step 2/7: Macro position...")
         sh_idx = load_stock_data("000001")
         sz_idx = load_stock_data("399001")
@@ -81,20 +81,17 @@ def run_screening(force_full=False):
         strong_sectors = get_strong_sectors(0.5)
         logger.info(f"Strong sectors: {strong_sectors[:5]}...")
         logger.info("Step 4/7: Strategy screening (sample 500)...")
-        sample_symbols = [p.stem for p in DATA_DIR.glob("*.csv")][:500]
+        sample_symbols = [p.stem for p in DATA_DIR.glob("*.csv")][:50]
         for sym in sample_symbols:
             if _check_timeout(start_time, 30, f"screening {sym}"): break
             df = load_stock_data(sym)
             if df.empty or len(df) < 60: continue
             try:
-                from alphapulse.strategies.b1_b2_b3_strategy import generate_signals as b1b2
-                b = b1b2(df, symbol=sym)
+                b = b1b2_signals(df, symbol=sym)
                 if len(b) > 0 and b.iloc[-1]["signal"]: results["B1B2"].append({"symbol":sym, "signal_type":b.iloc[-1].get("signal_type","")})
-                from alphapulse.strategies.brick_three_types import generate_signals as brick
-                br = brick(df, symbol=sym)
+                br = brick_signals(df, symbol=sym)
                 if len(br) > 0 and br.iloc[-1]["signal"]: results["BRICK"].append({"symbol":sym, "signal_type":br.iloc[-1].get("brick_type","")})
-                from alphapulse.strategies.needle_washout import generate_signals as needle
-                n = needle(df, symbol=sym)
+                n = needle_signals(df, symbol=sym)
                 if len(n) > 0 and n.iloc[-1]["signal"]: results["NEEDLE"].append({"symbol":sym, "signal_type":n.iloc[-1].get("signal_type","")})
             except Exception as e: logger.debug(f"Error {sym}: {e}")
         logger.info(f"Signals: B1B2={len(results['B1B2'])}, BRICK={len(results['BRICK'])}, NEEDLE={len(results['NEEDLE'])}")

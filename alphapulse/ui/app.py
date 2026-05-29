@@ -1,117 +1,180 @@
-"""AlphaPulse-A v3.0 Streamlit GUI - 6-Tab interactive dashboard."""
+"""AlphaPulse-A v3.0 Streamlit GUI - loads real data from pipeline."""
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 from pathlib import Path
-import sys
+import sys, json
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from alphapulse.market.macro_position import compute_macro_score, classify_macro_level
+from alphapulse.config.settings import FEISHU_WEBHOOK_URL
 
 st.set_page_config(page_title="AlphaPulse-A", page_icon="📊", layout="wide")
 
-# TODO: Connect to real pipeline data. All tabs currently use placeholder/sample data.
-# Tab 1 should load from daily_screener output (reports/daily_report_*.md or SQLite)
-# Tab 2 should load from alphapulse/backtest/bt_storage.py query_strategy_stats()
-# Tab 3 should load from alphapulse/market/macro_position.compute_macro_score() + sector_strength.rank_sectors()
-# Tab 4 should load from alphapulse/ranking/factor_weighter.FactorWeighter
-# Tab 5 should call alphapulse/diagnosis classes with real factor values
-# Tab 6 should call Vibe-Trading REST API at localhost:8899
+DATA_DIR = Path("/Volumes/Mac-480g外接/quantan_data/day/")
+REPORTS_DIR = Path(__file__).parent.parent.parent / "reports"
 
-# Sidebar
 st.sidebar.title("📊 AlphaPulse-A v3.0")
-strategy_filter = st.sidebar.selectbox("策略", ["全部", "B1B2", "砖型图超短", "单针"])
-grade_filter = st.sidebar.multiselect("评级", ["S","A","B","C","D"], default=["S","A","B"])
+st.sidebar.caption("A股量化选股系统")
 
-# Top metrics
+# Load the latest report for display
+latest_report = ""
+report_files = sorted(REPORTS_DIR.glob("daily_report_*.md"), reverse=True)
+if report_files:
+    latest_report = report_files[0].read_text(encoding="utf-8")
+
+# === TOP BAR: Real Macro Score ===
+sh_path, sz_path, cyb_path = DATA_DIR / "000001.csv", DATA_DIR / "399001.csv", DATA_DIR / "399006.csv"
+sh_idx = pd.read_csv(sh_path, parse_dates=["date"]) if sh_path.exists() else pd.DataFrame()
+sz_idx = pd.read_csv(sz_path, parse_dates=["date"]) if sz_path.exists() else pd.DataFrame()
+cyb_idx = pd.read_csv(cyb_path, parse_dates=["date"]) if cyb_path.exists() else pd.DataFrame()
+
+macro = {"score": 50, "level": "震荡"}
+if not sh_idx.empty:
+    macro = compute_macro_score(sh_idx, sz_idx if not sz_idx.empty else sh_idx, cyb_idx if not cyb_idx.empty else sh_idx)
+
+# Parse report for signal counts
+b1b2_count = brick_count = needle_count = 0
+strong_sectors = []
+for line in latest_report.split("\n"):
+    if "B1B2 信号" in line:
+        b1b2_count = int(line.split("(")[1].split("个")[0]) if "(" in line else 0
+    elif "砖型图 信号" in line:
+        brick_count = int(line.split("(")[1].split("个")[0]) if "(" in line else 0
+    elif "单针 信号" in line:
+        needle_count = int(line.split("(")[1].split("个")[0]) if "(" in line else 0
+    elif "强势板块" in line and "无数据" not in line:
+        parts = line.split(":")[1].strip() if ":" in line else ""
+        strong_sectors = parts.split("、") if parts else []
+
 c1,c2,c3,c4,c5 = st.columns(5)
-c1.metric("大盘评分", "65/100", "震荡偏多")
-c2.metric("强势板块", "3", "电子/医药/计算机")
-c3.metric("B1B2信号", "12")
-c4.metric("砖型图信号", "8")
-c5.metric("单针信号", "5")
+c1.metric("大盘评分", f"{macro['score']}/100", macro['level'])
+c2.metric("强势板块", str(len(strong_sectors)) if strong_sectors else "暂无")
+c3.metric("B1B2信号", str(b1b2_count))
+c4.metric("砖型图信号", str(brick_count))
+c5.metric("单针信号", str(needle_count))
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🎯 选股结果", "📈 回测追踪", "🏛 大盘板块", "🔬 因子详情", "🤖 AI诊断", "🔮 Vibe"])
 
 with tab1:
     st.subheader("今日选股结果")
-    c1,c2,c3 = st.columns(3)
-    c1.selectbox("策略", ["全部","B1B2","砖型图超短","单针"], key="s1")
-    c2.selectbox("板块", ["全部","银行","电子","医药","计算机"], key="s2")
-    c3.selectbox("评级", ["全部","S","A","B","C","D"], key="s3")
-    sample = pd.DataFrame({
-        "股票": ["000001 平安银行", "000002 万科A", "000333 美的集团"],
-        "策略": ["B1B2", "砖型图", "单针"],
-        "得分": [82, 75, 68], "评级": ["A","B","B"],
-        "诊断摘要": ["J低位+放量突破+周线多头", "N起跳+量能放大+板块共振", "长下影+缩量企稳+洗盘确认"],
-        "板块": ["银行","房地产","家电"]})
-    st.dataframe(sample, use_container_width=True, hide_index=True)
-    dates = pd.date_range("2026-04-01", periods=40, freq="B")
-    fig = go.Figure()
-    close_prices = [10 + i*0.1 + (i-20)**2*0.01 for i in range(40)]
-    fig.add_trace(go.Candlestick(x=dates, open=[c-0.2 for c in close_prices], high=[c+0.3 for c in close_prices],
-                                 low=[c-0.5 for c in close_prices], close=close_prices))
-    fig.update_layout(height=400, xaxis_rangeslider_visible=False)
-    st.plotly_chart(fig, use_container_width=True)
+    st.caption(f"数据来源: {report_files[0].name if report_files else '暂无报告，请先运行 daily_screener.py'}")
+
+    # Parse stocks from report
+    stocks = {"B1B2": [], "BRICK": [], "NEEDLE": []}
+    current_section = None
+    for line in latest_report.split("\n"):
+        if line.startswith("## "):
+            if "B1B2" in line: current_section = "B1B2"
+            elif "砖型" in line: current_section = "BRICK"
+            elif "单针" in line: current_section = "NEEDLE"
+            else: current_section = None
+        elif line.startswith("- ") and current_section:
+            parts = line[2:].split("(")
+            sym = parts[0].strip()
+            sig = parts[1].rstrip(")") if len(parts) > 1 else ""
+            stocks[current_section].append({"symbol": sym, "signal_type": sig})
+
+    if any(stocks.values()):
+        rows = []
+        for strategy, syms in stocks.items():
+            for s in syms[:10]:
+                rows.append({"股票": s["symbol"], "策略": strategy, "信号类型": s["signal_type"]})
+        df = pd.DataFrame(rows)
+        st.dataframe(df, width='stretch', hide_index=True) if not df.empty else st.info("今日无信号")
+    else:
+        st.info("暂无选股信号，请在 15:30 后运行 daily_screener.py")
+
+    # K-line chart for a selected stock
+    st.subheader("K线分析")
+    sel_stock = st.text_input("输入股票代码查看K线", "000001")
+    kline_path = DATA_DIR / f"{sel_stock}.csv"
+    if kline_path.exists():
+        kdf = pd.read_csv(kline_path, parse_dates=["date"]).tail(60)
+        fig = go.Figure()
+        fig.add_trace(go.Candlestick(
+            x=kdf["date"], open=kdf["open"], high=kdf["high"],
+            low=kdf["low"], close=kdf["close"]))
+        fig.update_layout(height=400, xaxis_rangeslider_visible=False)
+        st.plotly_chart(fig, width='stretch')
+    else:
+        st.warning(f"未找到股票 {sel_stock} 的数据")
 
 with tab2:
     st.subheader("回测追踪 - 买后N日表现")
     st.radio("策略", ["B1B2","砖型图","单针"], horizontal=True, key="bt_metric")
-    c1,c2,c3,c4 = st.columns(4)
-    c1.metric("胜率", "42.3%", "+2.1%")
-    c2.metric("平均收益", "+3.8%", "-0.5%")
-    c3.metric("平均持仓天数", "5.2天")
-    c4.metric("盈亏比", "2.1")
-    fig2 = go.Figure()
-    fig2.add_trace(go.Histogram(x=np.random.randn(200)*3+1, nbinsx=30))
-    fig2.add_vline(x=0, line_dash="dash", line_color="red")
-    st.plotly_chart(fig2, use_container_width=True)
+    bt_path = Path("backtest_results/short_term.db")
+    if bt_path.exists():
+        import sqlite3
+        conn = sqlite3.connect(str(bt_path))
+        try:
+            stats_df = pd.read_sql_query(
+                "SELECT strategy, count(*) as cnt, round(avg(total_return),2) as avg_ret, "
+                "round(avg(hold_days),1) as avg_days FROM exits e "
+                "JOIN signals s ON e.signal_id = s.id GROUP BY strategy", conn)
+            if not stats_df.empty:
+                for _, row in stats_df.iterrows():
+                    st.metric(row["strategy"], f"{row['cnt']}次", f"平均收益{row['avg_ret']}%")
+            conn.close()
+        except Exception:
+            conn.close()
+            st.info("回测数据表结构待初始化")
+    else:
+        st.info("暂无回测数据，夜间自动运行后将生成本地SQLite数据库")
 
 with tab3:
     st.subheader("大盘 + 板块")
-    fig3 = go.Figure(go.Indicator(mode="gauge+delta", value=65, title={"text":"大盘综合评分"},
-        delta={"reference": 50},
+    fig3 = go.Figure(go.Indicator(mode="gauge+delta", value=macro["score"],
+        title={"text":"大盘综合评分"}, delta={"reference": 50},
         gauge={"axis":{"range":[0,100]},"bar":{"color":"orange"},
                "steps":[{"range":[0,20],"color":"red"},{"range":[20,40],"color":"orange"},
                         {"range":[40,60],"color":"yellow"},{"range":[60,80],"color":"lightgreen"},
                         {"range":[80,100],"color":"green"}]}))
-    st.plotly_chart(fig3, use_container_width=True)
-    sector_df = pd.DataFrame({"板块":["电子","医药","计算机","银行","房地产"], "强度评分":[85,78,72,60,45],
-                              "超额收益":[5.2,3.1,2.8,-1.0,-3.5], "趋势":["↑↑","↑","↑","→","↓"]})
-    st.dataframe(sector_df, use_container_width=True, hide_index=True)
+    st.plotly_chart(fig3, width='stretch')
+    st.caption(f"评分: {macro['score']}/100 | 档位: {macro['level']}")
+    subs = macro.get("sub_scores", {})
+    if subs:
+        st.json(subs)
 
 with tab4:
     st.subheader("因子详情")
-    st.selectbox("选择因子", ["N_STRUCT","KDJ_J_LOW","B1_FORMULA","ABNORMAL_VOL","SHRINK_TO_ABNORMAL"], key="factor")
-    ic_data = pd.Series(np.random.randn(60).cumsum()*0.01 + 0.02)
-    fig4 = go.Figure()
-    fig4.add_trace(go.Scatter(y=ic_data, mode="lines"))
-    fig4.add_hline(y=0, line_dash="dash", line_color="gray")
-    st.plotly_chart(fig4, use_container_width=True)
-    st.metric("当前IC", "0.032", "IC_IR: 0.85")
-    st.metric("权重", "12.5%", "+1.2%")
+    st.info("因子IC和权重数据由 nightly auto-research 自动计算更新，存储在 config/factor_weights.json")
+    weights_path = Path("config/factor_weights.json")
+    if weights_path.exists():
+        wdata = json.loads(weights_path.read_text())
+        st.json(wdata)
 
 with tab5:
     st.subheader("AI个股诊断")
-    stock = st.text_input("输入股票代码", "000001")
+    diag_stock = st.text_input("输入股票代码", "000001", key="diag_code")
     if st.button("诊断"):
-        categories = ["技术面","量能","形态","风控","板块共振"]
-        values = [25, 18, 15, 12, 10]
-        fig5 = go.Figure()
-        fig5.add_trace(go.Scatterpolar(r=values+[values[0]], theta=categories+[categories[0]], fill="toself"))
-        fig5.update_layout(polar=dict(radialaxis=dict(range=[0,30])))
-        st.plotly_chart(fig5)
-        st.success("评级: A (82/100)")
-        st.info("📝 J值低位超卖+缩量企稳+周线多头支撑")
+        kdf = pd.read_csv(DATA_DIR / f"{diag_stock}.csv", parse_dates=["date"]) if (DATA_DIR / f"{diag_stock}.csv").exists() else None
+        if kdf is not None and len(kdf) >= 60:
+            from alphapulse.diagnosis.stock_scorer import compute_diagnosis
+            from alphapulse.factors.kdj_j_low import compute as kdj_compute
+            from alphapulse.factors.weekly_ma_bull import compute as ma_bull_compute
+            snap = {"KDJ_J_LOW": int(kdj_compute(kdf).iloc[-1]) if kdj_compute(kdf).notna().iloc[-1] else 0}
+            snap["WEEKLY_MA_BULL"] = int(ma_bull_compute(kdf).iloc[-1]) if ma_bull_compute(kdf).notna().iloc[-1] else 0
+            result = compute_diagnosis(snap)
+            categories = ["技术面","量能","形态","风控","板块共振"]
+            values = [result["sub_scores"].get(d,0) for d in ["technical","volume","pattern","risk","sector"]]
+            fig5 = go.Figure()
+            fig5.add_trace(go.Scatterpolar(r=values+[values[0]], theta=categories+[categories[0]], fill="toself"))
+            fig5.update_layout(polar=dict(radialaxis=dict(range=[0,30])))
+            st.plotly_chart(fig5)
+            st.success(f"评级: {result['grade']} ({result['total_score']}/100)")
+        else:
+            st.warning("数据不足60天")
 
 with tab6:
     st.subheader("Vibe-Trading 因子探索")
     st.text_area("描述交易想法", "找出低位缩量企稳后放量突破的股票")
     if st.button("生成因子"):
-        st.info("调用 Vibe-Trading MCP... (需启动 Docker)")
-        st.code("async def compute(data):\n    vol_ma = data['volume'].rolling(20).mean()\n    is_breakout = (data['volume'] > vol_ma*1.5) & (data['close'] > data['close'].shift(1))\n    return is_breakout.astype(int)", language="python")
+        st.info("需启动 Vibe-Trading Docker: bash scripts/vibe_trading_setup.sh")
 
 st.divider()
 c1,c2,c3 = st.columns(3)
-c1.button("📤 推送到飞书")
-c2.caption("数据源: akshare/baostock/pytdx")
-c3.caption("AlphaPulse-A v3.0 | Powered by DeepSeek")
+c1.button("📤 推送到飞书" if FEISHU_WEBHOOK_URL else "📤 飞书未配置")
+c2.caption(f"数据: {len(list(DATA_DIR.glob('*.csv')))}只A股")
+c3.caption("AlphaPulse-A v3.0")
