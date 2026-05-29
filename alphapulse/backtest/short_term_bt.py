@@ -37,13 +37,23 @@ def run_short_backtest(signal_df, stock_data, max_hold_days=20, stop_loss_pct=-1
         for _, sig in strat_signals.iterrows():
             symbol = sig["symbol"]
             if symbol not in stock_data: continue
-            df = stock_data[symbol]
-            if "date" not in df.columns:
-                df = df.reset_index()  # DatetimeIndex → column
+            raw_df = stock_data[symbol]
 
-            signal_date = str(sig.get("date", df.index[-1].strftime("%Y-%m-%d") if hasattr(df.index, 'dtype') else ""))[:10]
-            buy_price = sig.get("buy_price", df.iloc[-1]["close"] if "close" in df.columns else 10.0)
-            df_dates = df["date"].astype(str).str[:10]
+            # Normalize: ensure date is a column
+            if "date" not in raw_df.columns:
+                df = raw_df.reset_index()
+                if "date" not in df.columns and "index" in df.columns:
+                    df = df.rename(columns={"index": "date"})
+            else:
+                df = raw_df.copy()
+
+            if df.empty or len(df) < 20: continue
+            df["date"] = df["date"].astype(str).str[:10]
+
+            # Determine signal date
+            signal_date = str(sig.get("date", ""))[:10] if sig.get("date") else df.iloc[-15]["date"]
+            buy_price = sig.get("buy_price", df.iloc[-1]["close"])
+            df_dates = df["date"]
             idx = df_dates[df_dates == signal_date].index
             if len(idx) == 0:
                 idx = [len(df) - 1]  # use last row if no exact match

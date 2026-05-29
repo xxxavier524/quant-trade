@@ -330,8 +330,12 @@ with tabs[1]:
                 for strat, syms in stocks.items():
                     for s in syms:
                         df = stock_data.get(s["symbol"])
-                        signal_date = str(df.index[-1])[:10] if df is not None else "2026-01-01"
-                        buy_price = float(df.iloc[-1]["close"]) if df is not None else 10.0
+                        if df is None or len(df) < 30:
+                            continue
+                        # Use data[-15] as signal date, so there are 15 trailing days for tracking
+                        signal_idx = max(0, len(df) - 15)
+                        signal_date = str(df.index[signal_idx])[:10]
+                        buy_price = float(df.iloc[signal_idx]["close"])
                         signal_list.append({
                             "symbol": s["symbol"], "name": "", "strategy": strat,
                             "date": signal_date, "signal_type": s.get("signal_type",""),
