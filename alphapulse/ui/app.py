@@ -324,15 +324,19 @@ with tabs[1]:
                     if df is not None:
                         stock_data[code] = df
 
-                # Load recent signals from the report as a simple list
+                # Load recent signals from the report
                 stocks = parse_report_stocks(latest_report)
                 signal_list = []
                 for strat, syms in stocks.items():
                     for s in syms:
+                        df = stock_data.get(s["symbol"])
+                        signal_date = str(df.index[-1])[:10] if df is not None else "2026-01-01"
+                        buy_price = float(df.iloc[-1]["close"]) if df is not None else 10.0
                         signal_list.append({
-                            "symbol": s["symbol"],
-                            "signal_type": s["signal_type"],
-                            "strategy": strat,
+                            "symbol": s["symbol"], "name": "", "strategy": strat,
+                            "date": signal_date, "signal_type": s.get("signal_type",""),
+                            "buy_price": buy_price, "sector": "", "macro_level": macro["level"],
+                            "score": 0, "grade": "",
                         })
 
                 if signal_list and stock_data:
