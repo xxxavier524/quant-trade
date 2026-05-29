@@ -14,9 +14,9 @@ from alphapulse.notify.feishu_bot import push_daily_screening
 from alphapulse.config.settings import (
     DATA_SOURCES_PRIORITY, FEISHU_WEBHOOK_URL, STREAMLIT_PORT)
 from alphapulse.utils.data_fetcher import DataFetcher
-from alphapulse.strategies.b1_b2_b3_strategy import generate_signals as b1b2_signals
-from alphapulse.strategies.brick_three_types import generate_signals as brick_signals
-from alphapulse.strategies.needle_washout import generate_signals as needle_signals
+from alphapulse.factors.b1_formula import compute as b1_formula_compute
+from alphapulse.strategies.brick import generate_signals as brick_signals
+from alphapulse.strategies.needle_enhanced import generate_signals as needle_signals
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("daily_screener")
@@ -80,19 +80,36 @@ def run_screening(force_full=False):
         logger.info("Step 3/7: Sector strength...")
         strong_sectors = get_strong_sectors(0.5)
         logger.info(f"Strong sectors: {strong_sectors[:5]}...")
-        logger.info("Step 4/7: Strategy screening (sample 500)...")
-        sample_symbols = [p.stem for p in DATA_DIR.glob("*.csv")][:50]
+        logger.info("Step 4/7: Strategy screening...")
+        sample_symbols = [p.stem for p in DATA_DIR.glob("*.csv")][:200]
         for sym in sample_symbols:
             if _check_timeout(start_time, 30, f"screening {sym}"): break
             df = load_stock_data(sym)
             if df.empty or len(df) < 60: continue
             try:
-                b = b1b2_signals(df, symbol=sym)
-                if len(b) > 0 and b.iloc[-1]["signal"]: results["B1B2"].append({"symbol":sym, "signal_type":b.iloc[-1].get("signal_type","")})
+                # --- B1B2: detect fresh False->True transition in last 8 trading days ---
+                b1_raw = b1_formula_compute(df)
+                if b1_raw is not None and len(b1_raw) > 0:
+                    sig_int = b1_raw.astype(int)
+                    diffs = sig_int.diff()
+                    if (diffs.tail(8) == 1).any():
+                        results["B1B2"].append({"symbol": sym, "signal_type": "B1"})
+
+                # --- BRICK: latest signal within last 20 trading days ---
                 br = brick_signals(df, symbol=sym)
-                if len(br) > 0 and br.iloc[-1]["signal"]: results["BRICK"].append({"symbol":sym, "signal_type":br.iloc[-1].get("brick_type","")})
-                n = needle_signals(df, symbol=sym)
-                if len(n) > 0 and n.iloc[-1]["signal"]: results["NEEDLE"].append({"symbol":sym, "signal_type":n.iloc[-1].get("signal_type","")})
+                if len(br) > 0 and br["signal"].any():
+                    sig_rows = br[br["signal"].astype(bool)]
+                    trading_days_ago = int(df.index[-1]) - int(sig_rows.index[-1])
+                    if 0 <= trading_days_ago <= 10:
+                        results["BRICK"].append({"symbol": sym, "signal_type": br.iloc[-1].get("signal_type", "BRICK")})
+
+                # --- NEEDLE: latest signal within last 20 trading days ---
+                n = needle_signals(df, symbol=sym, mode="needle")
+                if len(n) > 0 and n["signal"].any():
+                    sig_rows = n[n["signal"].astype(bool)]
+                    trading_days_ago = int(df.index[-1]) - int(sig_rows.index[-1])
+                    if 0 <= trading_days_ago <= 10:
+                        results["NEEDLE"].append({"symbol": sym, "signal_type": n.iloc[-1].get("signal_type", "NEEDLE")})
             except Exception as e: logger.debug(f"Error {sym}: {e}")
         logger.info(f"Signals: B1B2={len(results['B1B2'])}, BRICK={len(results['BRICK'])}, NEEDLE={len(results['NEEDLE'])}")
         if FEISHU_WEBHOOK_URL:
