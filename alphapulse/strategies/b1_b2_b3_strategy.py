@@ -96,7 +96,7 @@ def generate_signals(
     # 主信号 (80%权重): b1_formula 6条件AND -- 决定性因素
     # 过滤仅传给 b1_compute 的参数
     _b1_keys = {"pct_change_range", "amplitude_max", "j_threshold",
-                "dif_threshold", "trend_fast", "trend_slow"}
+                "dif_threshold", "m1", "m2", "m3", "m4"}
     _b1_params = {k: v for k, v in params.items() if k in _b1_keys}
     b1_main = b1_compute(data, **_b1_params)
 

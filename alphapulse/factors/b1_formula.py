@@ -1,16 +1,20 @@
-"""B1选股公式因子 — 来自通达信B1选股公式.txt。
+"""B1选股公式因子 — 来自通达信B1选股公式.txt（docs/tdx_formulas/）。
 
 6个条件（全部满足=买入信号）：
 1. 当日涨幅在±3%以内
 2. 当日振幅 < 9%
 3. 市值 > 10亿（需外部传入或从数据估算）
 4. KDJ J < 13
-5. 知行短期趋势线 > 知行多空线（EMA12 > EMA26 近似）
+5. 知行短期趋势线（白线 EMA(EMA(C,10),10)）> 知行多空线（黄线 四均线14/28/57/114）
 6. MACD DIF > -0.1
+
+知行线定义见 docs/trading_system.md §0，实现复用 zhixing_trend。
 """
 
 import pandas as pd
 import numpy as np
+
+from alphapulse.factors.zhixing_trend import compute_short_trend, compute_bull_bear_line
 
 
 def compute_ema(series: pd.Series, span: int) -> pd.Series:
@@ -39,33 +43,34 @@ def compute(
     amplitude_max: float = 9.0,
     j_threshold: float = 13.0,
     dif_threshold: float = -0.1,
-    trend_fast: int = 12,
-    trend_slow: int = 26,
+    m1: int = 14,
+    m2: int = 28,
+    m3: int = 57,
+    m4: int = 114,
 ) -> pd.Series:
     """B1选股公式：6条件全部满足返回True。
 
     Args:
         data: 含 open/high/low/close/volume 的DataFrame。
-              可选列：pct_change（涨跌幅%），amplitude（振幅%），market_cap（市值）
+              可选列：pct_change（涨跌幅%），amplitude（振幅%），market_cap（市值，元）
         pct_change_range: 涨幅范围 ±N%
         amplitude_max: 振幅上限 %
         j_threshold: KDJ J值阈值
         dif_threshold: MACD DIF阈值
-        trend_fast: 短期趋势线EMA周期（近似知行短期趋势线）
-        trend_slow: 多空线EMA周期（近似知行多空线）
+        m1-m4: 知行多空线四均线周期（默认14/28/57/114，用户确认值）
 
     Returns:
         pd.Series[bool]
     """
     close = data["close"]
-    open_ = data["open"]
     high = data["high"]
     low = data["low"]
 
     n = len(data)
     result = pd.Series(False, index=data.index)
 
-    if n < max(trend_fast, trend_slow, 26) + 5:
+    # 多空线最长均线需要 m4 日数据；不足时全 False（与通达信行为一致：MA不足返回空）
+    if n < m4:
         return result
 
     # 条件1: 当日涨幅在±3%以内
@@ -93,10 +98,10 @@ def compute(
     j = compute_kdj_j(high, low, close)
     cond4 = j < j_threshold
 
-    # 条件5: 知行短期趋势线 > 知行多空线（EMA12 > EMA26 近似）
-    ema_fast = compute_ema(close, trend_fast)
-    ema_slow = compute_ema(close, trend_slow)
-    cond5 = ema_fast > ema_slow
+    # 条件5: 知行短期趋势线（白线）> 知行多空线（黄线）
+    white_line = compute_short_trend(close)
+    yellow_line = compute_bull_bear_line(close, m1, m2, m3, m4)
+    cond5 = white_line > yellow_line
 
     # 条件6: MACD DIF > -0.1
     dif = compute_macd_dif(close)
@@ -116,8 +121,8 @@ def compute_detail(data: pd.DataFrame, **params) -> pd.DataFrame:
     amp_max = params.get("amplitude_max", 9.0)
     j_thr = params.get("j_threshold", 13.0)
     dif_thr = params.get("dif_threshold", -0.1)
-    t_fast = params.get("trend_fast", 12)
-    t_slow = params.get("trend_slow", 26)
+    m1, m2 = params.get("m1", 14), params.get("m2", 28)
+    m3, m4 = params.get("m3", 57), params.get("m4", 114)
 
     close = data["close"]
     high = data["high"]
@@ -133,9 +138,14 @@ def compute_detail(data: pd.DataFrame, **params) -> pd.DataFrame:
     else:
         amp = (high - low) / close.shift(1).replace(0, np.nan) * 100
 
+    if "market_cap" in data.columns:
+        cond3 = data["market_cap"] > 1e9
+    else:
+        cond3 = pd.Series(True, index=data.index)
+
     j = compute_kdj_j(high, low, close)
-    ema_f = compute_ema(close, t_fast)
-    ema_s = compute_ema(close, t_slow)
+    white = compute_short_trend(close)
+    yellow = compute_bull_bear_line(close, m1, m2, m3, m4)
     dif = compute_macd_dif(close)
 
     return pd.DataFrame({
@@ -143,14 +153,14 @@ def compute_detail(data: pd.DataFrame, **params) -> pd.DataFrame:
         "cond1_range": pct.abs() <= pct_range,
         "amplitude": amp.round(2),
         "cond2_amp": amp < amp_max,
-        "cond3_cap": True,  # 默认通过
+        "cond3_cap": cond3,
         "kdj_j": j.round(2),
         "cond4_j": j < j_thr,
-        "ema_fast": ema_f.round(2),
-        "ema_slow": ema_s.round(2),
-        "cond5_trend": ema_f > ema_s,
+        "white_line": white.round(2),
+        "yellow_line": yellow.round(2),
+        "cond5_trend": white > yellow,
         "macd_dif": dif.round(3),
         "cond6_dif": dif > dif_thr,
-        "signal": (pct.abs() <= pct_range) & (amp < amp_max)
-                  & (j < j_thr) & (ema_f > ema_s) & (dif > dif_thr),
+        "signal": (pct.abs() <= pct_range) & (amp < amp_max) & cond3
+                  & (j < j_thr) & (white > yellow) & (dif > dif_thr),
     }, index=data.index)

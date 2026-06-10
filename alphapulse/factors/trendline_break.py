@@ -45,7 +45,7 @@ def compute(data: pd.DataFrame) -> pd.DataFrame:
 
     # ---- 计算两条趋势线 ----
     white_line = compute_short_trend(close)  # EMA(EMA(C,10),10)
-    yellow_line = compute_bull_bear_line(close)  # (MA20+MA60+MA120+MA250)/4
+    yellow_line = compute_bull_bear_line(close)  # (MA14+MA28+MA57+MA114)/4
 
     # ---- 跌破信号（shift(1)防未来函数） ----
     # 跌破白线: 昨日收盘 < 昨日白线 且 前日收盘 >= 前日白线

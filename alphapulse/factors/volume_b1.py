@@ -41,7 +41,7 @@ def compute(
     yangyin_ratio_28: float = 1.65,
     yangyin_ratio_14: float = 2.25,
     j_threshold: float = 13.0,
-    min_market_cap: float = 40,  # 亿
+    min_market_cap: float = 40e8,  # 元（流通市值，对应TDX MV:=C*CAPITAL ≥ 40亿）
     surge_ratio: float = 1.85,
     half_down_ratio: float = 0.5,
 ) -> pd.Series:
@@ -49,7 +49,7 @@ def compute(
 
     Args:
         data: 含 open/high/low/close/volume 的DataFrame。
-              可选: market_cap（市值/亿）
+              可选: market_cap（流通市值，单位元，与 b1_formula 统一）
         yangyin_ratio_28: 28日阳量/阴量阈值
         yangyin_ratio_14: 14日阳量/阴量阈值
         j_threshold: KDJ J值阈值

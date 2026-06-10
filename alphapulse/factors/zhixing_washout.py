@@ -3,10 +3,10 @@
 来源：知行洗盘短线.txt
 
 四线系统：
-- 短期: 100*(C-LLV(L,N1))/(HHV(C,N1)-LLV(L,N1))  (参数N1)
+- 短期: 100*(C-LLV(L,N1))/(HHV(C,N1)-LLV(L,N1))  (N1=3，用户确认)
 - 中期: 100*(C-LLV(L,10))/(HHV(C,10)-LLV(L,10))
 - 中长期: 100*(C-LLV(L,20))/(HHV(C,20)-LLV(L,20))
-- 长期: 100*(C-LLV(L,N2))/(HHV(C,N2)-LLV(L,N2))  (参数N2)
+- 长期: 100*(C-LLV(L,N2))/(HHV(C,N2)-LLV(L,N2))  (N2=21，用户确认)
 
 买入信号（知行超短选股方案.txt引用条件4）：
 - 四线归零买: 短期≤6 AND 中期≤6 AND 中长期≤6 AND 长期≤6
@@ -31,8 +31,8 @@ def _stochastic_range(close, low, period):
 
 def compute_lines(
     data: pd.DataFrame,
-    n1: int = 5,
-    n2: int = 30,
+    n1: int = 3,
+    n2: int = 21,
 ) -> pd.DataFrame:
     """计算四线值。
 
@@ -52,8 +52,8 @@ def compute_lines(
 
 def compute(
     data: pd.DataFrame,
-    n1: int = 5,
-    n2: int = 30,
+    n1: int = 3,
+    n2: int = 21,
 ) -> pd.Series:
     """知行洗盘短线：任一买入条件满足则返回True。
 
@@ -92,8 +92,8 @@ def compute(
 
 def compute_indicator(
     data: pd.DataFrame,
-    n1: int = 5,
-    n2: int = 30,
+    n1: int = 3,
+    n2: int = 21,
 ) -> pd.Series:
     """计算知行四线综合指标（数值输出）。
 
@@ -108,7 +108,7 @@ def compute_indicator(
     return composite.fillna(0).astype(float)
 
 
-def compute_detail(data: pd.DataFrame, n1: int = 5, n2: int = 30) -> pd.DataFrame:
+def compute_detail(data: pd.DataFrame, n1: int = 3, n2: int = 21) -> pd.DataFrame:
     """返回四线和所有买入条件的详细信息。"""
     lines = compute_lines(data, n1, n2)
     short = lines["short"]

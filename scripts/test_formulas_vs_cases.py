@@ -52,8 +52,6 @@ param_ranges = {
         'amplitude_max': (3.0, 18.0, False),
         'j_threshold': (5, 28, True),
         'dif_threshold': (-1.5, 0.5, False),
-        'trend_fast': (3, 20, True),
-        'trend_slow': (10, 50, True),
     },
     'BRICK_ULTRA': {
         'min_ratio': (0.2, 1.2, False),

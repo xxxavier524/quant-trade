@@ -92,7 +92,7 @@ FACTOR_REGISTRY = {
         "default_params": {
             "pct_change_range": 3.0, "amplitude_max": 9.0,
             "j_threshold": 13.0, "dif_threshold": -0.1,
-            "trend_fast": 12, "trend_slow": 26,
+            "m1": 14, "m2": 28, "m3": 57, "m4": 114,
         },
     },
     # --- 知行系列（来自知行趋势线.txt + 知行洗盘短线.txt + 知行超短选股方案.txt） ---
@@ -101,14 +101,14 @@ FACTOR_REGISTRY = {
         "type": "indicator",  # 指标公式
         "description": "知行趋势线指标：EMA(EMA(C,10),10)短期趋势 + 4MA均值多空线 + MACD DIF",
         "source": "知行趋势线.txt",
-        "default_params": {"m1": 20, "m2": 60, "m3": 120, "m4": 250},
+        "default_params": {"m1": 14, "m2": 28, "m3": 57, "m4": 114},
     },
     "ZHIXING_WASHOUT": {
         "module": zhixing_washout,
         "type": "selection",  # 选股方案
         "description": "知行洗盘短线选股：四线归零/CROSS(短期,长期)/CROSS(短期,中期)/中长期>65",
         "source": "知行洗盘短线.txt",
-        "default_params": {"n1": 5, "n2": 30},
+        "default_params": {"n1": 3, "n2": 21},
     },
     # --- 砖型图系列（来自砖型图.txt + 砖型图超短选股.txt） ---
     "BRICK_ULTRA": {
@@ -126,7 +126,7 @@ FACTOR_REGISTRY = {
         "source": "量能B1选股.txt",
         "default_params": {
             "yangyin_ratio_28": 1.65, "yangyin_ratio_14": 2.25,
-            "j_threshold": 13.0, "min_market_cap": 40,
+            "j_threshold": 13.0, "min_market_cap": 40e8,
             "surge_ratio": 1.85, "half_down_ratio": 0.5,
         },
     },
@@ -262,7 +262,7 @@ FACTOR_REGISTRY = {
         "type": "indicator",  # 指标公式
         "description": "知行四线数值（短期/中期/中长期/长期），纯指标输出",
         "source": "知行洗盘短线.txt",
-        "default_params": {"n1": 5, "n2": 30},
+        "default_params": {"n1": 3, "n2": 21},
     },
     # --- 实验性因子（券商金工研究来源） ---
     "NORTHBOUND_FLOW": {

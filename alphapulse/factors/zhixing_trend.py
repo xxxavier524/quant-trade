@@ -5,7 +5,7 @@
 定义：
 - 知行短期趋势线: EMA(EMA(C,10),10)
 - 知行多空线: (MA(C,M1)+MA(C,M2)+MA(C,M3)+MA(C,M4))/4
-  M1/M2/M3/M4 可配置，默认 20/60/120/250
+  M1/M2/M3/M4 = 14/28/57/114（用户确认的通达信原始参数，见 docs/trading_system.md）
 
 条件组合（知行超短选股方案.txt）：
 1. 短期趋势线 > 多空线
@@ -25,7 +25,7 @@ def compute_short_trend(close: pd.Series) -> pd.Series:
 
 def compute_bull_bear_line(
     close: pd.Series,
-    m1: int = 20, m2: int = 60, m3: int = 120, m4: int = 250,
+    m1: int = 14, m2: int = 28, m3: int = 57, m4: int = 114,
 ) -> pd.Series:
     """知行多空线: 4条MA的均值。"""
     ma1 = close.rolling(m1).mean()
@@ -43,10 +43,10 @@ def compute_macd_dif(close: pd.Series, fast: int = 12, slow: int = 26) -> pd.Ser
 
 def compute(
     data: pd.DataFrame,
-    m1: int = 20,
-    m2: int = 60,
-    m3: int = 120,
-    m4: int = 250,
+    m1: int = 14,
+    m2: int = 28,
+    m3: int = 57,
+    m4: int = 114,
 ) -> pd.Series:
     """知行趋势条件：短期趋势线 > 多空线 AND 收盘 > 多空线 AND DIF > 0。
 
@@ -70,7 +70,7 @@ def compute(
 def compute_detail(data: pd.DataFrame, **params) -> pd.DataFrame:
     """返回趋势指标详细值。"""
     close = data["close"]
-    m1, m2, m3, m4 = params.get("m1", 20), params.get("m2", 60), params.get("m3", 120), params.get("m4", 250)
+    m1, m2, m3, m4 = params.get("m1", 14), params.get("m2", 28), params.get("m3", 57), params.get("m4", 114)
 
     short = compute_short_trend(close)
     bb = compute_bull_bear_line(close, m1, m2, m3, m4)
