@@ -106,9 +106,9 @@ def compute(
     avg40 = volume.rolling(40).mean()
     plry = (volume > surge_ratio * volume.shift(1)) & (close > open_) & (volume > avg40)
     plry_cnt = (plry.rolling(14).sum() >= 2) | (plry.rolling(28).sum() >= 3)
-    plry_first = plry & ~plry.shift(1).fillna(False)
-    plry_cont = plry & plry.shift(1).fillna(False)
-    half_down = ~real_yin.shift(1).fillna(False) & (close < prev_close) & (volume <= half_down_ratio * volume.shift(1))
+    plry_first = plry & ~plry.shift(1, fill_value=False)
+    plry_cont = plry & plry.shift(1, fill_value=False)
+    half_down = ~real_yin.shift(1, fill_value=False) & (close < prev_close) & (volume <= half_down_ratio * volume.shift(1))
 
     cnt_first = plry_first.rolling(28).sum()
     cnt_cont = plry_cont.rolling(28).sum()

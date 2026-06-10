@@ -67,6 +67,31 @@ def compute(
     return result.fillna(False).astype(bool)
 
 
+def compute_ultra(data: pd.DataFrame) -> pd.Series:
+    """知行超短选股方案（docs/tdx_formulas/知行超短选股方案.txt，5条件AND）：
+
+    1. 知行短期趋势线（白线）> 知行多空线（黄线）
+    2. 砖型图超短选股公式成立（昨绿今红且红砖≥2/3绿砖）
+    3. 当日收盘价 > 黄线
+    4. 知行洗盘短线中长期值 > 65
+    5. MACD DIF > 0
+
+    Returns:
+        pd.Series[bool]
+    """
+    from alphapulse.factors import brick_ultra, zhixing_washout
+
+    close = data["close"]
+    white = compute_short_trend(close)
+    yellow = compute_bull_bear_line(close)
+    brick = brick_ultra.compute(data)
+    med_long = zhixing_washout.compute_lines(data)["med_long"]
+    dif = compute_macd_dif(close)
+
+    result = (white > yellow) & brick & (close > yellow) & (med_long > 65) & (dif > 0)
+    return result.fillna(False).astype(bool)
+
+
 def compute_detail(data: pd.DataFrame, **params) -> pd.DataFrame:
     """返回趋势指标详细值。"""
     close = data["close"]

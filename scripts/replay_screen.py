@@ -30,11 +30,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from alphapulse.config.settings import DATA_DIR  # noqa: E402
-from alphapulse.factors import b1_formula, volume_b1  # noqa: E402
+from alphapulse.factors import b1_formula, volume_b1, zhixing_trend  # noqa: E402
 
 REPORTS_DIR = PROJECT_ROOT / "reports"
 
-FORMULAS = ("b1", "volume_b1", "union")
+# union = b1|volume_b1（B1案例集）；all = 再并知行超短（超短案例集）
+FORMULAS = ("b1", "volume_b1", "zhixing", "union", "all")
 
 
 def load_stock(csv_path: Path, end_date: str, min_rows: int = 60) -> pd.DataFrame | None:
@@ -48,23 +49,39 @@ def load_stock(csv_path: Path, end_date: str, min_rows: int = 60) -> pd.DataFram
     df = df[df["date"] <= end_date]
     if len(df) < min_rows:
         return None
-    turn = pd.to_numeric(df["turnover"], errors="coerce").replace(0, np.nan) if "turnover" in df.columns else pd.Series(np.nan, index=df.index)
-    float_shares = (df["volume"] / (turn / 100)).ffill()
+    # 换手率列在不同下载器版本中叫 turnover 或 turn，合并取非空
+    turn = pd.Series(np.nan, index=df.index)
+    for col in ("turnover", "turn"):
+        if col in df.columns:
+            turn = turn.fillna(pd.to_numeric(df[col], errors="coerce"))
+    turn = turn.replace(0, np.nan)
+    # 股本在短期内稳定，前后填充覆盖缺口
+    float_shares = (df["volume"] / (turn / 100)).ffill().bfill()
     df["market_cap"] = df["close"] * float_shares
     return df.reset_index(drop=True)
+
+
+def compute_signal_frame(df: pd.DataFrame, formula: str) -> pd.DataFrame:
+    """对整段历史一次性向量化计算各公式信号序列（公式均为因果计算，
+    第t行信号只依赖≤t的数据，与逐日切片回放等价但快两个数量级）。"""
+    out = pd.DataFrame(index=df.index)
+    if formula in ("b1", "union", "all"):
+        out["b1"] = b1_formula.compute(df)
+    if formula in ("volume_b1", "union", "all"):
+        out["volume_b1"] = volume_b1.compute(df)
+    if formula in ("zhixing", "all"):
+        out["zhixing"] = zhixing_trend.compute_ultra(df)
+    out["hit"] = out.any(axis=1)
+    return out
 
 
 def signal_on_last_day(df: pd.DataFrame, formula: str, target_date: str) -> dict | None:
     """计算公式信号；仅当最后一行恰为目标日（当日有交易）时有效。"""
     if df.iloc[-1]["date"] != target_date:
         return None
-    out = {}
-    if formula in ("b1", "union"):
-        out["b1"] = bool(b1_formula.compute(df).iloc[-1])
-    if formula in ("volume_b1", "union"):
-        out["volume_b1"] = bool(volume_b1.compute(df).iloc[-1])
-    out["hit"] = any(v for k, v in out.items() if k != "hit")
-    return out
+    frame = compute_signal_frame(df, formula)
+    last = frame.iloc[-1]
+    return {c: bool(last[c]) for c in frame.columns}
 
 
 def run_screen(date: str, formula: str, data_dir: Path) -> pd.DataFrame:
@@ -141,20 +158,21 @@ def watch_range(start: str, end: str, formula: str, data_dir: Path, watch_path: 
         if full is None:
             print(f"  {sym}{name_map.get(sym, '')}: 无数据")
             continue
-        dates = [d for d in full["date"] if start <= d <= end]
-        for d in dates:
-            df = full[full["date"] <= d]
-            if len(df) < 60:
-                continue
-            res = signal_on_last_day(df.reset_index(drop=True), formula, d)
-            if res and res["hit"]:
-                tags = [k for k in ("b1", "volume_b1") if res.get(k)]
-                found[sym].append(f"{d}({'+'.join(tags)})")
+        frame = compute_signal_frame(full, formula)
+        sig_cols = [c for c in frame.columns if c != "hit"]
+        in_range = (full["date"] >= start) & (full["date"] <= end)
+        for idx in frame.index[frame["hit"] & in_range]:
+            tags = [c for c in sig_cols if frame.at[idx, c]]
+            found[sym].append(f"{full.at[idx, 'date']}({'+'.join(tags)})")
     print("\n========== 信号日定位结果 ==========")
     for sym in watch_syms:
         days = found[sym]
         status = " ".join(days) if days else "（区间内无信号）"
         print(f"  {sym} {name_map.get(sym, ''):8s}: {status}")
+    n_data = sum(1 for s in watch_syms if (data_dir / f"{s}.csv").exists())
+    n_hit = sum(1 for s in watch_syms if found[s])
+    if n_data:
+        print(f"\n命中率: {n_hit}/{n_data} (有数据) = {n_hit/n_data*100:.1f}%")
 
 
 def main():
