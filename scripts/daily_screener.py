@@ -1,127 +1,168 @@
 #!/usr/bin/env python3
-"""Daily screening pipeline - runs at 15:30 after market close.
-Usage: python scripts/daily_screener.py [--full] [--output report.md]
+"""每日选股（评分版）— 全市场扫描 → 加权评分 0-100 → Top N 结构化输出。
+
+替代旧版（只扫前200只、纯布尔信号）。流程：
+1. 加载全市场CSV（含市值反推），可用 --date 回放历史日
+2. 每股计算11个连续子分数 + 3个严格信号徽章（B1/量能B1/知行超短）
+3. 大盘档位调节 + 加权排序，输出 Top 50
+4. 结构化输出 reports/screen_YYYY-MM-DD.csv（GUI直读）+ Markdown 摘要 + 飞书推送
+
+用法：
+    python scripts/daily_screener.py                 # 最新交易日
+    python scripts/daily_screener.py --date 2026-05-15 --top 30
 """
-import sys, time, logging, argparse
-from pathlib import Path
+
+import argparse
+import logging
+import sys
+import time
 from datetime import datetime
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from pathlib import Path
 
 import pandas as pd
-from alphapulse.market.macro_position import compute_macro_score
-from alphapulse.market.sector_strength import rank_sectors, get_strong_sectors
-from alphapulse.notify.feishu_bot import push_daily_screening
-from alphapulse.config.settings import (
-    DATA_SOURCES_PRIORITY, FEISHU_WEBHOOK_URL, STREAMLIT_PORT)
-from alphapulse.utils.data_fetcher import DataFetcher
-from alphapulse.factors.b1_formula import compute as b1_formula_compute
-from alphapulse.strategies.brick import generate_signals as brick_signals
-from alphapulse.strategies.needle_enhanced import generate_signals as needle_signals
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+
+from alphapulse.config.settings import DATA_DIR, FEISHU_WEBHOOK_URL  # noqa: E402
+from alphapulse.market.macro_position import compute_macro_score  # noqa: E402
+from alphapulse.ranking.composite import build_stock_row, rank_all  # noqa: E402
+from replay_screen import load_stock  # noqa: E402  复用市值反推/列自愈逻辑
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("daily_screener")
 
-DATA_DIR = Path("/Volumes/Mac-480g外接/quantan_data/day/")
-OUTPUT_DIR = Path(__file__).parent.parent / "reports"
-DATA_UPDATE_TIMEOUT_SEC = 30  # max time to spend on data updates
+REPORTS_DIR = PROJECT_ROOT / "reports"
 
-def load_stock_data(symbol):
-    path = DATA_DIR / f"{symbol}.csv"
-    if not path.exists(): return pd.DataFrame()
-    return pd.read_csv(path, parse_dates=["date"])
+# 子分数中文名（报告显示用）
+SUB_NAMES = {
+    "j_low": "J值低位", "trend_gap": "趋势强度", "vol_shrink": "缩量",
+    "yangyin": "红肥绿瘦", "surge": "爆量阳", "dif": "DIF",
+    "ql_pos": "QL位置", "pct_calm": "涨幅温和", "amplitude": "振幅",
+    "bowl": "掉进碗里", "washout_recover": "单针回收",
+}
 
-def _check_timeout(start_time, timeout_min, context):
-    elapsed = (time.monotonic() - start_time) / 60
-    if elapsed > timeout_min:
-        logger.warning(f"TIMEOUT at {elapsed:.0f}min: {context}")
-        return True
-    return False
 
-def _generate_report(macro, results, strong_sectors):
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    report = f"# AlphaPulse 选股日报 ({date_str})\n\n## 大盘\n评分: {macro['score']}/100 档位: {macro['level']}\n\n## 强势板块\n{', '.join(strong_sectors[:5]) if strong_sectors else '无数据'}\n\n"
-    for name, key in [("B1B2","B1B2"),("砖型图","BRICK"),("单针","NEEDLE")]:
-        report += f"## {name} 信号 ({len(results.get(key,[]))}个)\n"
-        for s in results.get(key, [])[:10]:
-            report += f"- {s.get('symbol','')} ({s.get('signal_type','')})\n"
-        report += "\n"
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_DIR / f"daily_report_{date_str}.md", "w") as f: f.write(report)
-    logger.info(f"Report: {OUTPUT_DIR / f'daily_report_{date_str}.md'}")
+def load_names() -> dict[str, str]:
+    """股票名称表（来自股本meta或黄金案例，缺失为空）。"""
+    names = {}
+    meta = PROJECT_ROOT / "data" / "meta" / "share_capital.csv"
+    if meta.exists():
+        try:
+            df = pd.read_csv(meta, dtype={"symbol": str})
+            names = dict(zip(df["symbol"].str.zfill(6), df["name"]))
+        except Exception:
+            pass
+    return names
 
-def run_screening(force_full=False):
-    start_time = time.monotonic()
-    results = {"B1B2":[],"BRICK":[],"NEEDLE":[]}
-    macro_result = {"score":50,"level":"震荡","sub_scores":{}}
+
+def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
+    t0 = time.monotonic()
+    names = load_names()
+
+    # ── 大盘档位（真实指数，data/index/，修复旧版误用平安银行CSV的bug）──
+    macro_level = "震荡"
+    macro_score = 50
     try:
-        logger.info("Step 1/7: Data update (quick check, skip if no network)...")
-        fetcher = DataFetcher(sources=DATA_SOURCES_PRIORITY[:1], max_workers=1)  # only try first source
-        today = datetime.now().strftime("%Y-%m-%d")
-        symbols = [p.stem for p in DATA_DIR.glob("*.csv")]
-        update_end = time.monotonic() + DATA_UPDATE_TIMEOUT_SEC
-        if not force_full:
-            # Quick probe: try updating 3 stocks, if all fail skip update entirely
-            for sym in symbols[:3]:
-                if time.monotonic() > update_end: break
-                df = fetcher.fetch_single(sym, today, today)
-                if df is not None and len(df) > 0:
-                    existing = load_stock_data(sym)
-                    if not existing.empty:
-                        pd.concat([existing, df]).drop_duplicates(subset=["date"]).to_csv(DATA_DIR/f"{sym}.csv", index=False)
-            logger.info("Data update done (or skipped due to network issues)")
-        logger.info(f"Total CSV files available: {len(symbols)}")
-        logger.info("Step 2/7: Macro position...")
-        sh_idx = load_stock_data("000001")
-        sz_idx = load_stock_data("399001")
-        cyb_idx = load_stock_data("399006")
-        if not sh_idx.empty:
-            macro_result = compute_macro_score(sh_idx, sz_idx, cyb_idx)
-            logger.info(f"Macro: {macro_result['score']}/100 {macro_result['level']}")
-        logger.info("Step 3/7: Sector strength...")
-        strong_sectors = get_strong_sectors(0.5)
-        logger.info(f"Strong sectors: {strong_sectors[:5]}...")
-        logger.info("Step 4/7: Strategy screening...")
-        sample_symbols = [p.stem for p in DATA_DIR.glob("*.csv")][:200]
-        for sym in sample_symbols:
-            if _check_timeout(start_time, 30, f"screening {sym}"): break
-            df = load_stock_data(sym)
-            if df.empty or len(df) < 60: continue
-            try:
-                # --- B1B2: detect fresh False->True transition in last 8 trading days ---
-                b1_raw = b1_formula_compute(df)
-                if b1_raw is not None and len(b1_raw) > 0:
-                    sig_int = b1_raw.astype(int)
-                    diffs = sig_int.diff()
-                    if (diffs.tail(8) == 1).any():
-                        results["B1B2"].append({"symbol": sym, "signal_type": "B1"})
+        index_dir = PROJECT_ROOT / "data" / "index"
+        end = date or "9999-12-31"
 
-                # --- BRICK: latest signal within last 20 trading days ---
-                br = brick_signals(df, symbol=sym)
-                if len(br) > 0 and br["signal"].any():
-                    sig_rows = br[br["signal"].astype(bool)]
-                    trading_days_ago = int(df.index[-1]) - int(sig_rows.index[-1])
-                    if 0 <= trading_days_ago <= 10:
-                        results["BRICK"].append({"symbol": sym, "signal_type": br.iloc[-1].get("signal_type", "BRICK")})
+        def _load_index(code):
+            p = index_dir / f"{code}.csv"
+            if not p.exists():
+                return pd.DataFrame()
+            idf = pd.read_csv(p)
+            return idf[idf["date"] <= end]
 
-                # --- NEEDLE: latest signal within last 20 trading days ---
-                n = needle_signals(df, symbol=sym, mode="needle")
-                if len(n) > 0 and n["signal"].any():
-                    sig_rows = n[n["signal"].astype(bool)]
-                    trading_days_ago = int(df.index[-1]) - int(sig_rows.index[-1])
-                    if 0 <= trading_days_ago <= 10:
-                        results["NEEDLE"].append({"symbol": sym, "signal_type": n.iloc[-1].get("signal_type", "NEEDLE")})
-            except Exception as e: logger.debug(f"Error {sym}: {e}")
-        logger.info(f"Signals: B1B2={len(results['B1B2'])}, BRICK={len(results['BRICK'])}, NEEDLE={len(results['NEEDLE'])}")
-        if FEISHU_WEBHOOK_URL:
-            push_daily_screening(FEISHU_WEBHOOK_URL, macro_result, {"strong_sectors":strong_sectors},
-                                 results["B1B2"], results["BRICK"], results["NEEDLE"], web_url=f"http://localhost:{STREAMLIT_PORT}")
-        _generate_report(macro_result, results, strong_sectors)
-    except Exception as e: logger.error(f"Pipeline error: {e}", exc_info=True)
-    logger.info(f"Screening done in {(time.monotonic()-start_time)/60:.0f}min")
-    return results
+        sh = _load_index("sh000001")
+        if not sh.empty:
+            macro = compute_macro_score(sh, _load_index("sz399001"), _load_index("sz399006"))
+            macro_level, macro_score = macro["level"], macro["score"]
+    except Exception as e:
+        logger.warning(f"大盘评分失败，用默认震荡档: {e}")
+    logger.info(f"大盘: {macro_score}/100 [{macro_level}]")
+
+    # ── 全市场子分数 ──
+    files = sorted(data_dir.glob("*.csv"))
+    end_date = date or "9999-12-31"
+    rows = []
+    target_date = date
+    for i, f in enumerate(files):
+        if i % 1000 == 0 and i:
+            logger.info(f"  扫描 {i}/{len(files)} ...")
+        df = load_stock(f, end_date, min_rows=120)
+        if df is None:
+            continue
+        if target_date is None:
+            target_date = df.iloc[-1]["date"]  # 用第一只股票确定最新交易日
+        if df.iloc[-1]["date"] != target_date:
+            continue  # 当日停牌/退市
+        row = build_stock_row(f.stem, names.get(f.stem, ""), df)
+        if row:
+            rows.append(row)
+
+    factor_df = pd.DataFrame(rows)
+    logger.info(f"有效股票 {len(factor_df)} 只 @ {target_date}")
+    if factor_df.empty:
+        return factor_df
+
+    # ── 排序 ──
+    top = rank_all(factor_df, top_n=top_n, macro_level=macro_level)
+
+    # ── 结构化输出 ──
+    REPORTS_DIR.mkdir(exist_ok=True)
+    out_csv = REPORTS_DIR / f"screen_{target_date}.csv"
+    top.to_csv(out_csv, index=False, encoding="utf-8-sig")
+
+    # Markdown 摘要
+    md = [f"# 选股日报 {target_date}",
+          f"\n大盘: {macro_score}/100 [{macro_level}] | 扫描 {len(factor_df)} 只 | "
+          f"严格信号 {int(top['strict_signal'].sum())} 只\n",
+          "| 排名 | 代码 | 名称 | 总分 | 严格信号 | 现价 | 涨幅% | 主要贡献 |",
+          "|---|---|---|---|---|---|---|---|"]
+    for _, r in top.head(20).iterrows():
+        sigs = [s for s, c in [("B1", "sig_b1"), ("量能B1", "sig_volume_b1"),
+                               ("知行超短", "sig_zhixing")] if r.get(c)]
+        md.append(f"| {r['rank']} | {r['symbol']} | {r['name']} | {r['score']:.1f} "
+                  f"| {'+'.join(sigs) or '—'} | {r.get('close', '')} "
+                  f"| {r.get('pct_change', '')} | {r['top_factors']} |")
+    md_path = REPORTS_DIR / f"daily_report_{target_date}.md"
+    md_path.write_text("\n".join(md), encoding="utf-8")
+
+    logger.info(f"Top{top_n} → {out_csv}")
+    logger.info(f"耗时 {(time.monotonic()-t0)/60:.1f} 分钟")
+
+    # 飞书推送（配置了webhook才发）
+    if FEISHU_WEBHOOK_URL:
+        try:
+            from alphapulse.notify.feishu_bot import send_feishu
+            head = top.head(10)
+            text = f"📊 选股 {target_date} 大盘{macro_score}[{macro_level}]\n" + "\n".join(
+                f"{r['rank']}. {r['symbol']}{r['name']} {r['score']:.0f}分"
+                + ("⭐" if r["strict_signal"] else "")
+                for _, r in head.iterrows())
+            send_feishu(FEISHU_WEBHOOK_URL, text)
+        except Exception as e:
+            logger.warning(f"飞书推送失败: {e}")
+    return top
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--date", help="回放历史日 YYYY-MM-DD（默认最新交易日）")
+    ap.add_argument("--top", type=int, default=50)
+    ap.add_argument("--data-dir", default=DATA_DIR)
+    args = ap.parse_args()
+
+    data_dir = Path(args.data_dir)
+    if not data_dir.exists():
+        sys.exit(f"数据目录不存在: {data_dir}（外接硬盘未挂载？）")
+    top = run(args.date, args.top, data_dir)
+    if not top.empty:
+        cols = ["rank", "symbol", "name", "score", "strict_signal", "top_factors"]
+        print(top[cols].head(20).to_string(index=False))
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--full", action="store_true")
-    args = parser.parse_args()
-    run_screening(force_full=args.full)
+    main()
