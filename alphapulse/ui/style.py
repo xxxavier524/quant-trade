@@ -17,7 +17,9 @@ CARD_BG = "#161a23"  # 卡片底
 def inject_css():
     st.markdown(f"""
 <style>
-.block-container {{padding-top: 1rem; padding-bottom: 2rem; max-width: 1400px;}}
+/* 顶部留足空间：标签栏曾被Streamlit固定页头盖住（致命bug） */
+.block-container {{padding-top: 3.8rem; padding-bottom: 2rem; max-width: 1400px;}}
+header[data-testid="stHeader"] {{background: transparent;}}
 h1,h2,h3,h4 {{color:{WHITE}; font-weight:600;}}
 hr {{border-color:{BORDER};}}
 [data-testid="stMetric"] {{background:{CARD_BG}; border:1px solid {BORDER};
@@ -26,8 +28,9 @@ hr {{border-color:{BORDER};}}
 [data-testid="stMetricValue"] {{font-size:32px;}}
 [data-testid="stMetricDelta"] svg {{display:none;}}
 div[data-testid="stDataFrame"] {{border:1px solid {BORDER}; border-radius:8px;}}
-.stTabs [data-baseweb="tab-list"] {{gap:4px; border-bottom:1px solid {BORDER};}}
-.stTabs [data-baseweb="tab"] {{font-size:15px; padding:10px 22px; border-radius:6px 6px 0 0;}}
+.stTabs [data-baseweb="tab-list"] {{gap:6px; border-bottom:1px solid {BORDER};}}
+.stTabs [data-baseweb="tab"] {{padding:12px 26px; border-radius:6px 6px 0 0;}}
+.stTabs [data-baseweb="tab"] p {{font-size:16px !important; font-weight:600;}}
 .stTabs [aria-selected="true"] {{background:{CARD_BG};}}
 .ap-card {{background:{CARD_BG}; border:1px solid {BORDER}; border-radius:8px;
   padding:16px 18px; margin-bottom:10px;}}
