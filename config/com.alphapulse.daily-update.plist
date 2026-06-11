@@ -4,18 +4,23 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.alphapulse.after-close</string>
+    <string>com.alphapulse.daily-update</string>
 
     <key>ProgramArguments</key>
     <array>
         <string>/Users/qiushixuan/cc/quantan trade/.venv/bin/python</string>
-        <string>/Users/qiushixuan/cc/quantan trade/scripts/after_close.py</string>
+        <string>/Users/qiushixuan/cc/quantan trade/scripts/run_with_timeout.py</string>
+        <string>3600</string>
+        <string>/Users/qiushixuan/cc/quantan trade/.venv/bin/python</string>
+        <string>/Users/qiushixuan/cc/quantan trade/scripts/daily_update.py</string>
+        <string>--max-minutes</string>
+        <string>45</string>
     </array>
 
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
-        <integer>15</integer>
+        <integer>1</integer>
         <key>Minute</key>
         <integer>30</integer>
     </dict>
@@ -34,10 +39,10 @@
     <string>/Users/qiushixuan/cc/quantan trade</string>
 
     <key>StandardOutPath</key>
-    <string>/Users/qiushixuan/cc/quantan trade/logs/after_close_stdout.log</string>
+    <string>/Users/qiushixuan/cc/quantan trade/logs/daily_update_stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/qiushixuan/cc/quantan trade/logs/after_close_stderr.log</string>
+    <string>/Users/qiushixuan/cc/quantan trade/logs/daily_update_stderr.log</string>
 
     <key>RunAtLoad</key>
     <false/>
