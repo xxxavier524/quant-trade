@@ -5,5 +5,12 @@
     "source": "regex",
     "enabled": false,
     "file": "j15_shrink_half.py"
+  },
+  "bowl_j20_surge": {
+    "name": "bowl_j20_surge",
+    "description": "股价在知行黄线之上但白线之下（掉进碗里），且当日J值低于20，且最近3天内出现过一根成交量超过40日均量1.8倍的阳线",
+    "source": "deepseek",
+    "enabled": false,
+    "file": "bowl_j20_surge.py"
   }
 }

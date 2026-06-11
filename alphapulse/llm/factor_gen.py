@@ -95,8 +95,10 @@ def sandbox_test(code: str) -> tuple[bool, str]:
     """受限命名空间内执行并用随机数据冒烟。"""
     ns = {"pd": pd, "np": np, "__builtins__": {
         "abs": abs, "min": min, "max": max, "round": round, "float": float,
-        "int": int, "bool": bool, "len": len, "range": range, "True": True,
-        "False": False, "None": None}}
+        "int": int, "bool": bool, "len": len, "range": range, "sum": sum,
+        "all": all, "any": any, "sorted": sorted, "enumerate": enumerate,
+        "zip": zip, "list": list, "dict": dict, "tuple": tuple, "set": set,
+        "True": True, "False": False, "None": None}}
     try:
         exec(compile(code, "<generated_factor>", "exec"), ns)  # noqa: S102 AST已白名单校验
         fn = ns.get("compute")
@@ -140,13 +142,15 @@ def generate_factor(description: str, name: str, use_llm: bool = True) -> dict:
     """
     slug = _slugify(name)
 
-    # 1. 正则解析器优先（零成本）；解析出的条件少于描述复杂度时走LLM
+    # 1. 正则解析器优先（零成本）；捕获条件数 < 描述子句数说明理解不完整→走LLM
     code = None
     source = "regex"
     try:
         from alphapulse.utils.nlp_factor import parse_description
         parsed = parse_description(description)
-        if parsed.get("conditions"):
+        n_clauses = len([c for c in re.split(r"且|并且|同时|或|或者", description)
+                         if len(c.strip()) >= 4])
+        if parsed.get("conditions") and len(parsed["conditions"]) >= n_clauses:
             code = parsed["code"]
             # 去掉解析器自带的import行（沙箱白名单不允许import）
             code = "\n".join(l for l in code.splitlines()

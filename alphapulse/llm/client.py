@@ -4,26 +4,43 @@
 - deepseek-v4-pro：重推理（因子设计、策略逻辑、案例分析）
 - deepseek-v4-flash：批量（报告生成、摘要、AI研判）
 
-环境变量：DEEPSEEK_API_KEY（必需）
+密钥来源（优先级）：环境变量 DEEPSEEK_API_KEY > 项目根 .env 文件（gitignored）
 """
 
 import os
+from pathlib import Path
 
 DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 MODEL_REASONING = "deepseek-v4-pro"
 MODEL_BATCH = "deepseek-v4-flash"
+
+_ENV_FILE = Path(__file__).resolve().parent.parent.parent / ".env"
 
 
 class LLMNotConfigured(RuntimeError):
     pass
 
 
+def _read_key() -> str:
+    key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    if key:
+        return key
+    try:
+        for line in _ENV_FILE.read_text().splitlines():
+            if line.startswith("DEEPSEEK_API_KEY="):
+                return line.split("=", 1)[1].strip()
+    except Exception:
+        pass
+    return ""
+
+
 def get_client():
     """惰性创建 openai 客户端（key 缺失时抛 LLMNotConfigured）。"""
-    api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    api_key = _read_key()
     if not api_key:
         raise LLMNotConfigured(
-            "未配置 DEEPSEEK_API_KEY。请在 ~/.zshrc 添加：export DEEPSEEK_API_KEY=sk-...")
+            "未配置 DEEPSEEK_API_KEY。在项目根 .env 写入 DEEPSEEK_API_KEY=sk-... "
+            "或 export 环境变量")
     from openai import OpenAI
     return OpenAI(api_key=api_key, base_url=DEEPSEEK_BASE_URL)
 
@@ -43,4 +60,4 @@ def chat(prompt: str, system: str = "", model: str = MODEL_BATCH,
 
 
 def is_configured() -> bool:
-    return bool(os.environ.get("DEEPSEEK_API_KEY", "").strip())
+    return bool(_read_key())
