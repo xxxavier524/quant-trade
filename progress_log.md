@@ -382,3 +382,19 @@
   （B1六条件✓✗实际值/均线体系/量能B1要点/子分数全览）；看板信号卡带策略与概念
 - 概念板块拉取：新浪175个，限流退避+增量合并
 - 验证：Top股普遍带"周线金叉"标签（新因子生效）；GUI截图确认依据面板正确
+
+## 2026-06-12 开源融合第一批 + 形态教学 + GUI修复（v4-fusion 分支，回退点 tag v3-stable）
+
+**研究**（subagent 并行，日记 docs/research_journal/ 00-08）：
+- 精读 daily_stock_analysis（42.1k星）+ qlib/chan.py/InStock/Sequoia-X/abu/ai-hedge-fund 共7项目
+- 12条集成路线图（00_summary.md），剩余项归档任务#23
+
+**融合实施**（每项带回测验证，见 08_integration_log.md）：
+- ❌ RPS过滤B1（Sequoia-X）：6.3万事件AB回测显示单调负贡献——动量过滤与超跌买点逻辑相反，否决（负结果防系统变坏）
+- ✅ pytdx直连备援（daily_stock_analysis）：baostock限流时增量更新兜底；不复权裸价靠重叠close一致性检查保护，隔离验证0.000%偏差
+- ✅ 形态教学NL→ML：中文描述→DeepSeek标注函数→历史验证→案例确认→GBDT特征；"机构票缩量回调"端到端2331次命中
+
+**GUI**：修复顶部标签被固定页头遮盖的致命bug（padding-top 1rem→3.8rem）；
+看板加上证分时+日K小图；板块/概念K线弹窗（含工作台按钮入口）；
+研究区重构（参数动态控件+5步工作流+因子权重编辑器+热力图美化与说明）；
+修复板块聚合K线concat日期乱序bug
