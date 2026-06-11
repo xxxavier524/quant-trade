@@ -291,3 +291,10 @@
   - 信号日定位表 `tests/golden/located_signal_days.csv` 待用户复核
 - 回归固化：`tests/golden/test_golden_cases.py`（3用例，公式改动必须通过）
 - 关键认知：案例xls为**多日收集的案例集**而非单日选股快照（导出日2026-05-17为周日）
+
+## 2026-06-11 Phase 1 — 数据管道可靠性（v3-dev）
+
+- **根因确认**：2个僵尸 daily_update 进程自6月3日挂死8天（baostock TCP socket 无超时）——即"定时任务卡死"元凶
+- daily_update.py 重写：socket全局30s超时 / 预检不mkdir+飞书告警 / 查指数定最新交易日已最新零API跳过 / 复权一致性自动重下 / 断点续传 / 断线重连 / 原子写 / turn列自愈
+- run_with_timeout.py 外层硬超时包装器接入 launchd plist（60分钟上限）并已重装载
+- 验证：挂载检查exit 2✓；增量更新29跳过/16更新/4复权重下✓；超时exit 3续传✓；baostock限流时响亮失败✓
