@@ -237,6 +237,21 @@ def main() -> int:
             overlap_start = ((datetime.strptime(last_date, "%Y-%m-%d") - timedelta(days=7)).strftime("%Y-%m-%d")
                              if last_date else "2020-01-01")
             new_df = bs_query(bs, bs_code(sym), overlap_start, today_str)
+            used_tdx = False
+            if new_df.empty and last_date:
+                # baostock失败 → pytdx直连备援（融合自daily_stock_analysis精华#1）。
+                # pytdx为不复权裸价，靠下方重叠close一致性检查兜底：
+                # 近期有除权则不一致 → 跳过等baostock，绝不混入错误价格
+                try:
+                    from alphapulse.utils.tdx_source import fetch_recent_daily
+                    tdx_df = fetch_recent_daily(sym, n=30)
+                    tdx_df = tdx_df[tdx_df["date"] >= overlap_start]
+                    if not tdx_df.empty:
+                        new_df = tdx_df
+                        used_tdx = True
+                        stats["tdx_fallback"] = stats.get("tdx_fallback", 0) + 1
+                except Exception:
+                    pass
             if new_df.empty:
                 stats["failed"] += 1
                 consecutive_failures += 1
@@ -254,6 +269,15 @@ def main() -> int:
                 new_c = pd.to_numeric(overlap["close_new"], errors="coerce")
                 diff = ((old_c - new_c).abs() / old_c.replace(0, pd.NA)).max()
                 need_refetch = bool(pd.notna(diff) and diff > 0.001)
+            elif used_tdx:
+                # pytdx数据必须有重叠日验证（无重叠=无法确认复权一致）→ 跳过
+                stats["failed"] += 1
+                continue
+
+            if used_tdx and need_refetch:
+                # pytdx裸价与前复权历史不一致=该股近期有除权 → 等baostock，绝不混入
+                stats["failed"] += 1
+                continue
 
             if need_refetch and stats["refetched"] < args.refetch_limit:
                 full = bs_query(bs, bs_code(sym), "2020-01-01", today_str)
@@ -302,7 +326,8 @@ def main() -> int:
 
     status = "TIMEOUT（下次续传）" if timed_out else "完成"
     summary = (f"数据更新{status} @ {latest}: 已最新 {stats['current']}，更新 {stats['updated']}，"
-               f"复权重下 {stats['refetched']}，新增 {stats['new']}，失败 {stats['failed']}")
+               f"复权重下 {stats['refetched']}，新增 {stats['new']}，失败 {stats['failed']}，"
+               f"TDX备援 {stats.get('tdx_fallback', 0)}")
     print(f"[{datetime.now():%H:%M:%S}] {summary}")
 
     if timed_out:
