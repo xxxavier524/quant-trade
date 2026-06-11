@@ -31,6 +31,113 @@ def _sectors():
     return pd.read_csv(files[-1]) if files else pd.DataFrame()
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _index_minute() -> pd.DataFrame:
+    """上证当日5分钟分时（新浪，剥离代理）。失败返回空。"""
+    import os
+    import socket
+    for var in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"):
+        os.environ.pop(var, None)
+    os.environ["NO_PROXY"] = "*"
+    socket.setdefaulttimeout(15)
+    try:
+        import akshare as ak
+        df = ak.stock_zh_a_minute(symbol="sh000001", period="5", adjust="")
+        df["day"] = pd.to_datetime(df["day"])
+        last_day = df["day"].dt.date.max()
+        cur = df[df["day"].dt.date == last_day].copy()
+        prev = df[df["day"].dt.date < last_day]
+        cur.attrs["prev_close"] = float(prev["close"].iloc[-1]) if len(prev) else None
+        for c in ("open", "high", "low", "close"):
+            cur[c] = pd.to_numeric(cur[c], errors="coerce")
+        return cur
+    except Exception:
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=600)
+def _index_daily(n: int = 120) -> pd.DataFrame:
+    p = PROJECT_ROOT / "data" / "index" / "sh000001.csv"
+    if not p.exists():
+        return pd.DataFrame()
+    return pd.read_csv(p).tail(n).reset_index(drop=True)
+
+
+def _market_charts():
+    """大盘分时 + 日K 小图（一行两图，紧凑）。"""
+    import plotly.graph_objects as go
+
+    c1, c2 = st.columns(2)
+    minute = _index_minute()
+    with c1:
+        st.markdown('<div class="ap-kpi-label" style="margin-bottom:4px">上证指数 · 当日分时</div>',
+                    unsafe_allow_html=True)
+        if minute.empty:
+            st.caption("分时数据暂不可用（盘后或网络）")
+        else:
+            prev_close = minute.attrs.get("prev_close")
+            last = float(minute["close"].iloc[-1])
+            up = prev_close is None or last >= prev_close
+            color = S.UP if up else S.DOWN
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=minute["day"], y=minute["close"], mode="lines",
+                line=dict(color=color, width=1.6),
+                fill="tozeroy", fillcolor=("rgba(239,35,42,0.08)" if up else "rgba(20,177,67,0.08)"),
+                name="上证"))
+            if prev_close:
+                fig.add_hline(y=prev_close, line_dash="dot",
+                              line_color=S.MUTED, line_width=1)
+                chg = (last / prev_close - 1) * 100
+                fig.add_annotation(x=1, y=1, xref="paper", yref="paper",
+                                   text=f"{last:.2f} ({chg:+.2f}%)", showarrow=False,
+                                   font=dict(color=color, size=14), xanchor="right")
+            ymin, ymax = minute["close"].min(), minute["close"].max()
+            pad = (ymax - ymin) * 0.1 or 1
+            fig.update_yaxes(range=[min(ymin, prev_close or ymin) - pad,
+                                    max(ymax, prev_close or ymax) + pad])
+            fig.update_layout(height=180, template="plotly_dark",
+                              paper_bgcolor="#0e1117", plot_bgcolor="#161a23",
+                              margin=dict(l=4, r=4, t=4, b=4), showlegend=False)
+            fig.update_xaxes(nticks=6, tickformat="%H:%M")
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    with c2:
+        st.markdown('<div class="ap-kpi-label" style="margin-bottom:4px">上证指数 · 日K（120日）</div>',
+                    unsafe_allow_html=True)
+        daily = _index_daily()
+        if daily.empty:
+            st.caption("指数日线缺失 — 运行 fetch_index_data.py")
+        else:
+            fig = go.Figure(go.Candlestick(
+                x=daily["date"], open=daily["open"], high=daily["high"],
+                low=daily["low"], close=daily["close"],
+                increasing_line_color=S.UP, increasing_fillcolor=S.UP,
+                decreasing_line_color=S.DOWN, decreasing_fillcolor=S.DOWN))
+            ma20 = daily["close"].rolling(20).mean()
+            fig.add_trace(go.Scatter(x=daily["date"], y=ma20, mode="lines",
+                                     line=dict(color=S.YELLOW, width=1), name="MA20"))
+            fig.update_layout(height=180, template="plotly_dark",
+                              paper_bgcolor="#0e1117", plot_bgcolor="#161a23",
+                              margin=dict(l=4, r=4, t=4, b=4), showlegend=False,
+                              xaxis_rangeslider_visible=False)
+            fig.update_xaxes(type="category", nticks=6)
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+
+
+def _board_selector():
+    """板块/概念K线查询入口。"""
+    from alphapulse.ui.views.board_kline import board_dialog
+    from alphapulse.market.sector_score import load_members, load_concept_members
+    sectors = list(load_members().keys())
+    concepts = list(load_concept_members().keys())
+    options = [f"[行业] {s}" for s in sectors] + [f"[概念] {c}" for c in concepts]
+    sel = st.selectbox("查看板块 / 概念 K线", ["— 选择 —"] + options, key="board_sel")
+    if sel and sel != "— 选择 —":
+        board = sel.split("] ", 1)[1]
+        board_dialog(board)
+
+
 def render():
     try:
         m = _market()
@@ -51,7 +158,10 @@ def render():
         S.card(S.kpi("仓位建议", m["advice"].split("（")[0], S.WHITE,
                      m["advice"]))
 
-    # ── 第二行：三指数分项 + 板块强弱 ──
+    # ── 第二行：大盘分时 + 日K 小图 ──
+    _market_charts()
+
+    # ── 第三行：三指数分项 + 板块强弱 ──
     left, right = st.columns([1, 1])
     with left:
         st.markdown("##### 指数三维分项")
@@ -74,12 +184,12 @@ def render():
             bot5 = sectors.tail(5).iloc[::-1]
             html = ""
             for _, r in top5.iterrows():
-                tag = f'<span class="ap-tag">{r["tags"]}</span>' if r.get("tags") else ""
                 html += S.hbar(r["sector"], r["score"], 100, S.UP)
             html += f'<div style="border-top:1px solid {S.BORDER};margin:8px 0"></div>'
             for _, r in bot5.iterrows():
                 html += S.hbar(r["sector"], r["score"], 100, S.DOWN)
             S.card(html)
+        _board_selector()
 
     # ── 第三行：今日 Top 信号 ──
     st.markdown("##### 今日 Top 信号")

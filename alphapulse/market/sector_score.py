@@ -52,6 +52,59 @@ def symbol_sector_map() -> dict[str, str]:
 CONCEPT_FILE = PROJECT_ROOT / "data" / "meta" / "concept_members.json"
 
 
+def load_concept_members() -> dict[str, list[str]]:
+    try:
+        data = json.loads(CONCEPT_FILE.read_text())
+        return {k: v["symbols"] for k, v in data["sectors"].items()}
+    except Exception:
+        return {}
+
+
+def board_index_kline(board: str, data_dir: Path, kind: str = "auto",
+                      lookback: int = 250, max_members: int = 80) -> pd.DataFrame | None:
+    """板块/概念指数K线（本地等权聚合，按需读成员CSV）。
+
+    Args:
+        board: 板块或概念名
+        kind: sector / concept / auto（先行业后概念）
+        max_members: 成员上限（控制IO，等权抽样足够代表指数）
+
+    Returns:
+        DataFrame[date, close(净值), amount] 或 None
+    """
+    members = []
+    if kind in ("sector", "auto"):
+        members = load_members().get(board, [])
+    if not members and kind in ("concept", "auto"):
+        members = load_concept_members().get(board, [])
+    if not members:
+        return None
+    members = members[:max_members]
+
+    rets, amts = [], []
+    for sym in members:
+        p = Path(data_dir) / f"{sym}.csv"
+        if not p.exists():
+            continue
+        try:
+            df = pd.read_csv(p, usecols=lambda c: c in ("date", "close", "amount")).tail(lookback)
+        except Exception:
+            continue
+        if len(df) < 30:
+            continue
+        s = df.set_index("date")["close"].astype(float).pct_change()
+        rets.append(s)
+        if "amount" in df.columns:
+            amts.append(df.set_index("date")["amount"].astype(float))
+    if len(rets) < 3:
+        return None
+    mean_ret = pd.concat(rets, axis=1).mean(axis=1, skipna=True)
+    nav = (1 + mean_ret.fillna(0)).cumprod() * 100  # 基期=100
+    amount = pd.concat(amts, axis=1).sum(axis=1, skipna=True) if amts else pd.Series(dtype=float)
+    out = pd.DataFrame({"close": nav, "amount": amount}).dropna(subset=["close"])
+    return out.reset_index().rename(columns={"index": "date"})
+
+
 def symbol_concept_map(max_concepts: int = 3) -> dict[str, str]:
     """个股 -> 概念标签串（最多 max_concepts 个，/分隔）。"""
     try:

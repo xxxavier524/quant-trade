@@ -217,5 +217,21 @@ def render():
                 kdf = _kline(symbol)
                 if kdf is not None:
                     _evidence(symbol, kdf, row)
+                # 板块/概念按钮 → 弹出聚合K线
+                if row is not None:
+                    from alphapulse.ui.views.board_kline import board_dialog
+                    boards = []
+                    sec = str(row.get("sector", "") or "")
+                    if sec and sec != "nan":
+                        boards.append(("行业", sec))
+                    concepts = str(row.get("concepts", "") or "")
+                    if concepts and concepts != "nan":
+                        boards += [("概念", c) for c in concepts.split("/") if c]
+                    if boards:
+                        st.caption("点击查看板块/概念K线：")
+                        bcols = st.columns(min(4, len(boards)))
+                        for i, (kind, b) in enumerate(boards[:4]):
+                            if bcols[i].button(f"{b}", key=f"bd_{symbol}_{b}"):
+                                board_dialog(b)
             with c_right:
                 _plot_kline(symbol)

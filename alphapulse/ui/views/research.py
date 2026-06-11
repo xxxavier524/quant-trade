@@ -77,27 +77,55 @@ def _review():
                 st.caption("可把上面的量化条件粘贴到『AI工具』生成因子并验证")
 
 
-# ──────────────────────────── 信号验证 ────────────────────────────
+# ──────────────────────────── 信号验证（因子微调工作流）────────────────────────────
 
 def _validate():
+    st.markdown('''<div class="ap-sub" style="margin-bottom:8px">
+    工作流：① 选因子 → ② 调参数（控件直接改）→ ③ 运行验证看胜率变化 →
+    ④ 满意后到『参数搜索』全网格扫描 → ⑤ 到『因子权重』调整其在总分中的占比</div>''',
+                unsafe_allow_html=True)
     from alphapulse.factors.factor_registry import FACTOR_REGISTRY
     names = sorted(FACTOR_REGISTRY.keys())
-    c1, c2, c3 = st.columns([2, 1, 1])
-    factor = c1.selectbox("因子/公式", names, index=names.index("B1_FORMULA"))
-    sample = c2.selectbox("样本数", [200, 500, 1000], index=0)
-    params_str = c3.text_input("参数覆盖(JSON)", value="")
-    st.caption(f"默认参数: {FACTOR_REGISTRY[factor].get('default_params', {})}")
+    c1, c2 = st.columns([2, 1])
+    factor = c1.selectbox("① 选择因子/公式", names, index=names.index("B1_FORMULA"))
+    sample = c2.selectbox("样本股票数", [200, 500, 1000], index=0)
+    st.caption(FACTOR_REGISTRY[factor].get("description", ""))
 
-    if st.button("运行验证", type="primary"):
+    # ② 参数动态控件（替代手写JSON）
+    defaults = FACTOR_REGISTRY[factor].get("default_params", {})
+    params = {}
+    if defaults:
+        st.markdown("**② 参数微调**（默认值即通达信原始参数）")
+        pcols = st.columns(min(4, max(1, len(defaults))))
+        for i, (k, v) in enumerate(defaults.items()):
+            with pcols[i % len(pcols)]:
+                if isinstance(v, bool):
+                    params[k] = st.toggle(k, value=v, key=f"p_{factor}_{k}")
+                elif isinstance(v, int) and not isinstance(v, bool):
+                    params[k] = st.number_input(k, value=v, step=1, key=f"p_{factor}_{k}")
+                elif isinstance(v, float):
+                    step = abs(v) / 10 or 0.1
+                    params[k] = st.number_input(k, value=float(v), step=round(step, 4),
+                                                format="%.4g", key=f"p_{factor}_{k}")
+                else:
+                    st.text_input(k, value=str(v), disabled=True, key=f"p_{factor}_{k}")
+                    params[k] = v
+        changed = {k: v for k, v in params.items() if defaults.get(k) != v}
+        if changed:
+            st.info(f"已修改: {changed}（与默认对比）")
+
+    if st.button("③ 运行验证", type="primary"):
         from alphapulse.backtest.signal_validator import validate_signal
-        params = json.loads(params_str) if params_str.strip() else None
         stocks = _universe(sample)
         with st.spinner("回放全历史信号..."):
-            r = validate_signal(factor, stocks, params)
+            r = validate_signal(factor, stocks, params or None)
         if r.get("n_signals", 0) == 0:
-            st.warning("区间内无信号")
+            st.warning("区间内无信号（参数过严？）")
             return
-        st.success(f"信号 {r['n_signals']} 个 · 覆盖 {r['n_symbols']} 只")
+        st.session_state[f"val_{factor}"] = r
+    r = st.session_state.get(f"val_{factor}")
+    if r:
+        st.success(f"信号 {r['n_signals']} 个 · 覆盖 {r['n_symbols']} 只 · 参数 {r.get('params') or '默认'}")
         rows = [{"窗口": f"{n}日", "样本": w["n"],
                  "胜率": f"{w['win_rate']*100:.1f}%", "净胜率": f"{w['win_rate_net']*100:.1f}%",
                  "净均值": f"{w['mean_net']*100:+.2f}%", "中位": f"{w['median']*100:+.2f}%",
@@ -118,28 +146,101 @@ def _validate():
                         f"净均值{s['mean_net']*100:+.2f}% · PF {s.get('profit_factor', '—')}")
 
 
+# ──────────────────────────── 因子权重编辑器 ────────────────────────────
+
+WEIGHT_CN = {"j_low": "J值低位", "trend_gap": "趋势强度(白-黄)", "vol_shrink": "缩量",
+             "yangyin": "红肥绿瘦", "surge": "爆量阳", "dif": "MACD DIF",
+             "ql_pos": "QL位置", "pct_calm": "涨幅温和", "amplitude": "振幅",
+             "bowl": "掉进碗里", "washout_recover": "单针回收",
+             "ml_score": "ML胜率分", "ma_bull": "日线多头排列", "weekly_cross": "周线M5上穿M14"}
+
+
+def _weights():
+    st.markdown('''<div class="ap-sub" style="margin-bottom:8px">
+    这里决定每个子分数在总分(0-100)中的占比。改完点保存，下次选股即生效；
+    判断某因子是否值钱：先到『信号验证』看它单独的胜率。</div>''', unsafe_allow_html=True)
+    from alphapulse.ranking.composite import WEIGHTS_FILE, DEFAULT_WEIGHTS, load_weights
+    weights = load_weights()
+    new_weights = {}
+    cols = st.columns(3)
+    for i, (k, v) in enumerate(weights.items()):
+        with cols[i % 3]:
+            new_weights[k] = st.slider(
+                WEIGHT_CN.get(k, k), 0.0, 0.3, float(v), 0.01, key=f"w_{k}")
+    total = sum(new_weights.values())
+    st.caption(f"权重合计 {total:.2f}（无需=1，仅相对比例有意义）")
+    c1, c2, _ = st.columns([1, 1, 3])
+    if c1.button("保存权重", type="primary"):
+        cfg = json.loads(WEIGHTS_FILE.read_text())
+        cfg["weights"]["B1_SCORE"] = {k: round(v, 3) for k, v in new_weights.items()}
+        WEIGHTS_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2))
+        st.success("已保存 — 重跑 daily_screener 后生效")
+    if c2.button("恢复默认"):
+        cfg = json.loads(WEIGHTS_FILE.read_text())
+        cfg["weights"]["B1_SCORE"] = DEFAULT_WEIGHTS
+        WEIGHTS_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2))
+        st.success("已恢复种子权重")
+        st.rerun()
+
+
 # ──────────────────────────── 参数搜索 ────────────────────────────
 
+METRIC_CN = {"mean_net": "净均值收益", "win_rate_net": "净胜率", "robust_score": "稳健分"}
+
+
 def _grid():
+    with st.expander("这是什么？怎么用？", expanded=False):
+        st.markdown("""
+**参数网格搜索** = 把因子的参数（如 J 阈值）按网格批量回测，找到既好又稳的取值。
+
+**怎么读热力图**：每个格子 = 一组参数的回测结果，越红越好。
+- 不要只挑最红的一格（可能是过拟合的运气格）
+- 要挑**周围一片都偏红**的区域 —— "稳健分"列已自动算好（自身50%+邻域50%）
+
+**怎么跑**：终端运行
+```
+python scripts/grid_search.py --factor B1_FORMULA --grid '{"j_threshold": [8,10,13,15,18], "dif_threshold": [-0.3,-0.1,0.1]}'
+```
+跑完结果自动出现在下方。找到满意参数后 → 回『信号验证』确认 → 改 config 或权重。""")
     files = sorted(RESULTS_DIR.glob("grid_*.csv"))
     if not files:
-        st.info('暂无结果。示例：`python scripts/grid_search.py --factor B1_FORMULA '
-                '--grid \'{"j_threshold": [8,10,13,15,18]}\'`')
+        st.info("暂无网格结果，按上方说明运行一次")
         return
     f = st.selectbox("结果文件", files, format_func=lambda p: p.name)
     df = pd.read_csv(f)
-    st.dataframe(df, use_container_width=True, hide_index=True, height=260)
     metric_cols = {"n_signals", "n", "win_rate", "win_rate_net", "mean", "mean_net",
                    "median", "p10", "p90", "robust_score"}
     param_cols = [c for c in df.columns if c not in metric_cols
                   and not c.startswith("neighborhood_")]
+
+    best = df.sort_values("robust_score", ascending=False).iloc[0] if "robust_score" in df.columns else None
+    if best is not None:
+        st.success("稳健最优参数: " + " · ".join(f"{p}={best[p]}" for p in param_cols)
+                   + f" （净均值 {best.get('mean_net', 0)*100:+.2f}% / 稳健分 {best.get('robust_score', 0)*100:.2f}）")
+
     if len(param_cols) >= 2:
         import plotly.express as px
-        metric = st.selectbox("热力图指标", ["mean_net", "win_rate_net", "robust_score"])
-        pivot = df.pivot_table(index=param_cols[0], columns=param_cols[1], values=metric)
-        fig = px.imshow(pivot, text_auto=".3f", color_continuous_scale="RdYlGn")
-        fig.update_layout(template="plotly_dark", paper_bgcolor="#0e1117", height=400)
-        st.plotly_chart(fig, use_container_width=True)
+        m1, m2 = st.columns([1, 3])
+        metric = m1.radio("指标", list(METRIC_CN), format_func=METRIC_CN.get)
+        with m2:
+            pivot = df.pivot_table(index=param_cols[0], columns=param_cols[1], values=metric)
+            fig = px.imshow(pivot, text_auto=".2%",
+                            color_continuous_scale=[[0, S.DOWN], [0.5, "#262a35"], [1, S.UP]],
+                            labels=dict(x=param_cols[1], y=param_cols[0], color=METRIC_CN[metric]),
+                            aspect="auto")
+            if best is not None:
+                fig.add_annotation(x=best[param_cols[1]], y=best[param_cols[0]],
+                                   text="◎ 稳健最优", showarrow=False,
+                                   font=dict(color="#fff", size=12), yshift=18)
+            fig.update_layout(template="plotly_dark", paper_bgcolor="#0e1117",
+                              height=380, margin=dict(l=10, r=10, t=10, b=10),
+                              coloraxis_colorbar=dict(title=""))
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    elif len(param_cols) == 1:
+        st.bar_chart(df.set_index(param_cols[0])["mean_net"], color=S.UP)
+
+    with st.expander("完整结果表"):
+        st.dataframe(df, use_container_width=True, hide_index=True, height=260)
 
 
 # ──────────────────────────── ML 形态 ────────────────────────────
@@ -221,14 +322,16 @@ def _ai():
 
 
 def render():
-    sub = st.tabs(["信号复盘", "信号验证", "参数搜索", "ML 形态", "AI 工具"])
+    sub = st.tabs(["信号复盘", "信号验证", "因子权重", "参数搜索", "ML 形态", "AI 工具"])
     with sub[0]:
         _review()
     with sub[1]:
         _validate()
     with sub[2]:
-        _grid()
+        _weights()
     with sub[3]:
-        _ml()
+        _grid()
     with sub[4]:
+        _ml()
+    with sub[5]:
         _ai()
