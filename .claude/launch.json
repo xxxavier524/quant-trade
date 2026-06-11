@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "alphapulse-gui",
+      "runtimeExecutable": ".venv/bin/streamlit",
+      "runtimeArgs": ["run", "alphapulse/ui/app.py", "--server.port", "8765", "--server.headless", "true"],
+      "port": 8765
+    }
+  ]
+}
