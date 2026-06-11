@@ -1,0 +1,9 @@
+{
+  "j15_shrink_half": {
+    "name": "j15_shrink_half",
+    "description": "J值小于15且缩量到5日均量一半",
+    "source": "regex",
+    "enabled": false,
+    "file": "j15_shrink_half.py"
+  }
+}

@@ -329,3 +329,15 @@
   - B1→B2: 72.4%/+6.2%；卖出体系有效（S1卖点+23.2%、DD增强+11.4%）
   - 发现头号优化点：73%交易死于等B2期间止损过紧（price_ticks待网格调优）
 - run_playbook.py CLI：逐笔交易CSV + 按信号类型/退出原因拆分统计
+
+## 2026-06-11 Phase 4 — DeepSeek + 开源集成（v3-dev）
+
+- llm/client.py：openai SDK 直连 DeepSeek（v4-pro推理/v4-flash批量），不引LangChain；
+  需用户配置 DEEPSEEK_API_KEY（当前环境未配，模块运行时检测）
+- llm/factor_gen.py：中文→因子管线（正则解析优先→DeepSeek兜底→AST白名单→沙箱冒烟→
+  落盘 factors/generated/ 默认不启用）；恶意代码/shift(-n)未来函数拦截验证通过
+- scripts/ai_review.py：Top10 AI研判（v4-flash单次调用，约¥0.1/天）
+- factors/zoo_bridge.py：桥接 vibe-trading 452个面板alpha（Py3.14兼容验证通过），
+  精选20个GTJA短周期量价alpha，真实数据96%覆盖
+- TradingAgents 适配器已默认 deepseek-v4-pro + env key，无需改动
+- cc finance：决策=有限集成（适配器模式用于板块财务层；美股数据源不用）
