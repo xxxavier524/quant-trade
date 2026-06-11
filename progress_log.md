@@ -318,3 +318,14 @@
 - config/sector_tags.json：板块性质标签（顺周期/科技/消费/医药/防御/红利）
 - daily_screener 集成：大盘建议+板块排名 sectors_*.csv+个股板块标注+sector_score列；
   目标日改为全市场最后日期众数+数据陈旧告警（修复只扫48只新数据股的偏差）
+
+## 2026-06-11 Phase 3 — 回测 + 三大战法状态机（v3-dev）
+
+- signal_validator.py + validate_signal.py CLI：全历史前向收益统计（B1: 71687信号/5日胜率47.5%——证实B1是入场过滤器需叠加确认）
+- grid_search.py：邻域稳健性扫描；B1 稳健最优 J=10/DIF=-0.1，参数面平滑
+- run_backtest.py --mode short 修复 NameError，全链路跑通
+- playbook_engine.py：三大战法按权威定义重写为状态机（旧版0%覆盖→全部出交易）
+  - **B1→B2→B3完整序列 94.7%胜率/+13.0%净收益（用户"B3确定性更高"经验获统计证实）**
+  - B1→B2: 72.4%/+6.2%；卖出体系有效（S1卖点+23.2%、DD增强+11.4%）
+  - 发现头号优化点：73%交易死于等B2期间止损过紧（price_ticks待网格调优）
+- run_playbook.py CLI：逐笔交易CSV + 按信号类型/退出原因拆分统计
