@@ -98,9 +98,9 @@ def board_index_kline(board: str, data_dir: Path, kind: str = "auto",
             amts.append(df.set_index("date")["amount"].astype(float))
     if len(rets) < 3:
         return None
-    mean_ret = pd.concat(rets, axis=1).mean(axis=1, skipna=True)
-    nav = (1 + mean_ret.fillna(0)).cumprod() * 100  # 基期=100
-    amount = pd.concat(amts, axis=1).sum(axis=1, skipna=True) if amts else pd.Series(dtype=float)
+    mean_ret = pd.concat(rets, axis=1).sort_index().mean(axis=1, skipna=True)
+    nav = (1 + mean_ret.fillna(0)).cumprod() * 100  # 基期=100（concat后必须按日期排序再累积）
+    amount = pd.concat(amts, axis=1).sort_index().sum(axis=1, skipna=True) if amts else pd.Series(dtype=float)
     out = pd.DataFrame({"close": nav, "amount": amount}).dropna(subset=["close"])
     return out.reset_index().rename(columns={"index": "date"})
 
@@ -140,10 +140,10 @@ def build_sector_index(symbols: list[str], stock_frames: dict[str, pd.DataFrame]
             amts.append(tail.set_index("date")["amount"].astype(float))
     if len(rets) < 5:
         return None
-    ret_df = pd.concat(rets, axis=1)
+    ret_df = pd.concat(rets, axis=1).sort_index()  # concat不保证日期有序,必须排序后再累积
     mean_ret = ret_df.mean(axis=1, skipna=True)
     nav = (1 + mean_ret.fillna(0)).cumprod()
-    amount = pd.concat(amts, axis=1).sum(axis=1, skipna=True) if amts else pd.Series(dtype=float)
+    amount = pd.concat(amts, axis=1).sort_index().sum(axis=1, skipna=True) if amts else pd.Series(dtype=float)
     out = pd.DataFrame({"close": nav, "amount": amount}).dropna(subset=["close"])
     return out.reset_index().rename(columns={"index": "date"})
 
