@@ -42,6 +42,7 @@ from alphapulse.factors.experimental import (
     capital_flow_big_order,
 )
 from alphapulse.factors import industry_rotation, beta_fundamental, knowledge_points
+from alphapulse.factors import yin_volume_34, four_brick_cycle
 
 FACTOR_REGISTRY = {
     "N_STRUCT": {
@@ -109,6 +110,21 @@ FACTOR_REGISTRY = {
         "description": "知行洗盘短线选股：四线归零/CROSS(短期,长期)/CROSS(短期,中期)/中长期>65",
         "source": "知行洗盘短线.txt",
         "default_params": {"n1": 3, "n2": 21},
+    },
+    # --- 体系补建因子（docs/trading_system.md §3，2026-06-11） ---
+    "YIN_VOLUME_34": {
+        "module": yin_volume_34,
+        "type": "factor",
+        "description": "3/4阴量线：放量阳后阴线缩量至前日3/4以内=卖压不足（多头确认）",
+        "source": "docs/trading_system.md §3",
+        "default_params": {"ratio": 0.75, "vol_ma_window": 5},
+    },
+    "FOUR_BRICK_CYCLE": {
+        "module": four_brick_cycle,
+        "type": "factor",
+        "description": "砖型图四砖一周期：第1-2红砖=早段多头；compute_late第4砖起=减仓",
+        "source": "docs/trading_system.md §3/§4",
+        "default_params": {"early_max": 2},
     },
     # --- 砖型图系列（来自砖型图.txt + 砖型图超短选股.txt） ---
     "BRICK_ULTRA": {

@@ -298,3 +298,12 @@
 - daily_update.py 重写：socket全局30s超时 / 预检不mkdir+飞书告警 / 查指数定最新交易日已最新零API跳过 / 复权一致性自动重下 / 断点续传 / 断线重连 / 原子写 / turn列自愈
 - run_with_timeout.py 外层硬超时包装器接入 launchd plist（60分钟上限）并已重装载
 - 验证：挂载检查exit 2✓；增量更新29跳过/16更新/4复权重下✓；超时exit 3续传✓；baostock限流时响亮失败✓
+
+## 2026-06-11 Phase 2 — 加权评分选股（v3-dev）
+
+- sub_scores.py：11个连续子分数（0-1，向量化）；composite.py：加权排序+严格信号徽章
+- daily_screener.py 重写：全市场5146只1.6分钟，结构化 screen_*.csv 输出
+- 修复大盘指数bug（旧版误用平安银行CSV当上证指数）：fetch_index_data.py 新浪接口拉6大指数→data/index/
+- 体系补建因子：YIN_VOLUME_34（3/4阴量线）、FOUR_BRICK_CYCLE（四砖周期，含第4砖减仓）；
+  牵牛绳/掉进碗里/黄线价值/击穿对手盘/大哥还在等已存在于 knowledge_points.py（知行参数修复后自动生效）
+- 验证：190 tests passed；2026-05-15 当日信号案例股 4/5 进全市场前5%（法狮龙#11/5146）
