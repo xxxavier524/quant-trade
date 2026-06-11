@@ -50,6 +50,14 @@ def feature_frame(df: pd.DataFrame) -> pd.DataFrame:
     c_min120 = c.rolling(120).min()
     c_max120 = c.rolling(120).max()
 
+    # 已启用的"教学形态"特征（自然语言→标注函数→特征列，pattern_teach）
+    taught = {}
+    try:
+        from alphapulse.ml.pattern_teach import enabled_pattern_features
+        taught = enabled_pattern_features(df)
+    except Exception:
+        pass
+
     eng = pd.DataFrame({
         "ret_5": c / c.shift(5) - 1,
         "ret_10": c / c.shift(10) - 1,
@@ -66,7 +74,10 @@ def feature_frame(df: pd.DataFrame) -> pd.DataFrame:
         "pos_in_120d": (c - c_min120) / (c_max120 - c_min120).replace(0, np.nan),
         "volatility_20": c.pct_change().rolling(20).std(),
     }, index=df.index)
-    return pd.concat([eng, subs], axis=1)
+    parts = [eng, subs]
+    if taught:
+        parts.append(pd.DataFrame(taught, index=df.index))
+    return pd.concat(parts, axis=1)
 
 
 def features_at(df: pd.DataFrame, i: int) -> dict | None:
@@ -199,5 +210,6 @@ def predict_ml_score(df: pd.DataFrame) -> float | None:
     f = features_at(df, len(df) - 1)
     if f is None:
         return None
-    x = pd.DataFrame([f])[feat_cols]
+    # 形态启用状态变化可能导致列缺失：缺失列补0（=形态未命中），保证可预测
+    x = pd.DataFrame([f]).reindex(columns=feat_cols, fill_value=0.0)
     return round(float(model.predict_proba(x)[:, 1][0]), 4)

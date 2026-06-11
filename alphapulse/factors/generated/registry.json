@@ -12,5 +12,12 @@
     "source": "deepseek",
     "enabled": false,
     "file": "bowl_j20_surge.py"
+  },
+  "pat_93e70ccf": {
+    "name": "机构票缩量回调",
+    "description": "股价长期在知行黄线上方运行（最近120日内收盘跌破黄线的天数不超过8天），且最近10日处于回调（10日累计跌幅在2%到15%之间），回调期间缩量（近5日均量低于20日均量的0.8倍），且近10日没有出现单日放量大阴线（跌幅超5%且量超20日均量1.5倍）",
+    "source": "deepseek",
+    "enabled": false,
+    "file": "pat_93e70ccf.py"
   }
 }

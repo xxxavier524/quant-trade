@@ -124,7 +124,10 @@ def _extract_code(text: str) -> str:
 
 def _slugify(name: str) -> str:
     s = re.sub(r"[^a-zA-Z0-9_]+", "_", name).strip("_").lower()
-    return s or "gen_factor"
+    if not s:  # 纯中文名 → 稳定哈希slug（避免全部塌缩成同一个名字）
+        import hashlib
+        s = "pat_" + hashlib.md5(name.encode()).hexdigest()[:8]
+    return s
 
 
 def load_generated_registry() -> dict:

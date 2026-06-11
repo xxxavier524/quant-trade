@@ -264,6 +264,9 @@ def _ml():
         st.info("模型未训练：`python scripts/train_ml_model.py --sample 1500`")
 
     st.divider()
+    _pattern_teach()
+
+    st.divider()
     st.markdown("##### 形态相似度搜索（找和案例长得像的股票）")
     c1, c2 = st.columns([1, 1])
     mode = c1.radio("模板来源", ["黄金案例库（45个模板）", "指定股票当前形态"], horizontal=True)
@@ -288,6 +291,119 @@ def _ml():
                              "similarity": st.column_config.ProgressColumn(
                                  "相似度", min_value=0, max_value=1, format="%.3f"),
                              "best_case": "最像的案例", "mean_top3": "前3均值"})
+
+
+# ──────────────────────────── 形态教学（NL指导ML）────────────────────────────
+
+def _teach_example_chart(symbol: str, sig_date: str):
+    """命中案例小K线（信号日±40日，信号日标注）。"""
+    import plotly.graph_objects as go
+    from replay_screen import load_stock
+    from alphapulse.config.settings import DATA_DIR
+    df = load_stock(Path(DATA_DIR) / f"{symbol}.csv", "9999-12-31")
+    if df is None:
+        return
+    dates = df["date"].tolist()
+    if sig_date not in dates:
+        return
+    i = dates.index(sig_date)
+    win = df.iloc[max(0, i - 40): i + 20]
+    fig = go.Figure(go.Candlestick(
+        x=win["date"], open=win["open"], high=win["high"],
+        low=win["low"], close=win["close"],
+        increasing_line_color=S.UP, increasing_fillcolor=S.UP,
+        decreasing_line_color=S.DOWN, decreasing_fillcolor=S.DOWN))
+    row = df.iloc[i]
+    fig.add_annotation(x=sig_date, y=float(row["low"]) * 0.98, text="▲",
+                       showarrow=False, font=dict(color="#ff7700", size=16))
+    fig.update_layout(height=200, template="plotly_dark", paper_bgcolor="#0e1117",
+                      plot_bgcolor="#161a23", margin=dict(l=2, r=2, t=18, b=2),
+                      xaxis_rangeslider_visible=False, showlegend=False,
+                      title=dict(text=f"{symbol} @ {sig_date}", font=dict(size=12)))
+    fig.update_xaxes(type="category", nticks=5)
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+
+def _pattern_teach():
+    st.markdown("##### 形态教学（用中文教ML认K线形态）")
+    st.markdown('''<div class="ap-sub" style="margin-bottom:8px">
+    流程：① 用你的语言描述形态（N型/横盘/机构票等体系词汇可直接用）→
+    ② DeepSeek 翻译成标注函数并在历史上标注+验证 → ③ 看命中案例确认理解无误 →
+    ④ 启用 → ⑤ 重训模型，GBDT 即学习该形态与其他量价特征的交互</div>''',
+                unsafe_allow_html=True)
+
+    from alphapulse.ml.pattern_teach import load_taught, set_enabled, teach_pattern
+
+    # 已教形态列表
+    taught = load_taught()
+    if taught:
+        st.markdown("**已教形态**")
+        for slug, e in taught.items():
+            c1, c2, c3 = st.columns([3, 2, 1])
+            stats = e.get("stats") or {}
+            n = stats.get("n_signals", "?")
+            w = (stats.get("windows") or {}).get(5) or (stats.get("windows") or {}).get("5") or {}
+            c1.markdown(f"**{e['name']}** <span class='ap-sub'>{e['description'][:40]}…</span>",
+                        unsafe_allow_html=True)
+            c2.caption(f"历史命中 {n} 次 · 5日胜率 {w.get('win_rate', 0)*100:.0f}%" if w else f"历史命中 {n} 次")
+            new_state = c3.toggle("启用", value=e.get("enabled", False), key=f"pt_en_{slug}")
+            if new_state != e.get("enabled", False):
+                set_enabled(slug, new_state)
+                st.toast(f"{e['name']} {'已启用（重训后生效）' if new_state else '已停用'}")
+        st.caption("改启用状态后点下方『重训模型』生效")
+
+    # 教新形态
+    name = st.text_input("形态名称", value="", placeholder="如：机构票回调缩量")
+    desc = st.text_area("形态描述（中文，可用 N型/横盘/黄线/缩量 等词汇）", height=90,
+                        placeholder="例：股价长期在黄线上方运行（120日内跌破黄线不超过5天），"
+                                    "近10日回调但每日成交量小于20日均量，且未出现放量大阴线")
+    if st.button("② 教学并验证", type="primary") and name.strip() and desc.strip():
+        from alphapulse.llm.client import is_configured
+        if not is_configured():
+            st.error("需要 DEEPSEEK_API_KEY")
+            return
+        stocks = _universe(500)
+        with st.spinner("DeepSeek 翻译形态 → 历史标注验证..."):
+            r = teach_pattern(name.strip(), desc.strip(), stocks)
+        if not r["ok"]:
+            st.error(r["message"])
+            if r.get("code"):
+                st.code(r["code"], language="python")
+            return
+        st.session_state["teach_result"] = r
+
+    r = st.session_state.get("teach_result")
+    if r:
+        st.success(r["message"])
+        stats = r.get("stats") or {}
+        if stats.get("n_signals"):
+            w5 = (stats.get("windows") or {}).get(5, {})
+            st.markdown(f"历史命中 **{stats['n_signals']}** 次 / {stats.get('n_symbols', '?')} 只 · "
+                        f"5日胜率 **{w5.get('win_rate', 0)*100:.1f}%** · "
+                        f"净均值 **{w5.get('mean_net', 0)*100:+.2f}%**")
+        with st.expander("生成的标注函数代码"):
+            st.code(r["code"], language="python")
+        if r.get("examples"):
+            st.markdown("**③ 命中案例（确认机器理解了你的形态）**")
+            ecols = st.columns(3)
+            for i, (sym, d) in enumerate(r["examples"][:6]):
+                with ecols[i % 3]:
+                    _teach_example_chart(sym, d)
+
+    # 重训
+    if st.button("⑤ 重训模型（含已启用形态，约2分钟）"):
+        from alphapulse.ml import pattern_model as pm
+        stocks = _universe(500)
+        with st.spinner("构建训练集+训练 LightGBM..."):
+            tdf = pm.build_training_set(stocks)
+            tdf = pm.append_boost_samples(tdf, stocks)
+            report = pm.train(tdf)
+        st.success(f"重训完成：样本外AUC {report.get('test_auc', report.get('valid_auc'))} · "
+                   f"Top10%胜率 {report.get('test_top_decile_win', 0)*100:.0f}%")
+        taught_feats = [f for f, _ in report.get("feature_importance", []) if f.startswith("pt_")]
+        if taught_feats:
+            st.info(f"教学形态进入重要特征: {taught_feats}")
+        st.cache_data.clear()
 
 
 # ──────────────────────────── AI 工具 ────────────────────────────
