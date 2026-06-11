@@ -26,7 +26,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 from alphapulse.config.settings import DATA_DIR, FEISHU_WEBHOOK_URL  # noqa: E402
-from alphapulse.market.macro_position import compute_macro_score  # noqa: E402
+from alphapulse.market.market_score import compute_market_score  # noqa: E402
+from alphapulse.market.sector_score import rank_sectors, symbol_sector_map  # noqa: E402
 from alphapulse.ranking.composite import build_stock_row, rank_all  # noqa: E402
 from replay_screen import load_stock  # noqa: E402  复用市值反推/列自愈逻辑
 
@@ -61,54 +62,71 @@ def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
     t0 = time.monotonic()
     names = load_names()
 
-    # ── 大盘档位（真实指数，data/index/，修复旧版误用平安银行CSV的bug）──
-    macro_level = "震荡"
-    macro_score = 50
+    # ── 大盘诊断（量能+N型+知行BS，真实指数 data/index/）──
+    macro_level, macro_score, macro_advice = "震荡", 50.0, ""
     try:
-        index_dir = PROJECT_ROOT / "data" / "index"
-        end = date or "9999-12-31"
-
-        def _load_index(code):
-            p = index_dir / f"{code}.csv"
-            if not p.exists():
-                return pd.DataFrame()
-            idf = pd.read_csv(p)
-            return idf[idf["date"] <= end]
-
-        sh = _load_index("sh000001")
-        if not sh.empty:
-            macro = compute_macro_score(sh, _load_index("sz399001"), _load_index("sz399006"))
-            macro_level, macro_score = macro["level"], macro["score"]
+        macro = compute_market_score(end_date=date or "9999-12-31")
+        macro_level, macro_score = macro["level"], macro["score"]
+        macro_advice = macro["advice"]
     except Exception as e:
         logger.warning(f"大盘评分失败，用默认震荡档: {e}")
-    logger.info(f"大盘: {macro_score}/100 [{macro_level}]")
+    logger.info(f"大盘: {macro_score}/100 [{macro_level}] {macro_advice}")
 
-    # ── 全市场子分数 ──
+    # ── 全市场加载（先全量载入，目标日取最后日期众数，防数据陈旧偏差）──
     files = sorted(data_dir.glob("*.csv"))
     end_date = date or "9999-12-31"
-    rows = []
-    target_date = date
+    all_frames: dict[str, pd.DataFrame] = {}
     for i, f in enumerate(files):
         if i % 1000 == 0 and i:
-            logger.info(f"  扫描 {i}/{len(files)} ...")
+            logger.info(f"  加载 {i}/{len(files)} ...")
         df = load_stock(f, end_date, min_rows=120)
-        if df is None:
-            continue
-        if target_date is None:
-            target_date = df.iloc[-1]["date"]  # 用第一只股票确定最新交易日
-        if df.iloc[-1]["date"] != target_date:
-            continue  # 当日停牌/退市
-        row = build_stock_row(f.stem, names.get(f.stem, ""), df)
+        if df is not None:
+            all_frames[f.stem] = df
+
+    last_dates = pd.Series({s: d.iloc[-1]["date"] for s, d in all_frames.items()})
+    target_date = date or last_dates.mode().iloc[0]
+    coverage = (last_dates == target_date).mean()
+    if coverage < 0.8:
+        logger.warning(
+            f"⚠️ 仅 {coverage*100:.0f}% 股票更新到 {target_date}，数据可能陈旧，"
+            f"请先运行 scripts/daily_update.py")
+
+    stock_frames = {s: d for s, d in all_frames.items()
+                    if d.iloc[-1]["date"] == target_date}
+    rows = []
+    for sym, df in stock_frames.items():
+        row = build_stock_row(sym, names.get(sym, ""), df)
         if row:
             rows.append(row)
+
+    # ── 板块评分排名 ──
+    sector_df = pd.DataFrame()
+    try:
+        sector_df = rank_sectors(stock_frames)
+        if not sector_df.empty:
+            REPORTS_DIR.mkdir(exist_ok=True)
+            sector_df.to_csv(REPORTS_DIR / f"sectors_{target_date}.csv",
+                             index=False, encoding="utf-8-sig")
+            logger.info("板块Top5: " + " | ".join(
+                f"{r['sector']}{r['score']:.0f}" for _, r in sector_df.head(5).iterrows()))
+    except Exception as e:
+        logger.warning(f"板块评分失败: {e}")
 
     factor_df = pd.DataFrame(rows)
     logger.info(f"有效股票 {len(factor_df)} 只 @ {target_date}")
     if factor_df.empty:
         return factor_df
 
-    # ── 排序 ──
-    top = rank_all(factor_df, top_n=top_n, macro_level=macro_level)
+    # ── 排序（附板块标注与板块分）──
+    sec_map = {}
+    try:
+        sec_map = symbol_sector_map()
+    except Exception:
+        pass
+    top = rank_all(factor_df, top_n=top_n, macro_level=macro_level, sector_map=sec_map)
+    if not top.empty and not sector_df.empty:
+        sec_scores = dict(zip(sector_df["sector"], sector_df["score"]))
+        top["sector_score"] = top["sector"].map(sec_scores)
 
     # ── 结构化输出 ──
     REPORTS_DIR.mkdir(exist_ok=True)
@@ -117,15 +135,19 @@ def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
 
     # Markdown 摘要
     md = [f"# 选股日报 {target_date}",
-          f"\n大盘: {macro_score}/100 [{macro_level}] | 扫描 {len(factor_df)} 只 | "
-          f"严格信号 {int(top['strict_signal'].sum())} 只\n",
-          "| 排名 | 代码 | 名称 | 总分 | 严格信号 | 现价 | 涨幅% | 主要贡献 |",
-          "|---|---|---|---|---|---|---|---|"]
+          f"\n大盘: {macro_score}/100 [{macro_level}] {macro_advice} | 扫描 {len(factor_df)} 只 | "
+          f"严格信号 {int(top['strict_signal'].sum())} 只\n"]
+    if not sector_df.empty:
+        md.append("强势板块: " + " | ".join(
+            f"{r['sector']}({r['score']:.0f}{('·'+r['tags']) if r['tags'] else ''})"
+            for _, r in sector_df.head(5).iterrows()) + "\n")
+    md += ["| 排名 | 代码 | 名称 | 总分 | 严格信号 | 板块 | 现价 | 涨幅% | 主要贡献 |",
+           "|---|---|---|---|---|---|---|---|---|"]
     for _, r in top.head(20).iterrows():
         sigs = [s for s, c in [("B1", "sig_b1"), ("量能B1", "sig_volume_b1"),
                                ("知行超短", "sig_zhixing")] if r.get(c)]
         md.append(f"| {r['rank']} | {r['symbol']} | {r['name']} | {r['score']:.1f} "
-                  f"| {'+'.join(sigs) or '—'} | {r.get('close', '')} "
+                  f"| {'+'.join(sigs) or '—'} | {r.get('sector', '')} | {r.get('close', '')} "
                   f"| {r.get('pct_change', '')} | {r['top_factors']} |")
     md_path = REPORTS_DIR / f"daily_report_{target_date}.md"
     md_path.write_text("\n".join(md), encoding="utf-8")
