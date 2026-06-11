@@ -31,6 +31,7 @@ DEFAULT_WEIGHTS = {
     "amplitude": 0.04,
     "bowl": 0.04,            # 掉进碗里（增强）
     "washout_recover": 0.02,  # 单针回收（增强）
+    "ml_score": 0.15,        # GBDT形态胜率分（模型缺失时该列不存在，自动忽略）
 }
 
 
@@ -54,6 +55,14 @@ def build_stock_row(symbol: str, name: str, data: pd.DataFrame) -> dict | None:
     if not subs:
         return None
     row = {"symbol": symbol, "name": name, **subs}
+    # ML形态胜率分（模型存在时）
+    try:
+        from alphapulse.ml.pattern_model import predict_ml_score
+        ml = predict_ml_score(data)
+        if ml is not None:
+            row["ml_score"] = ml
+    except Exception:
+        pass
     # 严格信号徽章（原始通达信公式，全条件AND）
     try:
         row["sig_b1"] = bool(b1_formula.compute(data).iloc[-1])

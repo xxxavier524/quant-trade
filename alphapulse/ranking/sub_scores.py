@@ -100,14 +100,13 @@ def score_washout_recover(data: pd.DataFrame, low_th: float = 30.0,
     return sig.astype(float)
 
 
-def compute_sub_scores(data: pd.DataFrame) -> dict[str, float]:
-    """对单只股票计算所有子分数的最新值。
+def compute_sub_score_frame(data: pd.DataFrame) -> pd.DataFrame:
+    """全历史子分数帧（每列一个子分数 Series，向量化一次算完）。
 
-    Returns:
-        dict: 子分数名 -> 最新值（0-1）；历史不足时返回空 dict
+    历史不足时返回空 DataFrame。供评分（取尾行）和 ML 特征（任意行）共用。
     """
     if len(data) < 120:
-        return {}
+        return pd.DataFrame()
 
     close = data["close"].astype(float)
     open_ = data["open"].astype(float)
@@ -123,7 +122,7 @@ def compute_sub_scores(data: pd.DataFrame) -> dict[str, float]:
     yellow = compute_bull_bear_line(close)
     dif = compute_macd_dif(close)
 
-    scores = {
+    return pd.DataFrame({
         "j_low": score_j_low(j),
         "pct_calm": score_pct_calm(pct),
         "amplitude": score_amplitude(amp),
@@ -135,9 +134,17 @@ def compute_sub_scores(data: pd.DataFrame) -> dict[str, float]:
         "ql_pos": score_ql_position(close),
         "bowl": score_bowl(close, white, yellow),
         "washout_recover": score_washout_recover(data),
-    }
-    out = {}
-    for name, s in scores.items():
-        v = s.iloc[-1]
-        out[name] = round(float(v), 4) if pd.notna(v) else 0.0
-    return out
+    }, index=data.index)
+
+
+def compute_sub_scores(data: pd.DataFrame) -> dict[str, float]:
+    """对单只股票计算所有子分数的最新值。
+
+    Returns:
+        dict: 子分数名 -> 最新值（0-1）；历史不足时返回空 dict
+    """
+    frame = compute_sub_score_frame(data)
+    if frame.empty:
+        return {}
+    last = frame.iloc[-1]
+    return {k: (round(float(v), 4) if pd.notna(v) else 0.0) for k, v in last.items()}
