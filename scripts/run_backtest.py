@@ -368,11 +368,53 @@ def main():
     parser.add_argument("--output", default=None)
     args = parser.parse_args()
 
-    # v3.0: Short-term backtest mode
+    # v3.0: Short-term backtest mode（修复：原版引用未定义变量直接NameError）
     if args.mode == "short":
         from alphapulse.backtest.short_term_bt import run_short_backtest
+
+        stock_data = load_stocks(args.data_dir)
+        if args.sample and len(stock_data) > args.sample:
+            import random
+            random.seed(42)
+            keys = random.sample(list(stock_data.keys()), args.sample)
+            stock_data = {k: stock_data[k] for k in keys}
+
+        strategies = list(STRATEGIES.items()) if args.strategy == "ALL" \
+            else [(args.strategy, STRATEGIES[args.strategy])]
+        sig_rows = []
+        for strat_name, strat_fn in strategies:
+            for symbol, df in stock_data.items():
+                try:
+                    sigs = strat_fn(df, symbol=symbol)
+                except Exception:
+                    continue
+                if len(sigs) == 0 or "signal" not in sigs.columns:
+                    continue
+                hit = sigs[sigs["signal"].astype(bool)]
+                # generate_signals 以信号日为索引（df.index 值）
+                for idx, srow in hit.iterrows():
+                    d = str(idx)[:10]
+                    if not (args.start <= d <= args.end):
+                        continue
+                    snap = srow.get("factor_snapshot") or {}
+                    price = snap.get("close") if isinstance(snap, dict) else None
+                    if price is None:
+                        try:
+                            price = float(df.loc[idx, "close"])
+                        except Exception:
+                            continue
+                    sig_rows.append({
+                        "symbol": symbol, "name": "", "strategy": strat_name,
+                        "date": d, "signal_type": strat_name,
+                        "buy_price": float(price),
+                    })
+        signals = pd.DataFrame(sig_rows)
+        print(f"[INFO] 信号预计算完成: {len(signals)} 条")
+        if signals.empty:
+            print("[ERROR] 区间内无信号")
+            return
         stats = run_short_backtest(signals, stock_data)
-        print(json.dumps(stats, indent=2))
+        print(json.dumps(stats, indent=2, ensure_ascii=False, default=str))
         return
 
     print(f"[INFO] 加载数据: {args.data_dir}")

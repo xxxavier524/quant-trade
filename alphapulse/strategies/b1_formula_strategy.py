@@ -35,8 +35,8 @@ def generate_signals(
             "amplitude": float(row["amplitude"]) if row is not None else None,
             "kdj_j": float(row["kdj_j"]) if row is not None else None,
             "macd_dif": float(row["macd_dif"]) if row is not None else None,
-            "ema_fast": float(row["ema_fast"]) if row is not None else None,
-            "ema_slow": float(row["ema_slow"]) if row is not None else None,
+            "white_line": float(row["white_line"]) if row is not None else None,
+            "yellow_line": float(row["yellow_line"]) if row is not None else None,
             "close": float(data.loc[dt, "close"]),
         }
         results.append({
