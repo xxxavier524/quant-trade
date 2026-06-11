@@ -90,6 +90,28 @@ def score_bowl(close: pd.Series, white: pd.Series, yellow: pd.Series) -> pd.Seri
     return in_bowl.astype(float)
 
 
+def score_ma_alignment(close: pd.Series) -> pd.Series:
+    """日线均线多头排列程度：MA5>MA10>MA20 满分，部分满足按层级给分。"""
+    ma5 = close.rolling(5).mean()
+    ma10 = close.rolling(10).mean()
+    ma20 = close.rolling(20).mean()
+    s = (ma5 > ma10).astype(float) * 0.5 + (ma10 > ma20).astype(float) * 0.5
+    return s.fillna(0.0)
+
+
+def score_weekly_cross(data: pd.DataFrame) -> pd.Series:
+    """周线M5/M14状态（B1加强因子，用户需求）：
+    近4周内M5上穿M14=1.0；当前M5>M14=0.7；否则0。用上一完整周数据，无泄漏。"""
+    from alphapulse.factors.weekly_ma_cross import compute_weekly_series
+    wk = compute_weekly_series(data)
+    s = pd.Series(0.0, index=data.index)
+    s[wk["weekly_above"].values] = 0.7
+    # 近4周发生过上穿：滚动20个交易日内出现cross
+    cross_recent = pd.Series(wk["weekly_cross"].values, index=data.index).rolling(20).max()
+    s[(cross_recent > 0).values] = 1.0
+    return s
+
+
 def score_washout_recover(data: pd.DataFrame, low_th: float = 30.0,
                           high_th: float = 80.0, lookback: int = 3) -> pd.Series:
     """单针下三十回收（洗盘短线短期线近期下插≤30且当前≥80）。"""
@@ -134,6 +156,8 @@ def compute_sub_score_frame(data: pd.DataFrame) -> pd.DataFrame:
         "ql_pos": score_ql_position(close),
         "bowl": score_bowl(close, white, yellow),
         "washout_recover": score_washout_recover(data),
+        "ma_bull": score_ma_alignment(close),
+        "weekly_cross": score_weekly_cross(data),
     }, index=data.index)
 
 

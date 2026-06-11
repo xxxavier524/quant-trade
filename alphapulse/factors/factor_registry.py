@@ -42,7 +42,7 @@ from alphapulse.factors.experimental import (
     capital_flow_big_order,
 )
 from alphapulse.factors import industry_rotation, beta_fundamental, knowledge_points
-from alphapulse.factors import yin_volume_34, four_brick_cycle
+from alphapulse.factors import yin_volume_34, four_brick_cycle, weekly_ma_cross
 
 FACTOR_REGISTRY = {
     "N_STRUCT": {
@@ -125,6 +125,13 @@ FACTOR_REGISTRY = {
         "description": "砖型图四砖一周期：第1-2红砖=早段多头；compute_late第4砖起=减仓",
         "source": "docs/trading_system.md §3/§4",
         "default_params": {"early_max": 2},
+    },
+    "WEEKLY_MA_CROSS": {
+        "module": weekly_ma_cross,
+        "type": "factor",
+        "description": "周线M5上穿M14 + 日线MA5>MA10>MA20多头排列（B1加强因子）",
+        "source": "用户需求 2026-06-11",
+        "default_params": {"fast": 5, "slow": 14, "recent_weeks": 4},
     },
     # --- 砖型图系列（来自砖型图.txt + 砖型图超短选股.txt） ---
     "BRICK_ULTRA": {

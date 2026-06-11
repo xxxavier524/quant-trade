@@ -75,7 +75,7 @@ def test_compute_sub_scores_smoke():
         "volume": np.random.randint(100000, 1000000, n).astype(float),
     })
     out = ss.compute_sub_scores(df)
-    assert len(out) == 11
+    assert len(out) == 13  # 11原始 + ma_bull + weekly_cross
     for k, v in out.items():
         assert 0.0 <= v <= 1.0, f"{k}={v} 超出[0,1]"
 

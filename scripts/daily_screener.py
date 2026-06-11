@@ -117,7 +117,7 @@ def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
     if factor_df.empty:
         return factor_df
 
-    # ── 排序（附板块标注与板块分）──
+    # ── 排序（附板块/概念标注与板块分）──
     sec_map = {}
     try:
         sec_map = symbol_sector_map()
@@ -127,6 +127,28 @@ def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
     if not top.empty and not sector_df.empty:
         sec_scores = dict(zip(sector_df["sector"], sector_df["score"]))
         top["sector_score"] = top["sector"].map(sec_scores)
+    if not top.empty:
+        # 选股策略列：哪些公式/信号触发
+        def _strategies(r):
+            tags = []
+            if r.get("sig_b1"):
+                tags.append("B1")
+            if r.get("sig_volume_b1"):
+                tags.append("量能B1")
+            if r.get("sig_zhixing"):
+                tags.append("知行超短")
+            if float(r.get("weekly_cross", 0) or 0) >= 1.0:
+                tags.append("周线金叉")
+            if not tags:
+                tags.append("综合评分")
+            return "+".join(tags)
+        top["strategies"] = top.apply(_strategies, axis=1)
+        try:
+            from alphapulse.market.sector_score import symbol_concept_map
+            cmap = symbol_concept_map()
+            top["concepts"] = top["symbol"].map(cmap).fillna("")
+        except Exception:
+            top["concepts"] = ""
 
     # ── 结构化输出 ──
     REPORTS_DIR.mkdir(exist_ok=True)

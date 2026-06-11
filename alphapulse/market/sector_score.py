@@ -49,6 +49,24 @@ def symbol_sector_map() -> dict[str, str]:
     return out
 
 
+CONCEPT_FILE = PROJECT_ROOT / "data" / "meta" / "concept_members.json"
+
+
+def symbol_concept_map(max_concepts: int = 3) -> dict[str, str]:
+    """个股 -> 概念标签串（最多 max_concepts 个，/分隔）。"""
+    try:
+        data = json.loads(CONCEPT_FILE.read_text())
+    except Exception:
+        return {}
+    acc: dict[str, list[str]] = {}
+    for concept, v in data["sectors"].items():
+        for s in v["symbols"]:
+            acc.setdefault(s, [])
+            if len(acc[s]) < max_concepts:
+                acc[s].append(concept)
+    return {s: "/".join(c) for s, c in acc.items()}
+
+
 def build_sector_index(symbols: list[str], stock_frames: dict[str, pd.DataFrame],
                        lookback: int = 250) -> pd.DataFrame | None:
     """等权聚合板块指数：日均收益累积为净值 + 成交额合计。

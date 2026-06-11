@@ -12,7 +12,9 @@
       "amplitude": 0.04,
       "bowl": 0.04,
       "washout_recover": 0.02,
-      "ml_score": 0.15
+      "ml_score": 0.15,
+      "ma_bull": 0.05,
+      "weekly_cross": 0.08
     }
   },
   "ic_history": {}

@@ -89,19 +89,25 @@ def render():
     top = screen.head(10)
     cols = st.columns(5)
     for i, (_, r) in enumerate(top.iterrows()):
-        sigs = [s for s, c in [("B1", "sig_b1"), ("量能", "sig_volume_b1"),
-                               ("超短", "sig_zhixing")] if r.get(c)]
+        strategies = str(r.get("strategies", "") or "")
+        if not strategies or strategies == "nan":
+            strategies = "+".join(s for s, c in [("B1", "sig_b1"), ("量能", "sig_volume_b1"),
+                                                 ("超短", "sig_zhixing")] if r.get(c)) or "综合"
         strict = "⭐" if r.get("strict_signal") else ""
         chg = float(r.get("pct_change", 0) or 0)
         ml = r.get("ml_score")
         ml_html = (f'<span class="ap-tag">ML {float(ml)*100:.0f}%</span>'
                    if pd.notna(ml) else "")
+        concepts = str(r.get("concepts", "") or "")
+        concept_html = (f'<div class="ap-sub" style="margin-top:2px">{concepts}</div>'
+                        if concepts and concepts != "nan" else "")
         with cols[i % 5]:
             S.card(
                 f'<div style="font-size:15px;font-weight:600">{r["symbol"]} '
                 f'<span class="ap-sub">{r.get("name", "") if str(r.get("name")) != "nan" else ""}</span> {strict}</div>'
                 f'<div style="font-size:26px;font-weight:700;margin:2px 0">{r["score"]:.0f}<span class="ap-sub">分</span></div>'
                 f'<div style="color:{S.pct_color(chg)};font-size:13px">{r.get("close", "")} ({chg:+.2f}%)</div>'
-                f'<div style="margin-top:4px"><span class="ap-tag">{r.get("sector", "") if str(r.get("sector")) != "nan" else "—"}</span>'
-                f'{"".join(f"<span class=ap-tag>" + s + "</span>" for s in sigs)}{ml_html}</div>')
+                f'<div style="margin-top:4px"><span class="ap-tag">{strategies}</span>'
+                f'<span class="ap-tag">{r.get("sector", "") if str(r.get("sector")) != "nan" else "—"}</span>'
+                f'{ml_html}</div>{concept_html}')
     st.caption("点击『选股工作台』查看完整列表与K线 · ⭐=满足原始通达信公式全部条件")

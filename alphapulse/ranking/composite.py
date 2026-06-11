@@ -32,6 +32,8 @@ DEFAULT_WEIGHTS = {
     "bowl": 0.04,            # 掉进碗里（增强）
     "washout_recover": 0.02,  # 单针回收（增强）
     "ml_score": 0.15,        # GBDT形态胜率分（模型缺失时该列不存在，自动忽略）
+    "ma_bull": 0.05,         # 日线均线多头排列
+    "weekly_cross": 0.08,    # 周线M5上穿M14（B1加强，用户需求）
 }
 
 
