@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L3·1 GBDT 与特征工程 · AlphaPulse 知识库</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main>
+  <div class="kicker">L3 机器学习 · 第 1 章</div>
+  <h1>GBDT 与特征工程：你的 ML 胜率分是怎么算出来的</h1>
+
+  <div class="box box-lead"><div class="box-title">本章导读</div>
+    <p>选股雷达里那列"ML 0.38"，背后是一个 LightGBM（<span class="term">GBDT</span>的高效实现）。
+    本章用最少的数学讲清楚：树模型怎么学规律、为什么表格数据上它仍是王者、
+    以及"<span class="term">特征工程</span>决定上限，模型只是逼近上限"这句行话的含义。</p>
+  </div>
+
+  <h2>1. 一棵决策树：自动学出来的 if-else</h2>
+  <p>决策树做的事和你看盘一模一样：不断问问题切分样本。
+  "J&lt;13吗？"→是→"缩量吗？"→是→这堆历史样本里68%后来涨了。
+  区别在于：<b>问哪个问题、阈值切在哪，是从数据里自动找让两堆样本"最纯"的切法</b>，不靠拍脑袋。</p>
+
+  <h2>2. 从一棵树到 GBDT：纠错接力</h2>
+  <p>单棵树容易背答案（过拟合）。<b>梯度提升</b>的思路：先种一棵浅树，
+  看它哪些样本判错了，第二棵树<b>专门学第一棵的错误</b>，第三棵学前两棵剩下的错误……
+  几百棵浅树接力，每棵只贡献一小步（学习率0.05），合起来既准又稳。</p>
+
+  <div class="box box-analogy"><div class="box-title">类比</div>
+    <p>老师傅带徒弟接力修一张图：第一个徒弟画个大概，第二个只修第一个画错的地方，
+    第三个再修剩下的瑕疵。每人只动一点（学习率），传几百手后图像精细——
+    且没有任何一个徒弟能独自"背下"原图（防过拟合）。</p>
+  </div>
+
+  <h2>3. 特征工程：把你的盘感喂给模型</h2>
+  <p>模型只能学到特征里<b>有</b>的信息。给它收盘价序列，它学不会"红肥绿瘦"；
+  你把"28日阳量/阴量比"算好作为一列喂进去，它立刻能用。所以特征工程=
+  <b>把你的盘感词汇表翻译成数字列</b>。三条铁律：</p>
+  <ul>
+    <li><b>因果</b>：每个特征只用 ≤t 日数据（rolling/shift正数），和回测同款纪律</li>
+    <li><b>口径统一</b>：训练和预测必须用同一段代码算特征（你的 <code>feature_frame</code> 两边共用）</li>
+    <li><b>跨股可比</b>：用比率不用绝对值——"量/20日均量"可比，"成交量5亿"不可比</li>
+  </ul>
+
+  <div class="box box-yoursys"><div class="box-title">在你的系统里</div>
+    <ul>
+      <li>模型：LightGBM，400棵树/学习率0.05/叶子数31，<code>ml/pattern_model.py</code></li>
+      <li>特征25+个：14个量价工程特征（ret_5/vol_ratio/dist_yellow/J/位置/波动…）+ 13个子分数 + 已启用的教学形态（pt_*）</li>
+      <li>训练样本：15万笔三大战法交易（每笔=入场日特征+盈亏标签）</li>
+      <li>特征重要性Top5：红肥绿瘦、20日振幅、当日振幅、5日涨幅、量比——和你的体系逻辑高度吻合，这本身就是模型没学歪的证据</li>
+      <li>ml_score 以0.15权重进总分；在GUI"ML形态"页可看重要性榜和一键重训</li>
+    </ul>
+  </div>
+
+  <div class="demo" id="demo-tree">
+    <div class="demo-title">树的切分直觉</div>
+    <div class="demo-sub">100个历史样本（涨○跌×混在一起）。拖动切分阈值，看"纯度"怎么变——树训练时就是在自动找纯度最高的切点。</div>
+    <div class="ctrl"><label>J值切分阈值</label><input type="range" min="5" max="60" value="30" id="th" data-out="thv"><span class="val" id="thv"></span></div>
+    <div class="readout" id="tree-out"></div>
+    <div class="note">把阈值拖到13附近看左堆的"涨占比"——这就是模型自己"发现"J&lt;13有效的过程，无需人教。</div>
+  </div>
+
+  <div class="box box-summary"><div class="box-title">本章小结</div>
+    <ul>
+      <li>决策树=自动学出的if-else；GBDT=几百棵浅树纠错接力</li>
+      <li>特征决定上限：把盘感翻译成数字列，模型才能学到</li>
+      <li>特征三铁律：因果、训练预测同口径、跨股可比（用比率）</li>
+    </ul>
+  </div>
+
+  <div class="quiz-wrap">
+    <h3>自测</h3>
+    <div class="quiz-q" data-answer="b">
+      <div class="q-text">1. 为什么给模型喂"vol/MA20"而不是成交量原始值？</div>
+      <label><input type="radio" name="q1" value="a">原始值太大会溢出</label>
+      <label><input type="radio" name="q1" value="b">比率跨股票可比；"5亿"对工行是缩量对小票是天量</label>
+      <label><input type="radio" name="q1" value="c">监管要求</label>
+      <div class="explain">模型在全市场样本上学规律，特征必须有统一含义。比率/分位数是标准做法。</div>
+    </div>
+    <div class="quiz-q" data-answer="c">
+      <div class="q-text">2. GBDT防过拟合的核心机制是？</div>
+      <label><input type="radio" name="q2" value="a">树足够深</label>
+      <label><input type="radio" name="q2" value="b">数据量大就不会过拟合</label>
+      <label><input type="radio" name="q2" value="c">每棵树浅+每步只学一小点（低学习率）+几百棵平均</label>
+      <div class="explain">单棵深树会背答案；浅树×小步×集成让任何一棵都背不下来，合力又足够准。</div>
+    </div>
+    <div class="quiz-q" data-answer="a">
+      <div class="q-text">3. "特征重要性Top5与你的交易体系吻合"为什么是好信号？</div>
+      <label><input type="radio" name="q3" value="a">说明模型学到的是体系内的真规律，而非数据里的偶然噪音</label>
+      <label><input type="radio" name="q3" value="b">说明不需要模型了</label>
+      <label><input type="radio" name="q3" value="c">说明特征太少</label>
+      <div class="explain">可解释性检查：如果Top特征是些莫名其妙的列，要怀疑泄漏或噪音。与领域知识互证才可信。</div>
+    </div>
+    <button class="btn" onclick="apGradeQuiz(this)">提交答案</button>
+    <div class="quiz-score"></div>
+  </div>
+
+  <div class="box"><div class="box-title">延伸阅读</div>
+    <ul>
+      <li><a href="l3-labels.html">L3·2 标签设计</a> — 特征之外的另一半：模型学什么由标签定</li>
+      <li><a href="../research_journal/04_instock.md">研究日记04 · InStock</a> — 另一套特征工程思路（筹码分布）</li>
+    </ul>
+  </div>
+
+  <div id="pager"></div>
+</main>
+</div>
+<script src="glossary.js"></script>
+<script src="app.js"></script>
+<script>
+apBindSliders("demo-tree", function () {
+  var th = +document.getElementById("th").value;
+  // 确定性样本：J低→更可能涨
+  var up = 0, dn = 0, upR = 0, dnR = 0, n = 100;
+  for (var i = 0; i < n; i++) {
+    var j = (i * 7919 % 100) * 0.6 + 2;          // J值 2~62 伪随机分布
+    var pUp = j < 13 ? 0.68 : (j < 30 ? 0.5 : 0.42);
+    var rise = ((i * 104729) % 100) / 100 < pUp;
+    if (j < th) { up++; if (rise) upR++; }
+    else { dn++; if (rise) dnR++; }
+  }
+  function pct(a, b) { return b ? (a / b * 100).toFixed(0) + "%" : "—"; }
+  document.getElementById("tree-out").innerHTML =
+    '<div style="display:flex;gap:24px;flex-wrap:wrap">' +
+    '<div>左堆（J &lt; ' + th + '）：' + up + ' 个样本，涨占比 <b style="color:var(--accent)">' + pct(upR, up) + "</b></div>" +
+    '<div>右堆（J ≥ ' + th + '）：' + dn + ' 个样本，涨占比 <b>' + pct(dnR, dn) + "</b></div></div>" +
+    '<div style="margin-top:6px;color:var(--muted);font-size:13px">两堆涨占比差距越大 = 切分越有信息量。模型会遍历所有阈值选差距最大的那个。</div>';
+});
+</script>
+</body>
+</html>

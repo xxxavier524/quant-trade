@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L4·2 7个开源项目案例剖析 · AlphaPulse 知识库</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main>
+  <div class="kicker">L4 AI 前沿 · 第 2 章 · 最终章</div>
+  <h1>7 个开源项目案例剖析：站在巨人肩上选股</h1>
+
+  <div class="box box-lead"><div class="box-title">本章导读</div>
+    <p>这一章是把前面学的所有概念落到地面上的<b>压轴课</b>：
+    7 个真实开源项目里的设计取舍——做对了什么、踩了什么坑、有什么能借鉴到你的系统。
+    最后讲清楚<b>RPS 因子为什么被否决</b>这个真实案例：负结果同样珍贵，
+    回测门禁的存在意义就在这里。</p>
+  </div>
+
+  <h2>1. 项目地图（按贡献价值排序）</h2>
+  <div class="card-grid">
+    <a class="ch-card" href="../research_journal/01_daily_stock_analysis.md">
+      <div class="num">★★★★★</div>
+      <div class="t">daily_stock_analysis · 42k</div>
+      <p>多数据源容错链 / 结构化LLM研判 / 战法YAML化 / 14渠道推送——精华最多。已采纳：pytdx 直连备援。</p>
+    </a>
+    <a class="ch-card" href="../research_journal/02_qlib.md">
+      <div class="num">★★★★★</div>
+      <div class="t">microsoft/qlib · 37k</div>
+      <p>因子表达式DSL（一行字符串=一个因子）+ Alpha158因子库 + 截面标签规范——工业级流水线范式。</p>
+    </a>
+    <a class="ch-card" href="../research_journal/07_ai_hedge_fund.md">
+      <div class="num">★★★★★</div>
+      <div class="t">virattt/ai-hedge-fund · 50k</div>
+      <p>signal+confidence+reasoning 统一信号协议 + 多 persona 受控分歧辩论——DeepSeek 研判升级范式。</p>
+    </a>
+    <a class="ch-card" href="../research_journal/06_abu.md">
+      <div class="num">★★★★</div>
+      <div class="t">bbfamily/abu · 17k</div>
+      <p>UMP 裁判：GMM 聚类失败案例→新信号落入高失败率簇即否决。LightGBM 的进阶防守 + 可解释（指认相似失败案例）。</p>
+    </a>
+    <a class="ch-card" href="../research_journal/03_chan_py.md">
+      <div class="num">★★★★</div>
+      <div class="t">Vespa314/chan.py · 1.5k</div>
+      <p>一买→二买→三买依赖式状态机与你 B1→B2→B3 完全同构 + MACD 面积背驰量化，可参数化 DD 卖点。</p>
+    </a>
+    <a class="ch-card" href="../research_journal/04_instock.md">
+      <div class="num">★★★★</div>
+      <div class="t">myhhub/InStock · 6.5k</div>
+      <p>筹码分布 CYQ 算法（获利盘比例/单峰密集），补"底部挖掘"缺失的<b>持仓成本维度</b>。</p>
+    </a>
+    <a class="ch-card" href="../research_journal/05_sequoia_x.md">
+      <div class="num">★★★（❌否决）</div>
+      <div class="t">sngyai/Sequoia-X · 4.3k</div>
+      <p>RPS 相对强度过滤——动量体系工具，AB 回测后否决（见下方真实案例）。</p>
+    </a>
+  </div>
+
+  <h2>2. 横向对比：每个项目都在解决什么问题</h2>
+  <div class="figure">
+    <svg viewBox="0 0 800 320" xmlns="http://www.w3.org/2000/svg" class="plot" style="border:none;background:transparent">
+      <defs>
+        <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8b919e"/></marker>
+      </defs>
+      <g font-size="12" text-anchor="middle">
+        <text x="400" y="20" fill="#e8e8e8" font-size="14" font-weight="bold">量化系统能力地图</text>
+
+        <rect x="20"  y="50" width="140" height="60" rx="10" fill="#161a23" stroke="#3b82f6"/>
+        <text x="90" y="74" fill="#3b82f6" font-weight="bold">数据层</text>
+        <text x="90" y="92" fill="#8b919e">daily_sa · qlib</text>
+        <text x="90" y="106" fill="#8b919e">InStock</text>
+
+        <rect x="200" y="50" width="140" height="60" rx="10" fill="#161a23" stroke="#f0b90b"/>
+        <text x="270" y="74" fill="#f0b90b" font-weight="bold">因子/信号层</text>
+        <text x="270" y="92" fill="#8b919e">qlib · chan.py</text>
+        <text x="270" y="106" fill="#8b919e">InStock · Sequoia-X</text>
+
+        <rect x="380" y="50" width="140" height="60" rx="10" fill="#161a23" stroke="#14b143"/>
+        <text x="450" y="74" fill="#14b143" font-weight="bold">模型/决策层</text>
+        <text x="450" y="92" fill="#8b919e">abu (UMP)</text>
+        <text x="450" y="106" fill="#8b919e">ai-hedge-fund</text>
+
+        <rect x="560" y="50" width="220" height="60" rx="10" fill="#161a23" stroke="#ef232a"/>
+        <text x="670" y="74" fill="#ef232a" font-weight="bold">交付/护栏层</text>
+        <text x="670" y="92" fill="#8b919e">daily_sa · ai-hedge-fund</text>
+        <text x="670" y="106" fill="#8b919e">（多渠道推送 / 决策稳定器）</text>
+
+        <line x1="160" y1="80" x2="196" y2="80" stroke="#8b919e" marker-end="url(#arr2)"/>
+        <line x1="340" y1="80" x2="376" y2="80" stroke="#8b919e" marker-end="url(#arr2)"/>
+        <line x1="520" y1="80" x2="556" y2="80" stroke="#8b919e" marker-end="url(#arr2)"/>
+
+        <text x="400" y="160" fill="#e8e8e8" font-size="14" font-weight="bold">已采纳 → AlphaPulse-A</text>
+        <rect x="20" y="180" width="760" height="120" rx="10" fill="#0e1117" stroke="#262a35"/>
+
+        <text x="200" y="210" fill="#14b143" font-weight="bold">✓ pytdx 备援</text>
+        <text x="200" y="226" fill="#8b919e">数据层｜daily_sa</text>
+
+        <text x="400" y="210" fill="#14b143" font-weight="bold">✓ 形态教学</text>
+        <text x="400" y="226" fill="#8b919e">因子层｜ai-hedge-fund 协议</text>
+
+        <text x="600" y="210" fill="#14b143" font-weight="bold">✓ AI 研判 markdown</text>
+        <text x="600" y="226" fill="#8b919e">护栏层｜daily_sa</text>
+
+        <text x="200" y="270" fill="#ef232a" font-weight="bold">✗ RPS 过滤（已否决）</text>
+        <text x="200" y="286" fill="#8b919e">因子层｜Sequoia-X</text>
+
+        <text x="400" y="270" fill="#f0b90b" font-weight="bold">⏳ UMP 裁判</text>
+        <text x="400" y="286" fill="#8b919e">模型层｜abu（路线图#2）</text>
+
+        <text x="600" y="270" fill="#f0b90b" font-weight="bold">⏳ 表达式 DSL</text>
+        <text x="600" y="286" fill="#8b919e">因子层｜qlib（路线图#3）</text>
+      </g>
+    </svg>
+    <div class="figcap">绿=已采纳；红=否决；黄=路线图待实施</div>
+  </div>
+
+  <h2>3. 真实案例：RPS 因子是怎么被否决的</h2>
+  <p>Sequoia-X 项目的核心思路："RPS 低的票弱者恒弱，过滤掉假底"。听起来非常对——
+  欧奈尔教科书都这么写。我们把它接入 B1 信号做 AB 回测：6.3 万次历史 B1 事件，
+  按 RPS120 不同阈值分组对比。</p>
+
+  <div class="demo" id="demo-rps">
+    <div class="demo-title">RPS 阈值 vs B1 净均值收益（真实回测）</div>
+    <svg class="plot" id="rps-plot" viewBox="0 0 600 220" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="note">单调向下——RPS 阈值越严，B1 收益越差。
+    数据反过来说话：B1 是<b>超跌均值回归</b>买点，RPS 是<b>动量持续</b>过滤，<b>逻辑相反</b>。
+    动量过滤剔除的"弱者"，恰恰是 B1 的甜区。<br>
+    <b>结论：否决。</b>留下 rps.py 作为工具因子，未来验证砖型图横盘突破（动量型）时再用。</div>
+  </div>
+
+  <div class="box box-yoursys"><div class="box-title">这件事教会我们什么</div>
+    <ul>
+      <li><b>"听起来有道理"和"数据上成立"是两回事</b>——任何融合改动都要 AB 验证</li>
+      <li>负结果同样珍贵——记入 <a href="../research_journal/08_integration_log.md">融合日记</a>，下次不会重复尝试</li>
+      <li>工具没有好坏，匹配才有：RPS 在它的原生体系（突破）里是好工具，嫁接到反向体系水土不服</li>
+      <li>这就是回测门禁的存在意义——把工程师的乐观和市场的现实之间画一道线</li>
+    </ul>
+  </div>
+
+  <h2>4. 完结篇：从这里去哪里</h2>
+  <p>看到这里，你已经走过：</p>
+  <ul>
+    <li>L1：因子和它的考核（IC）、回测的四个坑、胜率赔率期望的算账</li>
+    <li>L2：从布尔到评分、参数面找山丘、仓位与组合的纪律</li>
+    <li>L3：GBDT 怎么从树长成森林、标签和切分决定真假成绩单、可解释是最后防线</li>
+    <li>L4：LLM 在系统里的位置、7 个开源项目的横向比较</li>
+  </ul>
+  <p><b>知识库的目的不是让你成为论文研究员，而是让你看懂 AlphaPulse-A 的每个零件为什么这么设计</b>。
+  接下来：</p>
+  <ul>
+    <li>实战：每天用 GUI 看选股，重点核对依据面板里的"周线 M5/M14"和"B1 六条件"，培养"机器和你看一致"的安心感</li>
+    <li>调参：到"参数搜索"和"因子权重"页拖滑杆，体感参数稳健性</li>
+    <li>教学：试着用中文教 ML 一个你常用的形态——"N 型回踩黄线不破"是个好起点</li>
+    <li>进阶：路线图#2（UMP裁判）和 #3（表达式 DSL）是下两个值得做的融合</li>
+  </ul>
+
+  <div class="box box-summary"><div class="box-title">最终小结</div>
+    <ul>
+      <li>站在巨人肩上 ≠ 把所有项目都搬过来；要识别<b>对你的体系</b>有价值的精华</li>
+      <li>采纳/否决都要数据说话——AB 回测是工程师和市场的契约</li>
+      <li>系统设计的最高境界：每个零件你都能用一句话解释为什么这么设计</li>
+    </ul>
+  </div>
+
+  <div class="quiz-wrap">
+    <h3>毕业测验</h3>
+    <div class="quiz-q" data-answer="b">
+      <div class="q-text">1. 看到一个 50k 星的开源项目，最该问的第一个问题是？</div>
+      <label><input type="radio" name="q1" value="a">怎么快速搬进我的系统</label>
+      <label><input type="radio" name="q1" value="b">它在解决什么问题？这个问题在我的体系里存在吗</label>
+      <label><input type="radio" name="q1" value="c">star 数是不是水分</label>
+      <div class="explain">星数不等于适配。先理解项目的<b>问题假设</b>，再判断是否落在你体系的甜区。</div>
+    </div>
+    <div class="quiz-q" data-answer="c">
+      <div class="q-text">2. RPS 否决案例的核心教训是？</div>
+      <label><input type="radio" name="q2" value="a">Sequoia-X 项目质量差</label>
+      <label><input type="radio" name="q2" value="b">A股不适合用动量因子</label>
+      <label><input type="radio" name="q2" value="c">工具与体系必须方向一致——动量过滤嫁接到反向买点是水土不服</label>
+      <div class="explain">RPS 在突破型策略里仍是好工具。错的是嫁接方向，不是工具本身。</div>
+    </div>
+    <div class="quiz-q" data-answer="a">
+      <div class="q-text">3. 学完这个知识库，最该养成的元习惯是？</div>
+      <label><input type="radio" name="q3" value="a">系统每个零件都能用一句话解释为什么这么设计；改动前先想能否说出这句话</label>
+      <label><input type="radio" name="q3" value="b">记住所有公式</label>
+      <label><input type="radio" name="q3" value="c">追新论文</label>
+      <div class="explain">公式记不住可以查；理解每个设计的"为什么"才能在改动时不破坏体系一致性。这才是系统建设者的元能力。</div>
+    </div>
+    <button class="btn" onclick="apGradeQuiz(this)">提交答案</button>
+    <div class="quiz-score"></div>
+  </div>
+
+  <div class="box"><div class="box-title">延伸阅读 · 全部研究日记</div>
+    <ul>
+      <li><a href="../research_journal/00_summary.md">00 · 汇总与路线图</a></li>
+      <li><a href="../research_journal/08_integration_log.md">08 · 融合实施日记（含 RPS 否决全数据）</a></li>
+      <li><a href="../trading_system.md">交易体系总纲</a> — 知识库的所有概念都落到这里</li>
+      <li><a href="../../progress_log.md">progress_log</a> — 系统演进史</li>
+    </ul>
+  </div>
+
+  <div id="pager"></div>
+</main>
+</div>
+<script src="glossary.js"></script>
+<script src="app.js"></script>
+<script>
+(function () {
+  var pts = [
+    [0,  0.19, "无过滤"],
+    [40, 0.12, "RPS≥40"],
+    [50, 0.08, "RPS≥50"],
+    [60, 0.06, "RPS≥60"],
+    [70, 0.01, "RPS≥70"]
+  ];
+  var svg = document.getElementById("rps-plot");
+  var maxY = 0.22, minY = 0;
+  function Y(v){ return 180 - (v - minY) / (maxY - minY) * 150; }
+  function X(i){ return 80 + i * 110; }
+  var h = '<line x1="40" y1="180" x2="580" y2="180" stroke="#262a35"/>';
+  h += '<line x1="40" y1="' + Y(0) + '" x2="580" y2="' + Y(0) + '" stroke="#262a35" stroke-dasharray="3 3"/>';
+  // 折线
+  var path = pts.map(function (p, i) { return (i ? "L" : "M") + X(i) + " " + Y(p[1]); }).join(" ");
+  h += '<path d="' + path + '" fill="none" stroke="#ef232a" stroke-width="2.5"/>';
+  pts.forEach(function (p, i) {
+    h += '<circle cx="' + X(i) + '" cy="' + Y(p[1]) + '" r="4" fill="#ef232a"/>';
+    h += '<text x="' + X(i) + '" y="' + (Y(p[1])-10) + '" text-anchor="middle" fill="#e8e8e8" font-size="12">+' + p[1].toFixed(2) + "%</text>";
+    h += '<text x="' + X(i) + '" y="200" text-anchor="middle" fill="#8b919e" font-size="11">' + p[2] + "</text>";
+  });
+  h += '<text x="14" y="14" fill="#8b919e" font-size="12">5日净均值</text>';
+  svg.innerHTML = h;
+})();
+</script>
+</body>
+</html>

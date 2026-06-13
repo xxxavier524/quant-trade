@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L2·1 多因子评分体系 · AlphaPulse 知识库</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main>
+  <div class="kicker">L2 经典方法 · 第 1 章</div>
+  <h1>多因子评分：从"全部满足"到 0-100 分</h1>
+
+  <div class="box box-lead"><div class="box-title">本章导读</div>
+    <p>通达信选股是"六个条件全满足才出票"——AND逻辑。它有两个天生缺陷：
+    出票数量不可控（行情差时颗粒无收），且票与票之间分不出高下。
+    本章讲你的选股雷达背后的<span class="term">多因子模型</span>：怎么把13个维度合成一个总分。</p>
+  </div>
+
+  <h2>1. AND 逻辑的问题</h2>
+  <p>六条件AND等于六道闸门：一只票五条全优、第六条差0.1，被一票否决；
+  另一只六条全部擦边过线，反而入选。<b>边界附近的信息全部丢失</b>。
+  评分制把每道闸门换成打分项——擦边过线得低分、远超标准得高分，最后看总分排序。</p>
+
+  <h2>2. 三步合成：去极值 → 标准化 → 加权</h2>
+  <p><b>第一步 winsorize（去极值）</b>：把每个因子最极端的1%截断，防止一只妖股拉爆整个尺度。</p>
+  <p><b>第二步 <span class="term">z-score</span>（标准化）</b>：(x−均值)÷标准差。
+  "J值13"和"流通市值300亿"量纲完全不同，必须先拉到同一把尺子上才能相加——
+  标准化后每个因子都变成"偏离市场平均几个标准差"。</p>
+  <p><b>第三步 加权求和</b>：Σ(权重ᵢ × zᵢ)，再线性映射到0-100。权重代表你对每个维度的信任度。</p>
+
+  <div class="box box-analogy"><div class="box-title">类比</div>
+    <p>高考总分制 vs 单科一票否决制。AND逻辑=每科必须90分以上才录取；
+    评分制=各科加权总分排序，数学权重高一点（你最信的因子），全省统一排名取前50。
+    显然后者选出的学生质量更稳定，且<b>永远招得满</b>。</p>
+  </div>
+
+  <div class="demo" id="demo-sc">
+    <div class="demo-title">两因子合成演示</div>
+    <div class="demo-sub">五只虚拟股票，两个因子打分已给定。拖动权重，看排名怎么翻转——权重就是你的"价值观"。</div>
+    <div class="ctrl"><label>J值低位 权重</label><input type="range" min="0" max="10" value="6" id="scw" data-out="scwv"><span class="val" id="scwv"></span></div>
+    <div class="readout" id="sc-out"></div>
+    <div class="note">缩量权重 = 10 − J权重（演示固定两因子）。注意股票C：J分普通但缩量极佳——只有缩量权重够高它才进前二。这就是权重的含义：你更相信哪个维度的话。</div>
+  </div>
+
+  <h2>3. 评分制下的"严格信号"去哪了</h2>
+  <p>评分不取代原始公式，两者并存：满足通达信原始公式全部条件的票打<b>⭐严格信号徽章</b>并排序置顶。
+  评分负责"全市场谁更好"的<b>广度</b>，严格信号负责"和通达信完全一致"的<b>锚点</b>——
+  这是你的黄金案例回归能持续通过的原因。</p>
+
+  <div class="box box-yoursys"><div class="box-title">在你的系统里</div>
+    <ul>
+      <li>管线：<code>sub_scores.py</code>(13个0-1子分) → <code>stock_ranker.py</code>(winsorize→zscore→加权→0-100) → Top50</li>
+      <li>权重在 <code>config/factor_weights.json</code>，GUI"研究优化→因子权重"页拖滑杆即改</li>
+      <li>大盘档位会缩放分数（空头环境×1.2拉开分差，谨慎选票）</li>
+      <li>验证：2026-05-15当日有信号的黄金案例股，4/5进全市场前5%（法狮龙#11/5146）</li>
+    </ul>
+  </div>
+
+  <div class="box box-summary"><div class="box-title">本章小结</div>
+    <ul>
+      <li>AND逻辑丢失边界信息且出票不可控；评分制保留程度、全市场可排序</li>
+      <li>合成三步：去极值→标准化（统一量纲）→加权求和</li>
+      <li>严格信号徽章保留通达信锚点：评分给广度，公式给精度</li>
+    </ul>
+  </div>
+
+  <div class="quiz-wrap">
+    <h3>自测</h3>
+    <div class="quiz-q" data-answer="b">
+      <div class="q-text">1. 为什么加权前必须先 z-score 标准化？</div>
+      <label><input type="radio" name="q1" value="a">让计算更快</label>
+      <label><input type="radio" name="q1" value="b">不同因子量纲不同，直接相加会被数值大的因子主导</label>
+      <label><input type="radio" name="q1" value="c">监管要求</label>
+      <div class="explain">市值（亿级）直接加J值（两位数），J值等于不存在。标准化后都是"偏离均值几个σ"，才公平。</div>
+    </div>
+    <div class="quiz-q" data-answer="c">
+      <div class="q-text">2. winsorize 去极值防的是什么？</div>
+      <label><input type="radio" name="q2" value="a">防止数据缺失</label>
+      <label><input type="radio" name="q2" value="b">防止未来函数</label>
+      <label><input type="radio" name="q2" value="c">防止个别极端值扭曲整个因子的标准化尺度</label>
+      <div class="explain">一只10倍妖股会把均值和标准差都拉歪，其他股票的z分全部失真。截断1%极值后尺度才稳定。</div>
+    </div>
+    <div class="quiz-q" data-answer="a">
+      <div class="q-text">3. 评分制下还保留⭐严格信号徽章，目的是？</div>
+      <label><input type="radio" name="q3" value="a">保持与通达信原始公式的一致性锚点，可用黄金案例持续回归验证</label>
+      <label><input type="radio" name="q3" value="b">好看</label>
+      <label><input type="radio" name="q3" value="c">给评分低的票一个补救机会</label>
+      <div class="explain">评分是排序工具，严格信号是正确性锚。没有锚，系统漂移了你都不知道。</div>
+    </div>
+    <button class="btn" onclick="apGradeQuiz(this)">提交答案</button>
+    <div class="quiz-score"></div>
+  </div>
+
+  <div class="box"><div class="box-title">延伸阅读</div>
+    <ul>
+      <li><a href="l1-factors.html">L1·1 因子与IC</a> — 权重该信谁：看IC</li>
+      <li><a href="../research_journal/02_qlib.md">研究日记02 · qlib</a> — 工业级多因子流水线长什么样</li>
+    </ul>
+  </div>
+
+  <div id="pager"></div>
+</main>
+</div>
+<script src="glossary.js"></script>
+<script src="app.js"></script>
+<script>
+apBindSliders("demo-sc", function () {
+  var wj = +document.getElementById("scw").value, wv = 10 - wj;
+  var stocks = [
+    ["A", 0.9, 0.5], ["B", 0.7, 0.7], ["C", 0.4, 0.95], ["D", 0.85, 0.3], ["E", 0.55, 0.6]
+  ];
+  var scored = stocks.map(function (s) {
+    return { n: s[0], j: s[1], v: s[2], score: (s[1] * wj + s[2] * wv) * 10 };
+  }).sort(function (a, b) { return b.score - a.score; });
+  var html = '<table style="width:100%;font-size:13.5px;border-collapse:collapse">' +
+    '<tr style="color:var(--muted)"><td>排名</td><td>股票</td><td>J低分</td><td>缩量分</td><td>总分</td></tr>';
+  scored.forEach(function (s, i) {
+    var hl = i < 2 ? ' style="color:var(--accent);font-weight:700"' : "";
+    html += "<tr" + hl + "><td>" + (i + 1) + "</td><td>" + s.n + "</td><td>" + s.j.toFixed(2) +
+      "</td><td>" + s.v.toFixed(2) + "</td><td>" + s.score.toFixed(1) + "</td></tr>";
+  });
+  document.getElementById("sc-out").innerHTML = html + "</table>";
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L1·2 回测与过拟合 · AlphaPulse 知识库</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main>
+  <div class="kicker">L1 量化基础 · 第 2 章</div>
+  <h1>回测与过拟合：不花钱的试错，和最贵的自欺</h1>
+
+  <div class="box box-lead"><div class="box-title">本章导读</div>
+    <p><span class="term">回测</span>是量化的核心能力：把规则放回历史，看"如果当年这么做会怎样"。
+    但回测也是最容易自欺的环节——本章讲四个大坑，以及你的系统里防住它们的具体机制。
+    最后用一个真实案例收尾：一个看起来很有道理的想法，是怎么被回测否决的。</p>
+  </div>
+
+  <h2>1. 四个大坑</h2>
+  <p><b>坑一：<span class="term">未来函数</span></b>。信号计算偷看了当时不可能知道的数据。
+  最隐蔽的形式不是故意作弊，而是粗心：用当日收盘价决定当日开盘买入、指标里混进了 shift(-1)、
+  周线用了本周未走完的数据。回测无敌、实盘失灵，九成是它。</p>
+  <p><b>坑二：<span class="term">幸存者偏差</span></b>。只用今天还活着的股票池回测历史——
+  退市的、暴雷的都被悄悄剔除了，等于只研究"从战场回来的飞机"。</p>
+  <p><b>坑三：<span class="term">过拟合</span></b>。规则记住了历史的噪音而非规律。
+  症状：参数微调一点结果剧变；规则越改越复杂、每加一条历史收益就涨一点；样本内完美样本外崩盘。</p>
+  <p><b>坑四：成本失真</b>。不计<span class="term">滑点</span>和手续费的回测都是童话。
+  A股小票的冲击成本远比想象大，高频信号在毛收益上赚钱、净收益上亏钱是常态。</p>
+
+  <div class="box box-analogy"><div class="box-title">类比</div>
+    <p>过拟合像考前把去年考卷的答案背下来：去年的卷子（样本内）满分，
+    今年的卷子（<span class="term">样本外</span>）露馅。防法只有一个——
+    用没背过的卷子打分，这就是<span class="term">Walk-Forward</span>滚动验证。</p>
+  </div>
+
+  <div class="demo" id="demo-of">
+    <div class="demo-title">过拟合演示：规则越复杂，样本外越惨</div>
+    <div class="demo-sub">拖动"规则复杂度"，看样本内（蓝）和样本外（红）表现的分化。复杂度=参数个数/条件层数。</div>
+    <div class="ctrl"><label>规则复杂度</label><input type="range" min="1" max="10" value="3" id="ofc" data-out="ofcv"><span class="val" id="ofcv"></span></div>
+    <svg class="plot" id="of-plot" viewBox="0 0 600 220" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="note">最优点通常在中等复杂度：太简单学不到规律（欠拟合），太复杂背下噪音（过拟合）。
+    你的B1只有6个条件、砖型图3个子类型——克制是有意的。</div>
+  </div>
+
+  <h2>2. 防线怎么修</h2>
+  <ul>
+    <li><b>因果切片</b>：信号只用 ≤t 日数据。你的 <code>replay_screen.py</code> 把数据严格切到回放日，全部指标都是因果算子（rolling/shift正数/ewm）。</li>
+    <li><b>时间切分</b>：训练/验证/测试按年份切，绝不随机打乱（详见L3·2）。</li>
+    <li><b>黄金回归</b>：你给的47只案例固化成 <code>tests/golden/</code>，任何公式改动必须先过"能复现通达信选股"这一关——这是把<b>正确性</b>锚死。</li>
+    <li><b>成本入账</b>：买+0.1%/卖-0.2%滑点+万2.5佣金，验证器同时给毛/净两套数字。</li>
+    <li><b>邻域稳健</b>：参数寻优不取单点最优（详见L2·2）。</li>
+  </ul>
+
+  <div class="box box-yoursys"><div class="box-title">在你的系统里：一次真实的否决</div>
+    <p>2026-06-12，从 Sequoia-X 项目学来"RPS相对强度过滤"——逻辑听起来很对：
+    剔除弱者恒弱的假底。AB回测（6.3万次B1事件）结果：</p>
+    <p style="font-family:var(--mono);font-size:13px">无过滤 5日净均值 +0.19% → RPS≥40：+0.12% → ≥50：+0.08% → ≥70：+0.01%（单调变差）</p>
+    <p><b>否决。</b>原因事后才看清：RPS是动量体系的工具，而B1是超跌均值回归买点，二者逻辑相反。
+    "听起来有道理"和"数据上成立"是两回事——这就是回测门禁存在的意义。
+    完整记录在 <a href="../research_journal/08_integration_log.md">融合日记#1</a>。</p>
+  </div>
+
+  <div class="box box-summary"><div class="box-title">本章小结</div>
+    <ul>
+      <li>四坑：未来函数、幸存者、过拟合、成本失真；未来函数是实盘失灵头号原因</li>
+      <li>防线：因果切片、时间切分、黄金回归锚定正确性、净收益口径</li>
+      <li>任何"听起来有道理"的改动都要过AB回测，负结果同样珍贵</li>
+    </ul>
+  </div>
+
+  <div class="quiz-wrap">
+    <h3>自测</h3>
+    <div class="quiz-q" data-answer="b">
+      <div class="q-text">1. 策略回测年化60%，实盘三个月亏损。最该先排查什么？</div>
+      <label><input type="radio" name="q1" value="a">运气不好，再跑三个月</label>
+      <label><input type="radio" name="q1" value="b">逐行检查信号计算是否用到了决策时点拿不到的数据</label>
+      <label><input type="radio" name="q1" value="c">加大仓位摊薄成本</label>
+      <div class="explain">回测与实盘的巨大落差，第一嫌疑永远是未来函数（前视偏差），第二是成本假设。</div>
+    </div>
+    <div class="quiz-q" data-answer="c">
+      <div class="q-text">2. "参数从13改到14，年化从35%掉到8%"，说明什么？</div>
+      <label><input type="radio" name="q2" value="a">13是黄金参数，要锁死</label>
+      <label><input type="radio" name="q2" value="b">14附近有bug</label>
+      <label><input type="radio" name="q2" value="c">策略对参数过度敏感，35%大概率是过拟合出来的</label>
+      <div class="explain">真实规律的参数面是平滑的山丘，不是一根针。一格之差天壤之别=记住了噪音。</div>
+    </div>
+    <div class="quiz-q" data-answer="a">
+      <div class="q-text">3. 用"当前沪深300成分股"回测过去十年的策略，主要问题是？</div>
+      <label><input type="radio" name="q3" value="a">幸存者偏差——这些是十年大浪淘沙的赢家</label>
+      <label><input type="radio" name="q3" value="b">数据量不够</label>
+      <label><input type="radio" name="q3" value="c">成分股太少不够分散</label>
+      <div class="explain">今天的成分股名单本身就是"未来信息"。正确做法是用每个历史时点的当时成分。</div>
+    </div>
+    <div class="quiz-q" data-answer="b">
+      <div class="q-text">4. RPS过滤被否决的根本原因是？</div>
+      <label><input type="radio" name="q4" value="a">RPS因子本身是错的</label>
+      <label><input type="radio" name="q4" value="b">动量过滤与超跌买点的逻辑相反，AB数据单调变差</label>
+      <label><input type="radio" name="q4" value="c">样本量不足</label>
+      <div class="explain">RPS在它的原生体系（突破/动量）里是好工具；嫁接到均值回归体系水土不服。工具没有好坏，匹配才有。</div>
+    </div>
+    <button class="btn" onclick="apGradeQuiz(this)">提交答案</button>
+    <div class="quiz-score"></div>
+  </div>
+
+  <div class="box"><div class="box-title">延伸阅读</div>
+    <ul>
+      <li><a href="../research_journal/08_integration_log.md">融合日记</a> — RPS否决的完整AB数据</li>
+      <li><a href="../research_journal/06_abu.md">研究日记06 · abu</a> — UMP裁判：用失败案例否决新信号</li>
+    </ul>
+  </div>
+
+  <div id="pager"></div>
+</main>
+</div>
+<script src="glossary.js"></script>
+<script src="app.js"></script>
+<script>
+apBindSliders("demo-of", function () {
+  var c = +document.getElementById("ofc").value;
+  var svg = document.getElementById("of-plot");
+  // 样本内：复杂度越高表现越好（递减边际）；样本外：先升后崩
+  var pts1 = [], pts2 = [];
+  for (var x = 1; x <= 10; x++) {
+    var inS = 40 + 14 * Math.log(x + 1) / Math.log(11) * 10;     // 40→90 平滑上升
+    var outS = 45 + 22 * Math.exp(-Math.pow(x - 3.5, 2) / 6) - x * 1.2; // 峰在3-4
+    pts1.push([x, inS]); pts2.push([x, outS]);
+  }
+  function path(pts) {
+    return pts.map(function (p, i) {
+      var X = 40 + (p[0] - 1) * 56, Y = 200 - p[1] * 1.8;
+      return (i ? "L" : "M") + X + " " + Y;
+    }).join(" ");
+  }
+  var cx = 40 + (c - 1) * 56;
+  svg.innerHTML =
+    '<line x1="40" y1="200" x2="560" y2="200" stroke="#262a35"/>' +
+    '<line x1="' + cx + '" y1="20" x2="' + cx + '" y2="200" stroke="#f0b90b" stroke-dasharray="4 4"/>' +
+    '<path d="' + path(pts1) + '" fill="none" stroke="#3b82f6" stroke-width="2.5"/>' +
+    '<path d="' + path(pts2) + '" fill="none" stroke="#ef232a" stroke-width="2.5"/>' +
+    '<text x="455" y="45" fill="#3b82f6" font-size="13">样本内表现</text>' +
+    '<text x="455" y="150" fill="#ef232a" font-size="13">样本外表现</text>' +
+    '<text x="' + Math.min(cx + 6, 500) + '" y="34" fill="#f0b90b" font-size="12">你的复杂度=' + c + "</text>" +
+    '<text x="280" y="218" fill="#8b919e" font-size="12">→ 规则复杂度</text>';
+});
+</script>
+</body>
+</html>

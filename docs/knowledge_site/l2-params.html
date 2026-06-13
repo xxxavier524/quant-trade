@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L2·2 参数稳健性与网格搜索 · AlphaPulse 知识库</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main>
+  <div class="kicker">L2 经典方法 · 第 2 章</div>
+  <h1>参数稳健性：为什么不能挑热力图上最红的那格</h1>
+
+  <div class="box box-lead"><div class="box-title">本章导读</div>
+    <p>J阈值该用10还是13？缩量比例0.25还是0.3？<b>网格搜索</b>把参数组合批量回测一遍，
+    但真正的学问在怎么读结果——本章讲"邻域稳健性"：一个让你避开过拟合陷阱的简单原则。</p>
+  </div>
+
+  <h2>1. 参数面：山丘还是针尖</h2>
+  <p>把两个参数的所有组合画成热力图，每格颜色=该组合的回测收益。会看到两种地形：</p>
+  <ul>
+    <li><b>山丘</b>：一片区域整体偏好，从中心向四周缓慢变差 → 真实规律，参数小偏差不致命</li>
+    <li><b>针尖</b>：孤零零一格极好，四邻平庸 → 大概率是那格"运气好"，记住了噪音</li>
+  </ul>
+  <p>市场下个月不会精确重复历史。选针尖=赌未来精确复刻过去；选山丘=允许世界有点变化。</p>
+
+  <div class="box box-analogy"><div class="box-title">类比</div>
+    <p>选钓位：A点上周钓到一条10斤大鱼（针尖），B区域上周天天有3-5斤的收获（山丘）。
+    下周去哪？理性人选B——A的大鱼是路过的，B说明那片水域真有鱼群。</p>
+  </div>
+
+  <div class="demo" id="demo-grid">
+    <div class="demo-title">参数面模拟：噪音如何制造假最优</div>
+    <div class="demo-sub">下图模拟一个5×5参数面，真实规律是中心(3,3)的山丘。拖动"市场噪音"，看假针尖怎么冒出来抢走argmax（最红格子标◆，稳健最优标◎）。</div>
+    <div class="ctrl"><label>市场噪音</label><input type="range" min="0" max="10" value="3" id="gn" data-out="gnv"><span class="val" id="gnv"></span></div>
+    <div class="ctrl"><label>重掷骰子</label><button class="btn" onclick="apGridRoll()">换一段历史</button></div>
+    <svg class="plot" id="grid-plot" viewBox="0 0 600 260" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="note">噪音大时◆经常跳到边角（假最优），而◎（自身50%+四邻50%的稳健分）基本钉在中心。
+    "换一段历史"等于换一段回测区间——针尖会换位置，山丘不会。</div>
+  </div>
+
+  <h2>2. 稳健分：自身一半，邻居一半</h2>
+  <p>你的 <code>grid_search.py</code> 对每个参数组合算 <b>robust_score = 0.5×自身 + 0.5×相邻组合均值</b>。
+  这一个公式就把针尖过滤掉了：针尖自身高但邻居烂，综合分被拖下来；山丘中心自身高邻居也高，胜出。</p>
+  <p>读图三步：① 先看整体是否有连片暖区（没有=该因子参数不敏感或无效）
+  ② 找◎稳健最优 ③ 对比默认参数与◎的差距——差距小就别折腾，<b>频繁换参数本身就是一种过拟合</b>。</p>
+
+  <div class="box box-yoursys"><div class="box-title">在你的系统里</div>
+    <ul>
+      <li>实测案例：B1网格 J∈{10,13,16}×DIF∈{-0.3,-0.1,0.1}，稳健最优 J=10/DIF=-0.1，
+      与你的通达信原参数(J&lt;13)只差一档且参数面平滑——说明原公式本来就在山丘上，不必改</li>
+      <li>GUI"研究优化→参数搜索"页：热力图自动标注◎、附使用说明折叠框</li>
+      <li>跑法：<code>python scripts/grid_search.py --factor B1_FORMULA --grid '{"j_threshold":[8,10,13,15,18]}'</code></li>
+      <li>样本不足100次信号的组合自动剔除（无统计意义）</li>
+    </ul>
+  </div>
+
+  <div class="box box-summary"><div class="box-title">本章小结</div>
+    <ul>
+      <li>参数面找山丘不找针尖；针尖=记住噪音，换段历史就消失</li>
+      <li>稳健分=自身50%+邻域50%，一个公式过滤假最优</li>
+      <li>默认参数已在山丘上时不要折腾——换参数也是种过拟合</li>
+    </ul>
+  </div>
+
+  <div class="quiz-wrap">
+    <h3>自测</h3>
+    <div class="quiz-q" data-answer="b">
+      <div class="q-text">1. 热力图上(8, -0.3)那格收益全场最高，但四邻都平庸。该用它吗？</div>
+      <label><input type="radio" name="q1" value="a">用，数据说话</label>
+      <label><input type="radio" name="q1" value="b">不用，孤立尖峰大概率是噪音；选邻域整体好的区域</label>
+      <label><input type="radio" name="q1" value="c">把仓位减半再用</label>
+      <div class="explain">真实规律具有连续性——J=8有效而J=9无效在逻辑上说不通。不连续=偶然。</div>
+    </div>
+    <div class="quiz-q" data-answer="c">
+      <div class="q-text">2. 网格搜出的最优参数比默认参数年化高1.5%，参数面平滑。最合理的做法？</div>
+      <label><input type="radio" name="q2" value="a">立即切换到新参数</label>
+      <label><input type="radio" name="q2" value="b">两套参数各跑一半资金</label>
+      <label><input type="radio" name="q2" value="c">差距不大可不动；若换，先在信号验证页确认逐年表现都不差</label>
+      <div class="explain">1.5%在回测误差范围内。换参数有隐性成本（行为不连续、重新积累信任），收益要明显才值得。</div>
+    </div>
+    <div class="quiz-q" data-answer="a">
+      <div class="q-text">3. 为什么样本&lt;100次信号的参数组合要剔除？</div>
+      <label><input type="radio" name="q3" value="a">样本太少，胜率/均值的随机波动大于真实差异，无统计意义</label>
+      <label><input type="radio" name="q3" value="b">计算太慢</label>
+      <label><input type="radio" name="q3" value="c">这种参数太严格没有实用价值</label>
+      <div class="explain">30次信号里多对2次，胜率就差7个点——这种"差异"全是噪音。L1·3的大数定律同理。</div>
+    </div>
+    <button class="btn" onclick="apGradeQuiz(this)">提交答案</button>
+    <div class="quiz-score"></div>
+  </div>
+
+  <div class="box"><div class="box-title">延伸阅读</div>
+    <ul>
+      <li><a href="l1-backtest.html">L1·2 回测与过拟合</a> — 参数敏感是过拟合的典型症状</li>
+      <li><a href="../research_journal/00_summary.md">研究日记00 · 汇总</a> — 各项目的参数验证方法对照</li>
+    </ul>
+  </div>
+
+  <div id="pager"></div>
+</main>
+</div>
+<script src="glossary.js"></script>
+<script src="app.js"></script>
+<script>
+var apGridSeed = 1;
+function apGridRoll() { apGridSeed = Math.floor(Math.random() * 1e6); apGridDraw(); }
+function apRand(i, j, s) { // 确定性伪随机（同seed同图）
+  var x = Math.sin(i * 127.1 + j * 311.7 + s * 74.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+function apGridDraw() {
+  var noise = +document.getElementById("gn").value;
+  var svg = document.getElementById("grid-plot");
+  var vals = [], best = [-1, -1, -1e9], robust = [-1, -1, -1e9];
+  for (var i = 0; i < 5; i++) { vals.push([]);
+    for (var j = 0; j < 5; j++) {
+      var signal = 10 - (Math.pow(i - 2, 2) + Math.pow(j - 2, 2)) * 1.4; // 中心山丘
+      var v = signal + (apRand(i, j, apGridSeed) - 0.5) * 2 * noise;
+      vals[i].push(v);
+      if (v > best[2]) best = [i, j, v];
+    }
+  }
+  for (var i = 0; i < 5; i++) for (var j = 0; j < 5; j++) {
+    var nb = [], dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+    dirs.forEach(function (d) {
+      var a = i + d[0], b = j + d[1];
+      if (a >= 0 && a < 5 && b >= 0 && b < 5) nb.push(vals[a][b]);
+    });
+    var rs = 0.5 * vals[i][j] + 0.5 * nb.reduce(function (s, x) { return s + x; }, 0) / nb.length;
+    if (rs > robust[2]) robust = [i, j, rs];
+  }
+  var lo = Math.min.apply(null, vals.flat()), hi = Math.max.apply(null, vals.flat());
+  var h = "";
+  for (var i = 0; i < 5; i++) for (var j = 0; j < 5; j++) {
+    var t = (vals[i][j] - lo) / (hi - lo + 1e-9);
+    var r = Math.round(38 + t * (239 - 38)), g = Math.round(177 - t * (177 - 35)), b = Math.round(67 - t * (67 - 42));
+    var x = 90 + j * 90, y = 15 + i * 44;
+    h += '<rect x="' + x + '" y="' + y + '" width="84" height="40" rx="6" fill="rgb(' + r + "," + g + "," + b + ')"/>' +
+         '<text x="' + (x + 42) + '" y="' + (y + 25) + '" text-anchor="middle" fill="#fff" font-size="12">' + vals[i][j].toFixed(1) + "</text>";
+  }
+  h += '<text x="' + (90 + best[1] * 90 + 70) + '" y="' + (15 + best[0] * 44 + 14) + '" fill="#fff" font-size="14">◆</text>';
+  h += '<text x="' + (90 + robust[1] * 90 + 6) + '" y="' + (15 + robust[0] * 44 + 14) + '" fill="#0ff" font-size="14">◎</text>';
+  h += '<text x="20" y="130" fill="#8b919e" font-size="12">参数1 →</text><text x="300" y="252" fill="#8b919e" font-size="12">参数2 →</text>';
+  svg.innerHTML = h;
+}
+apBindSliders("demo-grid", apGridDraw);
+</script>
+</body>
+</html>

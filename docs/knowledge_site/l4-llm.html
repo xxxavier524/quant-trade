@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L4·1 LLM 在量化中的角色 · AlphaPulse 知识库</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main>
+  <div class="kicker">L4 AI 前沿 · 第 1 章</div>
+  <h1>LLM 在量化中的角色：能做什么、不能做什么、怎么用才安全</h1>
+
+  <div class="box box-lead"><div class="box-title">本章导读</div>
+    <p>大模型不是水晶球。本章把LLM在量化里的三类靠谱用法和三类不靠谱用法摆清楚，
+    再拆解你的<b>NL转因子</b>和<b>形态教学</b>两条管线——为什么它们能用，而"让GPT直接选股"不能用。</p>
+  </div>
+
+  <h2>1. LLM 擅长什么：把自然语言变成结构</h2>
+  <p>LLM的本职是<b>语言到结构</b>的翻译器，不是预言家。在量化里，三个最有价值的用法：</p>
+  <ul>
+    <li><b>NL→因子代码</b>：你写"J&lt;15且缩量到5日均量一半"，LLM输出 <code>compute(df)</code> 函数</li>
+    <li><b>研判结构化</b>：把它生成的中文研判强制约束成"评分/狙击点位/止损/风险"五字段JSON</li>
+    <li><b>新闻消化</b>：扫公告/新闻，输出"利好-中性-利空"分类标签和影响维度</li>
+  </ul>
+  <p>共同特征：<b>输入有歧义、输出有结构</b>。这是LLM的甜区——人类不喜欢写格式化的东西，
+  机器又看不懂自由文本，LLM是天然桥梁。</p>
+
+  <h2>2. LLM 不擅长什么</h2>
+  <ul>
+    <li><b>预测涨跌</b>：它没有市场数据、没有训练目标，输出的是"看起来像分析师的话"，不是预测</li>
+    <li><b>数值计算</b>：算KDJ算错很常见——任何数学交给Python，LLM只负责写代码</li>
+    <li><b>自我一致性</b>：同一个问题多次回答可能矛盾，必须用<b>结构化输出</b>和<b>程序验证</b>双重锁死</li>
+  </ul>
+  <p>把它当"会写代码的实习生"，不要当"老股神"。判断标准很简单：
+  这件事如果让一个完全不懂行情、只会写代码的实习生做，行吗？行就交给LLM。</p>
+
+  <div class="box box-analogy"><div class="box-title">类比</div>
+    <p>LLM是会十国语言的翻译官，不是预言家。让他翻"低位放量阳"成代码——可以；
+    让他预测明天涨跌——他给的是文字版彩票，跟瞎猜差不多。
+    用错地方就像让翻译官当医生开药，看着说得头头是道，全是危险。</p>
+  </div>
+
+  <h2>3. 你的两条管线：安全链怎么修</h2>
+  <p><b>NL→因子（factor_gen.py）</b>：</p>
+  <ol>
+    <li><b>正则解析器优先</b>（零成本/确定）—— 简单条件不调LLM</li>
+    <li>不命中才调 DeepSeek，<b>system prompt 含因子契约+示例+禁止未来函数</b>规则</li>
+    <li><b>AST 白名单</b>：只允许 pandas/numpy，禁 import/exec/eval/open/os/__attr</li>
+    <li><b>沙箱冒烟</b>：受限命名空间执行，随机数据跑通+输出类型校验</li>
+    <li>落盘到 <code>factors/generated/</code> <b>默认禁用</b>，等用户在GUI看胜率验证后手动启用</li>
+  </ol>
+  <p>这条链上LLM只在第二步出现，输出经过<b>三道闸门</b>才能进入系统。
+  即使LLM写了恶意代码也只能死在第三步——这是LLM安全工程化的标准范式。</p>
+
+  <p><b>形态教学（pattern_teach.py）</b>同样的安全链 + 历史标注验证 + 命中案例K线展示：
+  你看图确认机器理解对了再启用。机器学的是规则，验证靠人眼——人机协作的甜区。</p>
+
+  <div class="box box-warn"><div class="box-title">⚠ 反面教材</div>
+    <p>常见错误用法：让LLM"看K线图预测涨跌"。它本质是文字模型，看图能力有限且无市场记忆——
+    输出的是"它认为分析师该怎么说"，不是真预测。<b>用LLM做研判可以，做信号不行</b>。</p>
+  </div>
+
+  <div class="demo" id="demo-pipe">
+    <div class="demo-title">NL→因子安全链可视化</div>
+    <div class="demo-sub">点击模拟一次代码生成，看每一步的检查结果。</div>
+    <button class="btn" onclick="apPipeRun('safe')">生成正常因子</button>
+    <button class="btn" onclick="apPipeRun('evil')" style="border-color:var(--up);color:var(--up)">生成恶意代码</button>
+    <button class="btn" onclick="apPipeRun('future')" style="border-color:var(--up);color:var(--up)">生成含未来函数</button>
+    <div id="pipe-out" style="margin-top:14px"></div>
+  </div>
+
+  <h2>4. 成本与节流</h2>
+  <p>DeepSeek 比 GPT-4 便宜约一个数量级，但仍要节流：</p>
+  <ul>
+    <li>NL→因子：单次调用，约¥0.05</li>
+    <li>AI研判：每天 Top10 批量一次，v4-flash 批量价 ≈ ¥0.1/天</li>
+    <li>形态教学：教一个形态约¥0.1，启用后零调用（标注函数是普通Python）</li>
+  </ul>
+  <p>原则：<b>LLM 只在管线的入口（理解需求）</b>出现，运行时的所有计算用普通代码。
+  这既省钱又确定——LLM调用次数是<b>O(用户操作)</b>而非<b>O(行情数据)</b>。</p>
+
+  <div class="box box-yoursys"><div class="box-title">在你的系统里</div>
+    <ul>
+      <li>客户端 <code>alphapulse/llm/client.py</code>：openai SDK直连 deepseek-v4-pro/flash，不引LangChain（规避Py3.14兼容风险）</li>
+      <li>研究优化→AI工具：NL→因子表单（不配 KEY 时走正则路径仍可用）</li>
+      <li>研究优化→ML形态→形态教学：完整闭环，含历史命中案例小K线展示</li>
+      <li>scripts/ai_review.py：每日 Top10 AI研判 markdown，约¥0.1/天</li>
+    </ul>
+  </div>
+
+  <div class="box box-summary"><div class="box-title">本章小结</div>
+    <ul>
+      <li>LLM 是语言→结构的翻译器，甜区是"输入有歧义、输出有结构"</li>
+      <li>三道安全闸：正则前置、AST白名单、沙箱冒烟；默认禁用待人工启用</li>
+      <li>LLM 只出现在管线入口；运行时用普通代码，省钱且确定</li>
+    </ul>
+  </div>
+
+  <div class="quiz-wrap">
+    <h3>自测</h3>
+    <div class="quiz-q" data-answer="b">
+      <div class="q-text">1. 想让DeepSeek "看K线预测明天涨跌"。最理性的态度？</div>
+      <label><input type="radio" name="q1" value="a">设计好prompt就能用</label>
+      <label><input type="radio" name="q1" value="b">不靠谱：LLM无市场记忆，输出的是"分析师式的话"，不是预测</label>
+      <label><input type="radio" name="q1" value="c">买API额度够大就行</label>
+      <div class="explain">LLM擅长语言到结构、不擅长数值预测。预测交给特征工程+ML，LLM只在管线入口翻译需求。</div>
+    </div>
+    <div class="quiz-q" data-answer="c">
+      <div class="q-text">2. NL→因子安全链里，AST白名单的作用是？</div>
+      <label><input type="radio" name="q2" value="a">让代码跑得更快</label>
+      <label><input type="radio" name="q2" value="b">检查语法错误</label>
+      <label><input type="radio" name="q2" value="c">拦截 import/exec/未来函数等危险节点，恶意代码进不了系统</label>
+      <div class="explain">即使LLM被诱导生成 os.system('rm -rf /')，AST校验直接拒收。这是LLM工程化的标配防线。</div>
+    </div>
+    <div class="quiz-q" data-answer="a">
+      <div class="q-text">3. 为什么LLM调用要"O(用户操作)而非O(行情数据)"？</div>
+      <label><input type="radio" name="q3" value="a">每天5000只票×每天调用=破产；管线入口调用一次即可</label>
+      <label><input type="radio" name="q3" value="b">LLM不能并发</label>
+      <label><input type="radio" name="q3" value="c">DeepSeek有调用上限</label>
+      <div class="explain">理解需求一次，运行时用普通代码——既省钱又确定，且LLM出错的影响面被钉死在入口。</div>
+    </div>
+    <button class="btn" onclick="apGradeQuiz(this)">提交答案</button>
+    <div class="quiz-score"></div>
+  </div>
+
+  <div class="box"><div class="box-title">延伸阅读</div>
+    <ul>
+      <li><a href="l4-cases.html">L4·2 案例剖析</a> — 七个项目里的LLM用法横向对比</li>
+      <li><a href="../research_journal/07_ai_hedge_fund.md">研究日记07 · ai-hedge-fund</a> — 多Agent辩论的范式</li>
+      <li><a href="../research_journal/01_daily_stock_analysis.md">研究日记01 · daily_stock_analysis</a> — LLM决策稳定器与护栏</li>
+    </ul>
+  </div>
+
+  <div id="pager"></div>
+</main>
+</div>
+<script src="glossary.js"></script>
+<script src="app.js"></script>
+<script>
+function apPipeRun(kind) {
+  var steps = [
+    { name: "① 正则解析", safe: "未命中（描述复杂） → 转 LLM", evil: "未命中 → 转 LLM", future: "未命中 → 转 LLM" },
+    { name: "② DeepSeek 生成", safe: "✓ 生成 compute() 函数 (240 token)", evil: "✓ 生成代码（含 import os）", future: "✓ 生成代码（含 shift(-5)）" },
+    { name: "③ AST 白名单",   safe: "✓ 通过：仅用 pandas/numpy", evil: "✗ 拒绝：禁止节点 Import / 禁止名称 os", future: "✗ 拒绝：禁止 shift(-n) 未来函数" },
+    { name: "④ 沙箱冒烟",     safe: "✓ 输出 Series len=300 信号数=12", evil: "—（已在③拦截）", future: "—（已在③拦截）" },
+    { name: "⑤ 落盘+待启用",  safe: "✓ factors/generated/xxx.py 等用户在GUI验证后启用", evil: "—", future: "—" }
+  ];
+  var out = document.getElementById("pipe-out");
+  var html = "";
+  steps.forEach(function (s) {
+    var v = s[kind];
+    var ok = v.indexOf("✗") < 0 && v.indexOf("—") < 0;
+    var color = ok ? "var(--down)" : (v.indexOf("✗") >= 0 ? "var(--up)" : "var(--muted)");
+    html += '<div style="padding:8px 12px;margin:6px 0;border:1px solid var(--border);border-radius:6px;background:var(--bg2)">'
+      + '<span style="color:' + color + ';font-weight:700">' + s.name + "</span>"
+      + ' <span style="color:var(--muted);margin-left:8px;font-size:13.5px">' + v + "</span></div>";
+  });
+  if (kind === "safe") html += '<div style="color:var(--down);margin-top:8px">✓ 因子已生成，请到"信号验证"看胜率再启用</div>';
+  else html += '<div style="color:var(--up);margin-top:8px">✗ 已被安全门拦截，系统未受影响</div>';
+  out.innerHTML = html;
+}
+</script>
+</body>
+</html>

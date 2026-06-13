@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L3·2 标签设计与时序防泄漏 · AlphaPulse 知识库</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main>
+  <div class="kicker">L3 机器学习 · 第 2 章</div>
+  <h1>标签设计与时序切分：模型学什么，由你定义"对"开始</h1>
+
+  <div class="box box-lead"><div class="box-title">本章导读</div>
+    <p>特征是模型的眼睛，<b>标签是模型的目标</b>——你说什么算"对"，它就拼命学什么。
+    本章讲标签设计的取舍、样本权重的用法，以及金融ML最大的隐形杀手：
+    用随机切分骗出来的漂亮分数。</p>
+  </div>
+
+  <h2>1. 标签：你到底想让模型预测什么</h2>
+  <p>同一份K线可以打出完全不同的标签，对应完全不同的模型：</p>
+  <ul>
+    <li><b>前向收益标签</b>："10日后涨&gt;5%为1"——客观、样本多，但包含大量你根本不会买的票的样本</li>
+    <li><b>交易结果标签</b>："按我的战法买入后净盈利为1"——只学"我会参与的局"，含卖出规则的影响，<b>更贴实战</b></li>
+    <li><b>形态标签</b>："出现机构票缩量回调形态为1"——学的是识别形态本身，不是预测涨跌</li>
+  </ul>
+  <p>你的系统选了第二种：15万笔三大战法状态机交易做标签。模型回答的问题因此非常具体——
+  <b>"在我的打法下，这个入场点赢面多大"</b>，而不是泛泛的"会不会涨"。</p>
+
+  <div class="box box-analogy"><div class="box-title">类比</div>
+    <p>训练守门员：可以给他看所有进球集锦（前向收益标签），
+    也可以只复盘他自己守过的球（交易标签）。后者样本少，但每一帧都和他的站位、习惯有关——
+    学完直接提升他本人的扑救率。</p>
+  </div>
+
+  <h2>2. 时序切分：金融ML的生死线</h2>
+  <p>普通ML教程让你随机分训练/测试集。<b>金融数据上这是作弊</b>：
+  随机切分后，训练集里有2024年3月5日的样本、测试集里有3月6日的——
+  相邻两天的市场几乎一样，模型等于"考试时瞄到了邻桌答案"，分数虚高但毫无预测力。</p>
+  <p>正确做法是<b>按时间切</b>：≤2023训练、2024验证、2025+测试。
+  模型永远在"只见过过去"的状态下被打分——和实盘一个条件。
+  代价是分数变难看，但那才是真实水平。</p>
+
+  <h2>3. 样本权重：告诉模型"这些案例更重要"</h2>
+  <p>不是所有样本平等。你的连涨归因闭环把"信号后连涨≥2天"的案例标记权重×2——
+  模型训练时这些样本的错误代价翻倍，等于<b>用你的复盘把模型的注意力掰向你认可的形态</b>。
+  教学形态（pt_*特征）+强化样本（ml_boost）双管齐下，这正是"自然语言指导ML"的实现路径。</p>
+
+  <div class="box box-yoursys"><div class="box-title">在你的系统里</div>
+    <ul>
+      <li>标签：三大战法逐笔交易 net_return&gt;0（<code>build_training_set</code>），基准胜率36.5%</li>
+      <li>切分：entry_year ≤2023训练 / 2024验证 / 2025+测试，绝不随机</li>
+      <li>强化：tracking库 ml_boost 表的连涨样本 weight=2.0 并入</li>
+      <li>口径：训练与每日预测共用 <code>feature_frame()</code>，杜绝两套代码两种算法</li>
+    </ul>
+  </div>
+
+  <div class="demo" id="demo-split">
+    <div class="demo-title">随机切分 vs 时序切分</div>
+    <div class="demo-sub">同一个模型同一份数据，两种切分方式给出的"成绩单"。选一种看结果。</div>
+    <div class="ctrl">
+      <label>切分方式</label>
+      <label style="width:auto"><input type="radio" name="sp" value="rand" checked onchange="apSplitDraw()"> 随机切分</label>
+      <label style="width:auto"><input type="radio" name="sp" value="time" onchange="apSplitDraw()"> 按时间切分</label>
+    </div>
+    <div class="readout" id="split-out"></div>
+    <div class="note">随机切分的AUC好看是因为"训练集泄漏了测试集隔壁的日子"。
+    论文和教程里的惊人战绩，八成死在这一条上。</div>
+  </div>
+
+  <div class="box box-summary"><div class="box-title">本章小结</div>
+    <ul>
+      <li>标签=模型的目标定义；交易结果标签比泛泛的涨跌标签更贴实战</li>
+      <li>金融数据必须按时间切分，随机切分=瞄邻桌答案</li>
+      <li>样本权重是人机协同入口：你的复盘可以直接掰模型的注意力</li>
+    </ul>
+  </div>
+
+  <div class="quiz-wrap">
+    <h3>自测</h3>
+    <div class="quiz-q" data-answer="c">
+      <div class="q-text">1. 用"按战法交易盈亏"而非"10日涨幅&gt;5%"做标签，核心好处是？</div>
+      <label><input type="radio" name="q1" value="a">样本更多</label>
+      <label><input type="radio" name="q1" value="b">计算更快</label>
+      <label><input type="radio" name="q1" value="c">模型学的是"我的打法下的赢面"，含卖出规则影响，直接服务实战决策</label>
+      <div class="explain">样本反而更少（15万笔 vs 全市场每天），但每个样本都和你的实际操作同构。</div>
+    </div>
+    <div class="quiz-q" data-answer="b">
+      <div class="q-text">2. 随机切分让AUC从0.55虚高到0.75，泄漏的本质是？</div>
+      <label><input type="radio" name="q2" value="a">测试集样本进了训练集</label>
+      <label><input type="radio" name="q2" value="b">相邻交易日高度相似，训练集见过测试日"隔壁的日子"等于变相见过答案</label>
+      <label><input type="radio" name="q2" value="c">特征里有未来函数</label>
+      <div class="explain">严格说没有样本重复，但时间相关性让信息渗透。市场数据不是独立同分布的，教科书假设在这里失效。</div>
+    </div>
+    <div class="quiz-q" data-answer="a">
+      <div class="q-text">3. 连涨归因样本权重×2的作用机制是？</div>
+      <label><input type="radio" name="q3" value="a">训练时这些样本判错的代价加倍，模型被迫更认真拟合它们</label>
+      <label><input type="radio" name="q3" value="b">这些样本被复制了两份放进测试集</label>
+      <label><input type="radio" name="q3" value="c">直接提高这些股票的评分</label>
+      <div class="explain">sample_weight作用于损失函数。它不改变数据，只改变"哪些错误更不可原谅"。</div>
+    </div>
+    <button class="btn" onclick="apGradeQuiz(this)">提交答案</button>
+    <div class="quiz-score"></div>
+  </div>
+
+  <div class="box"><div class="box-title">延伸阅读</div>
+    <ul>
+      <li><a href="l3-eval.html">L3·3 模型评估</a> — 切分对了，怎么读成绩单</li>
+      <li><a href="l4-llm.html">L4·1 LLM角色</a> — 形态教学：标签工程的自然语言入口</li>
+    </ul>
+  </div>
+
+  <div id="pager"></div>
+</main>
+</div>
+<script src="glossary.js"></script>
+<script src="app.js"></script>
+<script>
+function apSplitDraw() {
+  var mode = document.querySelector('input[name=sp]:checked').value;
+  var el = document.getElementById("split-out");
+  if (mode === "rand") {
+    el.innerHTML = '<div style="font-size:15px">验证AUC <b style="color:var(--accent)">0.74</b> · Top10%胜率 <b>61%</b>'
+      + ' <span style="color:var(--up)">（虚高 ⚠）</span></div>'
+      + '<div style="color:var(--muted);font-size:13px;margin-top:6px>">训练集和测试集犬牙交错地共享每一段行情，模型靠"记住邻居"得分。实盘必然露馅。</div>';
+  } else {
+    el.innerHTML = '<div style="font-size:15px">测试AUC <b style="color:var(--accent)">0.545</b> · Top10%胜率 <b>48%</b> vs 基准36%'
+      + ' <span style="color:var(--down)">（真实 ✓）</span></div>'
+      + '<div style="color:var(--muted);font-size:13px;margin-top:6px">分数难看得多——但这是模型在"只见过过去"条件下的真本事，与实盘条件一致。这就是你系统的真实成绩单。</div>';
+  }
+}
+document.addEventListener("DOMContentLoaded", apSplitDraw);
+</script>
+</body>
+</html>

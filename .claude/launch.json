@@ -6,6 +6,12 @@
       "runtimeExecutable": ".venv/bin/streamlit",
       "runtimeArgs": ["run", "alphapulse/ui/app.py", "--server.port", "8765", "--server.headless", "true"],
       "port": 8765
+    },
+    {
+      "name": "knowledge-site",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8767", "--directory", "docs/knowledge_site"],
+      "port": 8767
     }
   ]
 }

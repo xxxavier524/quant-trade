@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L2·3 仓位与组合管理 · AlphaPulse 知识库</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main>
+  <div class="kicker">L2 经典方法 · 第 3 章</div>
+  <h1>仓位与组合：正期望之后，下多大注</h1>
+
+  <div class="box box-lead"><div class="box-title">本章导读</div>
+    <p>选股决定赚不赚，仓位决定赚多少、亏多深、能不能活到赚钱那天。
+    本章讲<span class="term">凯利公式</span>的直觉、为什么实务只用1/4凯利、
+    以及你系统里"单票≤20%、最多5只、大盘档位调仓"这三条规则的数学出处。</p>
+  </div>
+
+  <h2>1. 凯利公式：复利最快的下注比例</h2>
+  <pre><code>f* = (b×p − q) / b     b=赔率, p=胜率, q=1−p</code></pre>
+  <p>下注比例太小浪费优势，太大一次回撤毁掉复利（亏50%要赚100%才回本）。
+  凯利给出长期复利增长最快的那个点。但它有两个致命前提：<b>你准确知道p和b</b>、<b>你能忍受巨大波动</b>——
+  实盘里两个都不成立，所以实务用<b>1/4~1/2凯利</b>：增长牺牲一点，回撤大幅缩小。</p>
+
+  <div class="box box-analogy"><div class="box-title">类比</div>
+    <p>开车去机场：理论最快是地板油（全凯利），但任何一个意外就全完。
+    老司机开八成速度（分数凯利）——慢一点点，但确定到得了。交易是无限局游戏，<b>活着比快重要</b>。</p>
+  </div>
+
+  <div class="demo" id="demo-kelly">
+    <div class="demo-title">凯利计算器 + 回撤体感</div>
+    <div class="demo-sub">拖动胜率和赔率，看全凯利/半凯利/四分之一凯利的仓位建议和典型最大回撤。</div>
+    <div class="ctrl"><label>胜率</label><input type="range" min="30" max="75" value="55" id="kp" data-out="kpv" data-unit="%"><span class="val" id="kpv"></span></div>
+    <div class="ctrl"><label>赔率（盈亏比）</label><input type="range" min="5" max="30" value="15" id="kb" data-out="kbv"><span class="val" id="kbv"></span><span style="color:var(--muted);font-size:12px">×0.1</span></div>
+    <div class="readout" id="k-out"></div>
+    <div class="note">注意全凯利的典型回撤——大多数人在-40%时已经弃疗，策略再好也白搭。
+    仓位的第一约束不是数学，是你的心理承受力。</div>
+  </div>
+
+  <h2>2. 组合层面：分散与相关性</h2>
+  <p>5只票各20%不等于风险砍成1/5——若5只都是同板块同逻辑（比如全是超跌反弹），
+  跌起来一起跌，等于一只票满仓。<b>分散的本质是逻辑分散</b>，不是数量分散。
+  你的Top50带板块/概念标注，挑票时刻意跨板块，比多拿两只同板块更降风险。</p>
+  <p>大盘档位是组合的总阀门：个股再好，空头市里也七亏二平一赚——
+  先用大盘分定总仓位区间，再在区间内分配个股，<b>自上而下</b>。</p>
+
+  <div class="box box-yoursys"><div class="box-title">在你的系统里</div>
+    <ul>
+      <li>单票≤20%/最多5只：等权下注+逻辑分散的简化实现（约等于保守分数凯利）</li>
+      <li>大盘仓位建议：多头70-90% / 震荡30-50% / 空头≤10%——量能+知行BS+N型三维定档</li>
+      <li>回测口径同款约束：<code>settings.py</code> MAX_SINGLE_POSITION=0.20, MAX_HOLDINGS=5</li>
+      <li>战法持有规则是动态仓位：B2没来→换股（截断时间风险），放飞→减1/3（锁utilities盈利）</li>
+    </ul>
+  </div>
+
+  <div class="box box-summary"><div class="box-title">本章小结</div>
+    <ul>
+      <li>凯利给出复利最优注码，实务用1/4~1/2（参数有误差+回撤难忍）</li>
+      <li>分散看逻辑不看数量；同逻辑5只=1只满仓</li>
+      <li>自上而下：大盘档位定总仓 → 组合内分配 → 个股止损定单笔风险</li>
+    </ul>
+  </div>
+
+  <div class="quiz-wrap">
+    <h3>自测</h3>
+    <div class="quiz-q" data-answer="b">
+      <div class="q-text">1. 胜率55%、赔率1.5，全凯利 f* = (1.5×0.55−0.45)/1.5 = 25%。实务建议仓位？</div>
+      <label><input type="radio" name="q1" value="a">25%，数学最优就用</label>
+      <label><input type="radio" name="q1" value="b">6%~12%（1/4~1/2凯利），参数估计有误差且回撤要可忍受</label>
+      <label><input type="radio" name="q1" value="c">50%，富贵险中求</label>
+      <div class="explain">回测算出的55%胜率实际可能是50%——全凯利对参数误差极其敏感，高估时直接变成毁灭机器。</div>
+    </div>
+    <div class="quiz-q" data-answer="c">
+      <div class="q-text">2. 持有5只票：3只锂电+2只光伏，都是"超跌缩量B1"。这个组合的有效分散度接近？</div>
+      <label><input type="radio" name="q2" value="a">5只，已经很分散</label>
+      <label><input type="radio" name="q2" value="b">3-4只</label>
+      <label><input type="radio" name="q2" value="c">1-2只——同为新能源赛道+同一买点逻辑，高度同涨同跌</label>
+      <div class="explain">板块相关+逻辑相关双重叠加。新能源板块跌3%时五只大概率全绿，分散是幻觉。</div>
+    </div>
+    <div class="quiz-q" data-answer="a">
+      <div class="q-text">3. 亏损50%后需要涨多少回本？这说明什么？</div>
+      <label><input type="radio" name="q3" value="a">100%；亏损的伤害是非线性的，控回撤优先于追收益</label>
+      <label><input type="radio" name="q3" value="b">50%；对称的</label>
+      <label><input type="radio" name="q3" value="c">75%</label>
+      <div class="explain">0.5×2=1。回撤越深回本越难，这就是凯利要打折、空头市要轻仓的根本数学。</div>
+    </div>
+    <button class="btn" onclick="apGradeQuiz(this)">提交答案</button>
+    <div class="quiz-score"></div>
+  </div>
+
+  <div class="box"><div class="box-title">延伸阅读</div>
+    <ul>
+      <li><a href="l1-winrate.html">L1·3 胜率赔率期望</a> — 仓位的前提：先有正期望</li>
+      <li><a href="../trading_system.md">交易体系总纲§4</a> — 你的卖出与减仓规则全集</li>
+    </ul>
+  </div>
+
+  <div id="pager"></div>
+</main>
+</div>
+<script src="glossary.js"></script>
+<script src="app.js"></script>
+<script>
+apBindSliders("demo-kelly", function () {
+  var p = +document.getElementById("kp").value / 100,
+      b = +document.getElementById("kb").value / 10;
+  var f = (b * p - (1 - p)) / b;
+  var out = document.getElementById("k-out");
+  if (f <= 0) {
+    out.innerHTML = '<b style="color:var(--up)">f* ≤ 0：负期望组合，正确仓位是 0（不参与）</b>';
+    return;
+  }
+  function row(name, frac, mult) {
+    // 粗略典型回撤经验式：全凯利~50%+，按比例缩
+    var dd = Math.min(0.9, 0.55 * mult + 0.08);
+    return "<div>" + name + "：仓位 <b>" + (f * mult * 100).toFixed(1) + "%</b>" +
+      ' <span style="color:var(--muted)">典型最大回撤≈</span><span style="color:var(--up)">-' +
+      (dd * 100).toFixed(0) + "%</span></div>";
+  }
+  out.innerHTML = "<div>全凯利 f* = <b>" + (f * 100).toFixed(1) + "%</b></div>" +
+    row("半凯利", f, 0.5) + row("1/4凯利", f, 0.25) +
+    '<div style="margin-top:6px;color:var(--muted);font-size:13px">对照：你的"单票≤20%、最多5只"在多数参数下落在1/4~1/2凯利区间</div>';
+});
+</script>
+</body>
+</html>

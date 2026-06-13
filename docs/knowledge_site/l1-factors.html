@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L1·1 因子与 IC · AlphaPulse 知识库</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main>
+  <div class="kicker">L1 量化基础 · 第 1 章</div>
+  <h1>因子与 IC：把盘感变成可以验证的数</h1>
+
+  <div class="box box-lead"><div class="box-title">本章导读</div>
+    <p>你看盘时说"这票J值低、缩量、站在黄线上"——这句话里有三个<span class="term">因子</span>。
+    本章讲清楚：什么是因子、怎么衡量一个因子"说话准不准"（<span class="term">IC</span>），
+    以及为什么你的系统里有13个子分数而不是1个。</p>
+  </div>
+
+  <h2>1. 因子：对每只股票每天都能算出的一个数</h2>
+  <p>为什么需要它？因为"图形好"没法批量比较5000只股票，而数可以排序。
+  量化做的第一件事就是把观察<b>函数化</b>：</p>
+  <pre><code>def compute(df) -> Series   # 输入一段K线，输出每天一个数</code></pre>
+  <p>因子分两类：<b>布尔因子</b>（今天满足/不满足，如"B1六条件全过"）和<b>连续因子</b>
+  （满足的程度，如"J值=-3.7比J值=12.9更超卖"）。你的系统从布尔升级到连续评分，
+  正是为了保留"程度"信息——两只都过B1的票，依然分得出谁更好。</p>
+
+  <div class="box box-analogy"><div class="box-title">类比</div>
+    <p>布尔因子像体检报告里的"合格/不合格"；连续因子像具体读数。
+    医生看到"血压不合格"会追问"多少？"——140和190完全是两种处理方式。选股同理。</p>
+  </div>
+
+  <h2>2. IC：因子说的话，准不准？</h2>
+  <p>有了因子，怎么知道它有没有用？答案是<span class="term">IC</span>（信息系数）：
+  <b>某一天，全市场每只股票的因子值，与它们未来N日实际涨幅的相关系数</b>。
+  每天算一个IC，攒成序列再看均值——这就是<span class="term">截面</span>检验。</p>
+  <ul>
+    <li>|IC均值| &gt; 0.03：可用因子；&gt; 0.05：好因子；&gt; 0.1：极强（罕见，警惕算错）</li>
+    <li>实务用<span class="term">RankIC</span>（排名相关），A股小票多极端值多，排名更抗噪</li>
+    <li><span class="term">ICIR</span> = IC均值÷IC标准差：不仅要准，还要<b>稳定地准</b></li>
+  </ul>
+  <p>IC的正负号同样有用：你系统里 N_STRUCT 的IC是 <b>-0.387</b>——强负相关，
+  意味着它是个优秀的<b>反向</b>过滤器（出现该形态后短期反而弱）。负IC不是坏因子，用反方向就行。</p>
+
+  <div class="box box-yoursys"><div class="box-title">在你的系统里</div>
+    <ul>
+      <li>47个因子注册在 <code>factor_registry.py</code>，统一 <code>compute(df)→Series</code> 契约</li>
+      <li>13个连续子分数（J低/趋势/缩量/红肥绿瘦/…/周线金叉/ML分）在 <code>ranking/sub_scores.py</code>，每个都把通达信条件"程度化"到0-1</li>
+      <li>信号验证页跑的就是事件版IC检验：B1全历史71,687次信号、5日胜率47.5%、净均值+0.10%</li>
+      <li>权重文件 <code>config/factor_weights.json</code> 未来由IC反馈自动调（FactorWeighter）</li>
+    </ul>
+  </div>
+
+  <div class="demo" id="demo-ic">
+    <div class="demo-title">IC 权重分配器</div>
+    <div class="demo-sub">三个因子的IC不同，拖动看"按IC比例分权重"的结果。直觉：话越准的人，话语权越大；但单因子权重不宜超过一半——它也有失灵的年份。</div>
+    <div class="ctrl"><label>因子A · IC</label><input type="range" min="0" max="10" value="5" id="icA" data-out="icAv"><span class="val" id="icAv"></span><span style="color:var(--muted);font-size:12px">×0.01</span></div>
+    <div class="ctrl"><label>因子B · IC</label><input type="range" min="0" max="10" value="3" id="icB" data-out="icBv"><span class="val" id="icBv"></span><span style="color:var(--muted);font-size:12px">×0.01</span></div>
+    <div class="ctrl"><label>因子C · IC</label><input type="range" min="0" max="10" value="1" id="icC" data-out="icCv"><span class="val" id="icCv"></span><span style="color:var(--muted);font-size:12px">×0.01</span></div>
+    <div class="readout" id="ic-out"></div>
+    <div class="note">你的种子权重（j_low 0.18 / trend_gap 0.16 / …）就是按"经验IC"手拍的初版，等信号验证攒够IC数据后会自动校准。</div>
+  </div>
+
+  <h2>3. 因子的生命周期</h2>
+  <p>因子会失效：拥挤（人人都用）、市场风格切换（小票年/大票年）、制度变化（涨跌幅、T+1）。
+  所以系统必须有<b>反馈回路</b>——你的信号追踪闭环（7日跟踪→连涨归因→沉淀）就是在持续重新校验因子。
+  一个健康的量化系统不是"找到圣杯然后躺平"，而是"不断给因子做年检"。</p>
+
+  <div class="box box-summary"><div class="box-title">本章小结</div>
+    <ul>
+      <li>因子 = 把观察函数化成每天一个数；连续因子保留"程度"，优于布尔</li>
+      <li>IC = 因子值与未来收益的截面相关；|IC|&gt;0.03可用，负IC反着用</li>
+      <li>ICIR衡量稳定性；因子需要年检，反馈回路比单次验证重要</li>
+    </ul>
+  </div>
+
+  <div class="quiz-wrap">
+    <h3>自测</h3>
+    <div class="quiz-q" data-answer="b">
+      <div class="q-text">1. "当日J值"和"J值是否小于13"，哪个说法正确？</div>
+      <label><input type="radio" name="q1" value="a">前者是布尔因子，后者是连续因子</label>
+      <label><input type="radio" name="q1" value="b">前者是连续因子，后者是布尔因子</label>
+      <label><input type="radio" name="q1" value="c">两者都是布尔因子</label>
+      <div class="explain">J值本身是个连续读数（-20到110都可能）；"是否&lt;13"把它压缩成真/假，丢掉了程度信息。</div>
+    </div>
+    <div class="quiz-q" data-answer="c">
+      <div class="q-text">2. 某因子IC均值=-0.06、ICIR=-0.8，正确的处理是？</div>
+      <label><input type="radio" name="q2" value="a">丢弃，负IC说明因子无效</label>
+      <label><input type="radio" name="q2" value="b">保留但权重给0</label>
+      <label><input type="radio" name="q2" value="c">反向使用——它稳定地预示着弱势</label>
+      <div class="explain">|0.06|是不错的强度，负号只说明方向：因子值高→未来弱。反向用（做过滤或负权重）。你系统的N_STRUCT(IC=-0.387)正是这么用的。</div>
+    </div>
+    <div class="quiz-q" data-answer="b">
+      <div class="q-text">3. 为什么A股实务更常用RankIC而非普通IC？</div>
+      <label><input type="radio" name="q3" value="a">RankIC计算更快</label>
+      <label><input type="radio" name="q3" value="b">排名对妖股/极端值不敏感，更稳健</label>
+      <label><input type="radio" name="q3" value="c">监管要求</label>
+      <div class="explain">一只10倍妖股的原始收益会扭曲皮尔逊相关；换成排名后它只是"第1名"，影响有界。</div>
+    </div>
+    <div class="quiz-q" data-answer="a">
+      <div class="q-text">4. 你的系统把"缩量"做成 vol/MA40 的连续打分而非"是否缩到1/4"，主要好处是？</div>
+      <label><input type="radio" name="q4" value="a">两只都缩量的票仍能分出谁缩得更充分，可排序</label>
+      <label><input type="radio" name="q4" value="b">计算更省内存</label>
+      <label><input type="radio" name="q4" value="c">能避免未来函数</label>
+      <div class="explain">连续化的核心价值就是可排序——全市场打分选Top50，必须每个维度都有"程度"。</div>
+    </div>
+    <button class="btn" onclick="apGradeQuiz(this)">提交答案</button>
+    <div class="quiz-score"></div>
+  </div>
+
+  <div class="box"><div class="box-title">延伸阅读</div>
+    <ul>
+      <li><a href="../research_journal/02_qlib.md">研究日记02 · qlib</a> — 微软的因子表达式DSL与Alpha158因子库</li>
+      <li><a href="../trading_system.md">交易体系总纲</a> — 你的全部因子的原始定义</li>
+    </ul>
+  </div>
+
+  <div id="pager"></div>
+</main>
+</div>
+<script src="glossary.js"></script>
+<script src="app.js"></script>
+<script>
+apBindSliders("demo-ic", function () {
+  var a = +document.getElementById("icA").value,
+      b = +document.getElementById("icB").value,
+      c = +document.getElementById("icC").value;
+  var s = a + b + c;
+  var out = document.getElementById("ic-out");
+  if (!s) { out.innerHTML = "三个因子IC都为0 → 没有可用信息，无法分配权重"; return; }
+  function row(n, v) {
+    var w = v / s;
+    var warn = w > 0.5 ? ' <span style="color:var(--up)">⚠ 超过50%，单因子依赖过重</span>' : "";
+    return "<div>因子" + n + "：权重 <b>" + (w * 100).toFixed(0) + "%</b>" + warn + "</div>";
+  }
+  out.innerHTML = row("A", a) + row("B", b) + row("C", c);
+});
+</script>
+</body>
+</html>

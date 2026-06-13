@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AlphaPulse 知识库 · 总览与学习路径</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main>
+  <div class="hero">
+    <div class="kicker">AlphaPulse 知识库</div>
+    <h1>从盘感到系统：量化与 AI 交易学习路径</h1>
+    <p>你已经有了一套能跑的系统（AlphaPulse-A）和多年的盘感。这套知识库的目标只有一个：
+    让你<b>看懂系统每个零件背后的"为什么"</b>——为什么评分而不是条件AND、为什么参数要看邻域、
+    为什么模型AUC只有0.55却有用。每章15-25分钟，配你自己系统里的真实数字。</p>
+  </div>
+
+  <div class="figure">
+    <svg viewBox="0 0 800 150" xmlns="http://www.w3.org/2000/svg" class="plot" style="border:none;background:transparent">
+      <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8b919e"/></marker></defs>
+      <g font-size="13" text-anchor="middle">
+        <rect x="20"  y="45" width="160" height="60" rx="10" fill="#161a23" stroke="#3b82f6"/>
+        <text x="100" y="70" fill="#3b82f6" font-weight="bold">L1 量化基础</text>
+        <text x="100" y="90" fill="#8b919e" font-size="11">因子·回测·胜率赔率</text>
+        <rect x="220" y="45" width="160" height="60" rx="10" fill="#161a23" stroke="#f0b90b"/>
+        <text x="300" y="70" fill="#f0b90b" font-weight="bold">L2 经典方法</text>
+        <text x="300" y="90" fill="#8b919e" font-size="11">评分·参数·仓位</text>
+        <rect x="420" y="45" width="160" height="60" rx="10" fill="#161a23" stroke="#14b143"/>
+        <text x="500" y="70" fill="#14b143" font-weight="bold">L3 机器学习</text>
+        <text x="500" y="90" fill="#8b919e" font-size="11">GBDT·标签·评估</text>
+        <rect x="620" y="45" width="160" height="60" rx="10" fill="#161a23" stroke="#ef232a"/>
+        <text x="700" y="70" fill="#ef232a" font-weight="bold">L4 AI 前沿</text>
+        <text x="700" y="90" fill="#8b919e" font-size="11">LLM·案例剖析</text>
+        <line x1="180" y1="75" x2="216" y2="75" stroke="#8b919e" marker-end="url(#arr)"/>
+        <line x1="380" y1="75" x2="416" y2="75" stroke="#8b919e" marker-end="url(#arr)"/>
+        <line x1="580" y1="75" x2="616" y2="75" stroke="#8b919e" marker-end="url(#arr)"/>
+      </g>
+    </svg>
+    <div class="figcap">建议按序学习：每一层都假设你掌握了前一层的概念</div>
+  </div>
+
+  <h2>章节目录</h2>
+  <div class="card-grid">
+    <a class="ch-card" data-file="l1-factors.html" href="l1-factors.html">
+      <div class="num">L1·1</div><div class="t">因子与 IC</div>
+      <p>把"J值很低"变成机器能算的数，并量化它到底准不准。</p><div class="state"></div></a>
+    <a class="ch-card" data-file="l1-backtest.html" href="l1-backtest.html">
+      <div class="num">L1·2</div><div class="t">回测与过拟合</div>
+      <p>回测的四个大坑：未来函数、幸存者、过拟合、成本。附你系统里的真实否决案例。</p><div class="state"></div></a>
+    <a class="ch-card" data-file="l1-winrate.html" href="l1-winrate.html">
+      <div class="num">L1·3</div><div class="t">胜率、赔率与期望</div>
+      <p>47.5%胜率的B1为什么仍然有效？期望值计算器亲手算一遍。</p><div class="state"></div></a>
+    <a class="ch-card" data-file="l2-scoring.html" href="l2-scoring.html">
+      <div class="num">L2·1</div><div class="t">多因子评分体系</div>
+      <p>从"全部条件满足"到0-100打分排序——你的选股雷达是怎么算分的。</p><div class="state"></div></a>
+    <a class="ch-card" data-file="l2-params.html" href="l2-params.html">
+      <div class="num">L2·2</div><div class="t">参数稳健性与网格搜索</div>
+      <p>为什么不能挑热力图上最红的那一格？邻域稳健性的道理。</p><div class="state"></div></a>
+    <a class="ch-card" data-file="l2-position.html" href="l2-position.html">
+      <div class="num">L2·3</div><div class="t">仓位与组合管理</div>
+      <p>凯利公式、单票20%上限的由来、大盘档位如何调仓位。</p><div class="state"></div></a>
+    <a class="ch-card" data-file="l3-gbdt.html" href="l3-gbdt.html">
+      <div class="num">L3·1</div><div class="t">GBDT 与特征工程</div>
+      <p>你的ML胜率分背后：决策树如何长成森林，25个特征怎么来的。</p><div class="state"></div></a>
+    <a class="ch-card" data-file="l3-labels.html" href="l3-labels.html">
+      <div class="num">L3·2</div><div class="t">标签设计与时序防泄漏</div>
+      <p>标签决定模型学什么；随机切分为什么是自欺欺人。</p><div class="state"></div></a>
+    <a class="ch-card" data-file="l3-eval.html" href="l3-eval.html">
+      <div class="num">L3·3</div><div class="t">模型评估与可解释性</div>
+      <p>AUC 0.545到底是好是坏？分位胜率才是量化人该看的指标。</p><div class="state"></div></a>
+    <a class="ch-card" data-file="l4-llm.html" href="l4-llm.html">
+      <div class="num">L4·1</div><div class="t">LLM 在量化中的角色</div>
+      <p>大模型能做什么不能做什么；NL转因子的安全链；形态教学的原理。</p><div class="state"></div></a>
+    <a class="ch-card" data-file="l4-cases.html" href="l4-cases.html">
+      <div class="num">L4·2</div><div class="t">7 个开源项目案例剖析</div>
+      <p>qlib/abu/chan.py等7个项目精读后的横向对比，以及RPS否决的教训。</p><div class="state"></div></a>
+  </div>
+
+  <div class="box box-lead"><div class="box-title">怎么用这个知识库</div>
+    <ul>
+      <li><b>进度</b>：每章末测验全对会自动标记✔，也可手动点"标记已读"；进度存在浏览器里。</li>
+      <li><b>术语</b>：正文里<span class="term">IC</span>这样带虚线下划线的词，鼠标悬停（手机点按）即弹解释。</li>
+      <li><b>互动</b>：🛠 标记的演示框都能拖滑杆，拖一拖比读十遍管用。</li>
+      <li><b>关联</b>：每章"在你的系统里"框把概念落到 AlphaPulse-A 的真实模块和数字上。</li>
+    </ul>
+  </div>
+  <div id="pager"></div>
+</main>
+</div>
+<script src="glossary.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

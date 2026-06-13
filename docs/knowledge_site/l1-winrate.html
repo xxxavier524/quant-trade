@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L1·3 胜率、赔率与期望 · AlphaPulse 知识库</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main>
+  <div class="kicker">L1 量化基础 · 第 3 章</div>
+  <h1>胜率、赔率与期望：47.5%胜率为什么还能赚钱</h1>
+
+  <div class="box box-lead"><div class="box-title">本章导读</div>
+    <p>很多人看到"B1胜率47.5%"的第一反应是"还不如抛硬币"。这是对交易数学最常见的误解。
+    本章把<span class="term">胜率</span>、<span class="term">赔率</span>、<span class="term">期望值</span>三个数捏在一起算清楚，
+    再看分布的两端（P10/P90）——读完你会明白为什么你的系统敢用这些信号。</p>
+  </div>
+
+  <h2>1. 期望值：唯一重要的那个数</h2>
+  <p>每笔交易长期平均赚多少：</p>
+  <pre><code>E = 胜率 × 平均盈利 − (1−胜率) × 平均亏损 − 交易成本</code></pre>
+  <p>胜率和赔率是跷跷板：右侧追涨胜率低赔率高，超跌摸底胜率高赔率低。
+  <b>单独报胜率没有意义</b>——胜率90%但亏一次赔光的策略（卖深度虚值期权）和
+  胜率30%但赚一次翻倍的策略（趋势跟踪）都可能是好策略。</p>
+
+  <div class="box box-analogy"><div class="box-title">类比</div>
+    <p>抓娃娃机：10次抓中3次（胜率30%），每次2元，娃娃值10元。期望 = 0.3×10 − 2 = +1元/次。
+    虽然7次空手，这台机器仍在给你发钱——前提是你抓得足够多次，<b>大数定律</b>才有空间生效。</p>
+  </div>
+
+  <div class="demo" id="demo-ev">
+    <div class="demo-title">期望值计算器 + 模拟资金曲线</div>
+    <div class="demo-sub">拖动三个滑杆，下方实时算期望并模拟100笔交易的资金曲线（每次拖动重新模拟一条随机路径）。</div>
+    <div class="ctrl"><label>胜率</label><input type="range" min="20" max="80" value="47" id="evw" data-out="evwv" data-unit="%"><span class="val" id="evwv"></span></div>
+    <div class="ctrl"><label>盈亏比（赔率）</label><input type="range" min="5" max="40" value="13" id="evr" data-out="evrv"><span class="val" id="evrv"></span><span style="color:var(--muted);font-size:12px">×0.1</span></div>
+    <div class="ctrl"><label>单边成本</label><input type="range" min="0" max="10" value="5" id="evc" data-out="evcv"><span class="val" id="evcv"></span><span style="color:var(--muted);font-size:12px">×0.1%</span></div>
+    <div class="readout" id="ev-out"></div>
+    <svg class="plot" id="ev-plot" viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="note">把胜率拖到47%、盈亏比1.3、成本0.5%——约等于B1信号的真实参数，看期望是否为正。
+    再试试同样参数下多拖几次：单条路径波动很大，这就是为什么不能用一周的实盘下结论。</div>
+  </div>
+
+  <h2>2. 分布的两端：P10 和 P90</h2>
+  <p>均值会骗人，分布不会。你的信号验证器输出 P10/P90（最差10%/最好10%分位）：
+  B1的5日 P10=-6.2%、P90=+7.3%——右尾略胖于左尾，配合止损把左尾砍短，期望就被结构性改善了。
+  <b>交易系统的本质是分布改造</b>：入场决定原始分布，出场把它剪裁成你要的形状。</p>
+
+  <div class="box box-yoursys"><div class="box-title">在你的系统里</div>
+    <ul>
+      <li>B1单独：5日胜率47.5%、净均值+0.10%——薄但为正的优势，靠<b>量</b>（7万次/6年）和纪律变现</li>
+      <li>叠加确认后质变：B1→B2 72.4%胜率/+6.2%；<b>B1→B2→B3完整序列 94.7%/+13.0%</b>——你的"递进确认"经验在数学上等于条件概率的连乘筛选</li>
+      <li>卖出体系改造左尾：S1卖点平均+23.2%（卖在顶部），止损把单笔最大亏损钉死</li>
+      <li>验证器同时报毛/净两套：成本0.55%/来回，高频小肉信号在净口径下现形</li>
+    </ul>
+  </div>
+
+  <div class="box box-summary"><div class="box-title">本章小结</div>
+    <ul>
+      <li>期望 = 胜率×盈利 −(1−胜率)×亏损 −成本；胜率单独无意义</li>
+      <li>薄优势×大样本×纪律 = 可观收益；大数定律需要次数</li>
+      <li>看分布别只看均值；系统=入场给分布+出场剪分布</li>
+    </ul>
+  </div>
+
+  <div class="quiz-wrap">
+    <h3>自测</h3>
+    <div class="quiz-q" data-answer="c">
+      <div class="q-text">1. 胜率40%、平均盈利+8%、平均亏损-3%、成本0.5%，期望是？</div>
+      <label><input type="radio" name="q1" value="a">负的，胜率不到50%必亏</label>
+      <label><input type="radio" name="q1" value="b">无法计算</label>
+      <label><input type="radio" name="q1" value="c">0.4×8 − 0.6×3 − 0.5 = +0.9%/笔，正期望</label>
+      <div class="explain">3.2 − 1.8 − 0.5 = +0.9%。胜率40%照样是印钞机，关键是赔率2.67:1。</div>
+    </div>
+    <div class="quiz-q" data-answer="b">
+      <div class="q-text">2. B1→B2→B3序列胜率94.7%远高于B1单独的47.5%，本质是？</div>
+      <label><input type="radio" name="q2" value="a">B3信号本身更准</label>
+      <label><input type="radio" name="q2" value="b">条件概率筛选：每过一道确认，剩下的样本质量更高</label>
+      <label><input type="radio" name="q2" value="c">样本少所以胜率虚高</label>
+      <div class="explain">放量阳(B2)和缩量阳不破位(B3)是两道"主力还在"的验证，等价于 P(涨|B1,B2,B3) ≫ P(涨|B1)。代价是信号变稀（94笔 vs 1.4万笔）。</div>
+    </div>
+    <div class="quiz-q" data-answer="a">
+      <div class="q-text">3. 某策略实盘两周连亏5笔，回测期望为正。最合理的态度是？</div>
+      <label><input type="radio" name="q3" value="a">5笔远不够大数定律生效，按计划继续并核对执行是否走样</label>
+      <label><input type="radio" name="q3" value="b">立即停用，实盘证明回测错了</label>
+      <label><input type="radio" name="q3" value="c">加倍仓位摊低成本</label>
+      <div class="explain">胜率47%的策略连亏5笔的概率约4%——一年总会碰到几次。需要警惕的是执行偏差，不是短期路径。</div>
+    </div>
+    <button class="btn" onclick="apGradeQuiz(this)">提交答案</button>
+    <div class="quiz-score"></div>
+  </div>
+
+  <div class="box"><div class="box-title">延伸阅读</div>
+    <ul>
+      <li><a href="l2-position.html">L2·3 仓位与组合</a> — 正期望之后，下多大注（凯利公式）</li>
+      <li><a href="../research_journal/08_integration_log.md">融合日记</a> — 真实AB数据的毛/净口径对照</li>
+    </ul>
+  </div>
+
+  <div id="pager"></div>
+</main>
+</div>
+<script src="glossary.js"></script>
+<script src="app.js"></script>
+<script>
+apBindSliders("demo-ev", function () {
+  var w = +document.getElementById("evw").value / 100,
+      r = +document.getElementById("evr").value / 10,
+      c = +document.getElementById("evc").value / 1000;
+  var avgWin = 0.03 * r, avgLoss = 0.03; // 以3%为亏损基准
+  var ev = w * avgWin - (1 - w) * avgLoss - c * 2;
+  var out = document.getElementById("ev-out");
+  var color = ev > 0 ? "var(--down)" : "var(--up)";
+  out.innerHTML = "单笔期望 = " + (w*100).toFixed(0) + "%×" + (avgWin*100).toFixed(1) + "% − " +
+    ((1-w)*100).toFixed(0) + "%×3.0% − 成本" + (c*200).toFixed(1) + "‰ = " +
+    '<b style="color:' + color + ';font-size:18px">' + (ev*100).toFixed(2) + "%</b>" +
+    (ev > 0 ? " ✓ 正期望" : " ✗ 负期望——再准的感觉也别做");
+  // 模拟100笔
+  var eq = 1, pts = [[0, 1]];
+  for (var i = 1; i <= 100; i++) {
+    eq *= (Math.random() < w) ? (1 + avgWin - c*2) : (1 - avgLoss - c*2);
+    pts.push([i, eq]);
+  }
+  var maxE = Math.max.apply(null, pts.map(function(p){return p[1];})) * 1.05;
+  var minE = Math.min.apply(null, pts.map(function(p){return p[1];})) * 0.95;
+  function Y(v){ return 185 - (v - minE) / (maxE - minE) * 165; }
+  var path = pts.map(function (p, i) { return (i?"L":"M") + (20 + p[0]*5.6) + " " + Y(p[1]); }).join(" ");
+  document.getElementById("ev-plot").innerHTML =
+    '<line x1="20" y1="' + Y(1) + '" x2="580" y2="' + Y(1) + '" stroke="#262a35" stroke-dasharray="4 4"/>' +
+    '<path d="' + path + '" fill="none" stroke="' + (eq >= 1 ? "#ef232a" : "#14b143") + '" stroke-width="2"/>' +
+    '<text x="24" y="' + (Y(1)-6) + '" fill="#8b919e" font-size="11">本金线</text>' +
+    '<text x="450" y="20" fill="#8b919e" font-size="12">100笔后: ' + eq.toFixed(2) + "x</text>";
+});
+</script>
+</body>
+</html>

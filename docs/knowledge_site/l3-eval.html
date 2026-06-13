@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L3·3 模型评估与可解释性 · AlphaPulse 知识库</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav id="sidebar"></nav>
+<main>
+  <div class="kicker">L3 机器学习 · 第 3 章</div>
+  <h1>模型评估：AUC 0.545 到底是好是坏？</h1>
+
+  <div class="box box-lead"><div class="box-title">本章导读</div>
+    <p>金融ML有自己的成绩单。教科书上0.55的AUC会被笑话，
+    但在量化里这是<b>好模型</b>——本章讲为什么，以及怎么读你的<span class="term">分位胜率</span>
+    和<span class="term">特征重要性</span>两张更有用的报表。</p>
+  </div>
+
+  <h2>1. AUC：教科书指标，金融里要打折看</h2>
+  <p>AUC衡量"模型给正样本的打分能否系统性高于负样本"。0.5=瞎猜，1.0=神。
+  CV/NLP里常见0.9+，金融市场上0.55-0.60已是顶级——为什么？
+  因为<b>市场极度噪杂、参与者都在套利信息</b>，能稳定预测到55%的方向已经是巨大优势。
+  问题不是"AUC低"，是<b>用错指标</b>：</p>
+  <ul>
+    <li>AUC告诉你"全样本排序能力"，而你只交易模型最看好的5%——剩下95%排得对不对你根本不在乎</li>
+    <li>你真正要的：<b>模型打分Top10%的样本，胜率是多少</b>——这才是实战</li>
+  </ul>
+
+  <h2>2. 分位胜率：量化人该看的指标</h2>
+  <p>把测试集按模型分数排序后切10档（十分位/decile）：</p>
+  <ul>
+    <li>Top10%档的胜率 = 模型最看好的票里实际涨了多少</li>
+    <li>Bot10%档的胜率 = 模型最不看好的票里实际涨了多少</li>
+    <li>两者差距越大，模型越能分得开好坏</li>
+  </ul>
+  <p>你的GBDT：Top10% 48% vs Bot10% 34%，差距14个点——这就是真正可用的信号强度。
+  AUC 0.545只是"压缩成一个数"的副产品。</p>
+
+  <div class="box box-analogy"><div class="box-title">类比</div>
+    <p>豆瓣评分。一部电影综合分7.5（AUC）不如告诉你"打9分以上的1000个人里有80%是文艺片爱好者"
+    （Top10%分位）来得有用——你只关心"我的圈层会不会喜欢"。</p>
+  </div>
+
+  <div class="demo" id="demo-dec">
+    <div class="demo-title">分位胜率直方图</div>
+    <div class="demo-sub">拖动"模型强度"，看十分位胜率是怎么从均匀变成阶梯的。差距越大=分得越开。</div>
+    <div class="ctrl"><label>模型强度</label><input type="range" min="0" max="10" value="5" id="ms" data-out="msv"><span class="val" id="msv"></span></div>
+    <svg class="plot" id="dec-plot" viewBox="0 0 600 220" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="note">强度0 = 完全随机的瞎猜模型，十档胜率都贴近基准36%。
+    强度满 = 完美预测，Top10% 胜率拉到80%+。你的GBDT大约在强度4-5。</div>
+  </div>
+
+  <h2>3. 可解释性：模型说的话能不能信</h2>
+  <p>除了准不准，还要问"它<b>凭什么</b>判这只票好"。两个工具：</p>
+  <ul>
+    <li><b>特征重要性</b>：模型在所有树里"用到某特征做切分"的总频次/总收益。
+      你的Top5是 红肥绿瘦/振幅/QL位置/5日涨幅/量比——和体系认知吻合 → 没学歪</li>
+    <li><b>形态贡献</b>：当某只票的ml_score特别高，可以追问"哪些特征把它推上去的"
+      （SHAP值/局部解释）——让模型从黑箱变成"说人话的助手"</li>
+  </ul>
+  <p>当Top特征出现"周二的样本数"这种荒诞列时，立刻警惕：要么数据泄漏，要么模型在抓伪相关。
+  <b>领域知识互证是可解释AI的核心保护</b>。</p>
+
+  <div class="box box-yoursys"><div class="box-title">在你的系统里</div>
+    <ul>
+      <li>验证报告 <code>models/pattern_gbdt_meta.json</code>：AUC、各分位胜率、特征重要性Top15</li>
+      <li>GUI "ML形态"页可视化：四个KPI卡 + 水平条图(重要性) + 重训按钮</li>
+      <li>形态教学闭环：模型重训后若教学形态（pt_*）进入Top重要特征 → 弹出提示"教学被采纳"</li>
+      <li>Bot10%胜率34%（接近基准）：模型擅长找好票，找烂票能力一般——符合"过滤而非空头"的设计</li>
+    </ul>
+  </div>
+
+  <div class="box box-summary"><div class="box-title">本章小结</div>
+    <ul>
+      <li>金融ML上AUC 0.55已是优秀；该看分位胜率而非AUC</li>
+      <li>Top10%胜率-Bot10%胜率 = 真正可用的信号强度</li>
+      <li>特征重要性+领域知识互证 = 防止模型抓伪相关的最后一道墙</li>
+    </ul>
+  </div>
+
+  <div class="quiz-wrap">
+    <h3>自测</h3>
+    <div class="quiz-q" data-answer="b">
+      <div class="q-text">1. 量化模型AUC=0.55，老板拿来对比CV比赛的0.95模型说"垃圾"。该怎么回？</div>
+      <label><input type="radio" name="q1" value="a">承认垃圾，回去加大网络</label>
+      <label><input type="radio" name="q1" value="b">金融噪比远高于图像，0.55已是优势；且实战看分位胜率不看AUC</label>
+      <label><input type="radio" name="q1" value="c">把AUC指标关掉</label>
+      <div class="explain">不同领域指标基准完全不同。金融市场有效假说告诉我们：能稳定预测一点点已是异常。</div>
+    </div>
+    <div class="quiz-q" data-answer="c">
+      <div class="q-text">2. 模型Top10%胜率55% vs Bot10%胜率35%。最实用的解读？</div>
+      <label><input type="radio" name="q2" value="a">胜率55%太低，弃用</label>
+      <label><input type="radio" name="q2" value="b">两档都低，模型废了</label>
+      <label><input type="radio" name="q2" value="c">差距20个点 = 模型分得开好坏；只买Top档，避开Bot档，就是有效使用</label>
+      <div class="explain">分位差距才是信号强度。20个点在金融上是巨大alpha——前提是不在所有样本上下注。</div>
+    </div>
+    <div class="quiz-q" data-answer="a">
+      <div class="q-text">3. 特征重要性榜首是"日期的星期几"，AUC却很高。最该怀疑什么？</div>
+      <label><input type="radio" name="q3" value="a">数据泄漏或模型抓住了伪相关，AUC虚高</label>
+      <label><input type="radio" name="q3" value="b">星期几就是有效因子</label>
+      <label><input type="radio" name="q3" value="c">应该删掉其他特征</label>
+      <div class="explain">缺乏经济学/交易逻辑的特征排第一，几乎必有问题。可解释性是审查模型可信度的核心闸门。</div>
+    </div>
+    <button class="btn" onclick="apGradeQuiz(this)">提交答案</button>
+    <div class="quiz-score"></div>
+  </div>
+
+  <div class="box"><div class="box-title">延伸阅读</div>
+    <ul>
+      <li><a href="l3-gbdt.html">L3·1 GBDT</a> — 模型本身的构造</li>
+      <li><a href="../research_journal/06_abu.md">研究日记06 · abu</a> — UMP裁判：可解释AI的进阶玩法（指认相似失败案例）</li>
+    </ul>
+  </div>
+
+  <div id="pager"></div>
+</main>
+</div>
+<script src="glossary.js"></script>
+<script src="app.js"></script>
+<script>
+apBindSliders("demo-dec", function () {
+  var s = +document.getElementById("ms").value / 10;
+  var base = 0.36, peak = base + (0.85 - base) * s;
+  // 10档胜率：从均匀到阶梯过渡
+  var vals = [];
+  for (var i = 0; i < 10; i++) {
+    var t = i / 9;          // 0..1
+    var rate = base + (peak - base) * t * (0.6 + 0.4 * s); // 强度低→曲线扁
+    vals.push(rate);
+  }
+  var svg = document.getElementById("dec-plot");
+  var maxY = 0.9;
+  var h = '<line x1="40" y1="190" x2="580" y2="190" stroke="#262a35"/>';
+  for (var i = 0; i < 10; i++) {
+    var x = 50 + i * 52, hgt = vals[i] / maxY * 160;
+    var color = i >= 8 ? "#ef232a" : (i <= 1 ? "#14b143" : "#3b82f6");
+    h += '<rect x="' + x + '" y="' + (190 - hgt) + '" width="44" height="' + hgt + '" fill="' + color + '" opacity="0.85"/>';
+    h += '<text x="' + (x + 22) + '" y="' + (185 - hgt) + '" text-anchor="middle" fill="#fff" font-size="11">' + (vals[i]*100).toFixed(0) + "%</text>";
+    h += '<text x="' + (x + 22) + '" y="' + 204 + '" text-anchor="middle" fill="#8b919e" font-size="10">D' + (i+1) + "</text>";
+  }
+  h += '<line x1="40" y1="' + (190 - base/maxY*160) + '" x2="580" y2="' + (190 - base/maxY*160) +
+       '" stroke="#f0b90b" stroke-dasharray="4 4"/>';
+  h += '<text x="44" y="' + (185 - base/maxY*160) + '" fill="#f0b90b" font-size="11">基准胜率 ' + (base*100).toFixed(0) + '%</text>';
+  h += '<text x="500" y="20" fill="#8b919e" font-size="12">Top-Bot差距: ' + ((vals[9]-vals[0])*100).toFixed(0) + ' pp</text>';
+  svg.innerHTML = h;
+});
+</script>
+</body>
+</html>
