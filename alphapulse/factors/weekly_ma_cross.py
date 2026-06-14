@@ -13,9 +13,15 @@ import pandas as pd
 
 def _to_dates(data: pd.DataFrame) -> pd.Series:
     """稳健解析日期：兼容 '2026-05-22' 与 '2026-05-22 00:00:00' 混合格式。"""
-    raw = data["date"] if "date" in data.columns else pd.Series(data.index)
-    # 统一切到前10位（YYYY-MM-DD），规避单只CSV混入时间戳导致 to_datetime 推断format失败
-    return pd.to_datetime(raw.astype(str).str.slice(0, 10), format="%Y-%m-%d", errors="coerce")
+    if "date" in data.columns:
+        # 切到前10位（YYYY-MM-DD），规避单只CSV混入时间戳导致 to_datetime 推断format失败
+        return pd.to_datetime(data["date"].astype(str).str.slice(0, 10),
+                              format="%Y-%m-%d", errors="coerce")
+    # 无 date 列：按原索引解析（DatetimeIndex 直接用，整数索引退回 epoch 行为，不崩溃）
+    idx = data.index
+    if isinstance(idx, pd.DatetimeIndex):
+        return pd.Series(idx)
+    return pd.to_datetime(pd.Series(idx), errors="coerce")
 
 
 def weekly_close(data: pd.DataFrame) -> pd.Series:
