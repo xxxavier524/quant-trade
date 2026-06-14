@@ -92,7 +92,8 @@ def board_index_kline(board: str, data_dir: Path, kind: str = "auto",
             continue
         if len(df) < 30:
             continue
-        s = df.set_index("date")["close"].astype(float).pct_change()
+        # 日收益裁剪到 ±21%（A股涨跌幅上限，剔除停牌复牌跳空等数据毛刺，防NAV失真）
+        s = df.set_index("date")["close"].astype(float).pct_change().clip(-0.21, 0.21)
         rets.append(s)
         if "amount" in df.columns:
             amts.append(df.set_index("date")["amount"].astype(float))
@@ -134,7 +135,7 @@ def build_sector_index(symbols: list[str], stock_frames: dict[str, pd.DataFrame]
         if df is None or len(df) < 60:
             continue
         tail = df.tail(lookback)
-        r = tail.set_index("date")["close"].astype(float).pct_change()
+        r = tail.set_index("date")["close"].astype(float).pct_change().clip(-0.21, 0.21)
         rets.append(r)
         if "amount" in tail.columns:
             amts.append(tail.set_index("date")["amount"].astype(float))

@@ -25,7 +25,8 @@ from alphapulse.ui import style as S  # noqa: E402
 
 S.inject_css()
 
-tab_dash, tab_work, tab_research = st.tabs(["今日看板", "选股工作台", "研究优化"])
+tab_dash, tab_work, tab_judge, tab_research = st.tabs(
+    ["今日看板", "选股工作台", "投资判断", "研究优化"])
 
 with tab_dash:
     from alphapulse.ui.views import dashboard
@@ -34,6 +35,10 @@ with tab_dash:
 with tab_work:
     from alphapulse.ui.views import workbench
     workbench.render()
+
+with tab_judge:
+    from alphapulse.ui.views import judgment
+    judgment.render()
 
 with tab_research:
     from alphapulse.ui.views import research
