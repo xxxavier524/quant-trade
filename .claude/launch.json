@@ -10,8 +10,8 @@
     {
       "name": "knowledge-site",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8767", "--directory", "docs/knowledge_site"],
-      "port": 8767
+      "runtimeArgs": ["scripts/serve_kb.py"],
+      "autoPort": true
     }
   ]
 }

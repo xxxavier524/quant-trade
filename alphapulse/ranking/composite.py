@@ -75,6 +75,13 @@ def build_stock_row(symbol: str, name: str, data: pd.DataFrame) -> dict | None:
     row["close"] = round(float(data["close"].iloc[-1]), 2)
     prev = float(data["close"].iloc[-2]) if len(data) > 1 else None
     row["pct_change"] = round((row["close"] / prev - 1) * 100, 2) if prev else 0.0
+    # 股价相对黄线（知行多空线）位置——硬过滤依据（用户需求：选股必须价在黄线上）
+    try:
+        yellow = zhixing_trend.compute_bull_bear_line(data["close"]).iloc[-1]
+        row["yellow_line"] = round(float(yellow), 2) if pd.notna(yellow) else None
+        row["above_yellow"] = bool(row["close"] > yellow) if pd.notna(yellow) else False
+    except Exception:
+        row["yellow_line"], row["above_yellow"] = None, False
     if "market_cap" in data.columns:
         mv = data["market_cap"].iloc[-1]
         row["float_mv_yi"] = round(float(mv) / 1e8, 1) if pd.notna(mv) else None
@@ -83,9 +90,22 @@ def build_stock_row(symbol: str, name: str, data: pd.DataFrame) -> dict | None:
 
 def rank_all(factor_df: pd.DataFrame, top_n: int = 50,
              macro_level: str = "震荡",
-             sector_map: dict | None = None) -> pd.DataFrame:
-    """全市场加权排序，输出 Top N 并附子分数明细与徽章。"""
-    weights = load_weights()
+             sector_map: dict | None = None,
+             require_above_yellow: bool = True,
+             weights: dict | None = None) -> pd.DataFrame:
+    """全市场加权排序，输出 Top N 并附子分数明细与徽章。
+
+    Args:
+        require_above_yellow: 硬过滤，只保留股价站上黄线（知行多空线）的票（用户铁律）
+        weights: 覆盖权重；None 则读 config（GUI 交互调参时传入）
+    """
+    if weights is None:
+        weights = load_weights()
+    # 硬过滤：股价必须在黄线之上（多头趋势中的回调买点，不抄底破位股）
+    if require_above_yellow and "above_yellow" in factor_df.columns:
+        factor_df = factor_df[factor_df["above_yellow"]].reset_index(drop=True)
+    if factor_df.empty:
+        return pd.DataFrame()
     ranked = rank_stocks(
         factor_df, weights,
         sector_strength_map=sector_map,
@@ -95,7 +115,9 @@ def rank_all(factor_df: pd.DataFrame, top_n: int = 50,
     if ranked.empty:
         return ranked
     # 严格信号股加显式加成：满足原始公式的排前（评分同档时优先）
-    detail_cols = [c for c in factor_df.columns if c not in ("symbol", "name")]
+    # 排除 ranked 已有的列，避免 merge 产生 _x/_y 冲突
+    detail_cols = [c for c in factor_df.columns
+                   if c not in ranked.columns and c != "symbol"]
     merged = ranked.merge(factor_df[["symbol"] + detail_cols], on="symbol", how="left")
     badge = merged[["sig_b1", "sig_volume_b1", "sig_zhixing"]].any(axis=1)
     merged["strict_signal"] = badge

@@ -117,12 +117,29 @@ def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
     if factor_df.empty:
         return factor_df
 
-    # ── 排序（附板块/概念标注与板块分）──
-    sec_map = {}
+    # ── 板块/概念标注并入因子帧（供 GUI 交互重排复用，无需重算全市场）──
+    sec_map, cmap = {}, {}
     try:
         sec_map = symbol_sector_map()
     except Exception:
         pass
+    try:
+        from alphapulse.market.sector_score import symbol_concept_map
+        cmap = symbol_concept_map()
+    except Exception:
+        pass
+    factor_df["sector"] = factor_df["symbol"].map(sec_map).fillna("")
+    factor_df["concepts"] = factor_df["symbol"].map(cmap).fillna("")
+    if not sector_df.empty:
+        sec_scores = dict(zip(sector_df["sector"], sector_df["score"]))
+        factor_df["sector_score"] = factor_df["sector"].map(sec_scores)
+
+    # 全市场因子帧落盘：GUI 调参后用 rank_all 秒级重排，不必重扫5000只
+    REPORTS_DIR.mkdir(exist_ok=True)
+    factor_df.to_csv(REPORTS_DIR / f"factor_frame_{target_date}.csv",
+                     index=False, encoding="utf-8-sig")
+
+    # ── 排序（默认硬过滤：股价站上黄线）──
     top = rank_all(factor_df, top_n=top_n, macro_level=macro_level, sector_map=sec_map)
     if not top.empty and not sector_df.empty:
         sec_scores = dict(zip(sector_df["sector"], sector_df["score"]))

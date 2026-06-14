@@ -11,11 +11,18 @@ compute_detail 返回各状态明细（GUI选股依据用）。
 import pandas as pd
 
 
+def _to_dates(data: pd.DataFrame) -> pd.Series:
+    """稳健解析日期：兼容 '2026-05-22' 与 '2026-05-22 00:00:00' 混合格式。"""
+    raw = data["date"] if "date" in data.columns else pd.Series(data.index)
+    # 统一切到前10位（YYYY-MM-DD），规避单只CSV混入时间戳导致 to_datetime 推断format失败
+    return pd.to_datetime(raw.astype(str).str.slice(0, 10), format="%Y-%m-%d", errors="coerce")
+
+
 def weekly_close(data: pd.DataFrame) -> pd.Series:
     """日线 → 周线收盘（自然周最后交易日）。"""
-    dates = pd.to_datetime(data["date"]) if "date" in data.columns else pd.to_datetime(data.index)
+    dates = _to_dates(data)
     close = data["close"].astype(float)
-    s = pd.Series(close.values, index=dates)
+    s = pd.Series(close.values, index=dates).dropna()
     return s.resample("W-FRI").last().dropna()
 
 
@@ -62,7 +69,7 @@ def compute_weekly_series(data: pd.DataFrame, fast: int = 5, slow: int = 14) -> 
 
     用于胜率验证/ML：weekly_above 列 = 截至该日上一完整周 M5>M14。
     """
-    dates = pd.to_datetime(data["date"]) if "date" in data.columns else pd.to_datetime(data.index)
+    dates = _to_dates(data)
     wc = weekly_close(data)
     m_fast = wc.rolling(fast).mean()
     m_slow = wc.rolling(slow).mean()

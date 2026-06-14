@@ -10,17 +10,17 @@
     <array>
         <string>/Users/qiushixuan/cc/quantan trade/.venv/bin/python</string>
         <string>/Users/qiushixuan/cc/quantan trade/scripts/run_with_timeout.py</string>
-        <string>3600</string>
+        <string>3000</string>
         <string>/Users/qiushixuan/cc/quantan trade/.venv/bin/python</string>
-        <string>/Users/qiushixuan/cc/quantan trade/scripts/daily_update.py</string>
-        <string>--max-minutes</string>
-        <string>45</string>
+        <string>/Users/qiushixuan/cc/quantan trade/scripts/eod_pipeline.py</string>
+        <string>--max-update-min</string>
+        <string>30</string>
     </array>
 
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
-        <integer>1</integer>
+        <integer>15</integer>
         <key>Minute</key>
         <integer>30</integer>
     </dict>

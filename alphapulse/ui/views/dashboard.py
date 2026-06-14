@@ -31,6 +31,28 @@ def _sectors():
     return pd.read_csv(files[-1]) if files else pd.DataFrame()
 
 
+@st.cache_data(ttl=120)
+def _last_update() -> dict:
+    """数据/选股更新状态：优先 last_run.json，回退到最新 screen CSV 的 mtime。"""
+    import datetime as _dt
+    marker = REPORTS_DIR / "last_run.json"
+    if marker.exists():
+        try:
+            import json
+            m = json.loads(marker.read_text())
+            steps = {s["step"]: s for s in m.get("steps", [])}
+            return {"time": m.get("finished_at", "—"),
+                    "update_ok": steps.get("数据增量更新", {}).get("ok"),
+                    "screen_ok": steps.get("全市场选股", {}).get("ok")}
+        except Exception:
+            pass
+    files = sorted(REPORTS_DIR.glob("screen_*.csv"))
+    if files:
+        ts = _dt.datetime.fromtimestamp(files[-1].stat().st_mtime)
+        return {"time": ts.strftime("%Y-%m-%d %H:%M"), "update_ok": None, "screen_ok": True}
+    return {"time": "—", "update_ok": None, "screen_ok": None}
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def _index_minute() -> pd.DataFrame:
     """上证当日5分钟分时（新浪，剥离代理）。失败返回空。"""
@@ -145,6 +167,19 @@ def render():
         m = {"score": 50, "level": "震荡", "advice": "指数数据缺失", "detail": {}}
     date, screen = _screen()
     sectors = _sectors()
+
+    # ── 数据/选股更新状态条 ──
+    upd = _last_update()
+    upd_ok = upd.get("update_ok")
+    badge = ("✓ 已更新" if upd_ok else ("⚠ 更新异常" if upd_ok is False else ""))
+    badge_color = S.DOWN if upd_ok else (S.UP if upd_ok is False else S.MUTED)
+    st.markdown(
+        f'<div class="ap-sub" style="margin:-6px 0 10px">'
+        f'🕒 数据/选股更新：<b style="color:{S.WHITE}">{upd["time"]}</b>'
+        f' <span style="color:{badge_color}">{badge}</span>'
+        f' &nbsp;·&nbsp; 数据交易日 <b style="color:{S.WHITE}">{date or "—"}</b>'
+        f' &nbsp;·&nbsp; <span style="color:{S.MUTED}">每日15:30收盘后自动更新并选股</span></div>',
+        unsafe_allow_html=True)
 
     # ── 第一行：大盘基调（三块大数字卡）──
     score = m["score"]

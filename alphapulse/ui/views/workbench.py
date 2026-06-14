@@ -33,6 +33,97 @@ def _screen():
     return files[-1].stem.replace("screen_", ""), pd.read_csv(files[-1], dtype={"symbol": str})
 
 
+@st.cache_data(ttl=300)
+def _factor_frame():
+    """全市场因子帧（含全部子分数+黄线位置），供交互重排。"""
+    files = sorted(REPORTS_DIR.glob("factor_frame_*.csv"))
+    if not files:
+        return "", pd.DataFrame()
+    return files[-1].stem.replace("factor_frame_", ""), pd.read_csv(files[-1], dtype={"symbol": str})
+
+
+@st.cache_data(ttl=300)
+def _macro_level() -> str:
+    try:
+        from alphapulse.market.market_score import compute_market_score
+        return compute_market_score().get("level", "震荡")
+    except Exception:
+        return "震荡"
+
+
+# 可交互调权的子分数（中文名）
+ADJ_FACTORS = {
+    "j_low": "J值低位", "trend_gap": "趋势强度", "vol_shrink": "缩量",
+    "yangyin": "红肥绿瘦", "surge": "爆量阳", "weekly_cross": "周线金叉",
+    "ml_score": "ML胜率", "bowl": "掉进碗里",
+}
+
+
+def _interactive_panel(date: str, fdf: pd.DataFrame) -> pd.DataFrame:
+    """交互式选股控制面板 → 返回重排后的结果（用户调条件/参数后手动重选）。"""
+    from alphapulse.ranking.composite import rank_all, load_weights
+
+    with st.expander("⚙️ 选股条件与参数（调整后点『重新选股』）", expanded=False):
+        c1, c2, c3, c4 = st.columns(4)
+        above_yellow = c1.toggle("股价必须站上黄线", value=True,
+                                 help="知行多空线之上才是多头回调买点（铁律，默认开）")
+        only_strict = c2.toggle("仅严格信号 ⭐", value=False,
+                                help="只保留满足B1/量能B1/知行超短原始公式的票")
+        min_score = c3.slider("最低评分", 0, 100, 0, 5)
+        top_n = c4.select_slider("出票数量", [20, 30, 50, 80, 100], value=50)
+
+        sec_min = st.slider("所属板块强度下限（0=不限）", 0, 100, 0, 5,
+                            help="只保留处于强势板块的个股")
+
+        st.caption("因子权重微调（拖动改变各维度在总分中的占比，0=忽略该因子）")
+        weights = dict(load_weights())
+        wcols = st.columns(4)
+        for i, (k, cn) in enumerate(ADJ_FACTORS.items()):
+            if k in weights:
+                weights[k] = wcols[i % 4].slider(
+                    cn, 0.0, 0.4, float(weights[k]), 0.01, key=f"wbw_{k}")
+
+        rerun = st.button("🔄 重新选股", type="primary")
+
+    # 触发重排（首次进入也算一次）
+    key = f"wb_ranked_{date}"
+    if rerun or key not in st.session_state:
+        work = fdf.copy()
+        if sec_min > 0 and "sector_score" in work.columns:
+            work = work[pd.to_numeric(work["sector_score"], errors="coerce").fillna(0) >= sec_min]
+        ranked = rank_all(work, top_n=top_n, macro_level=_macro_level(),
+                          require_above_yellow=above_yellow, weights=weights)
+        if not ranked.empty:
+            if only_strict and "strict_signal" in ranked.columns:
+                ranked = ranked[ranked["strict_signal"]].reset_index(drop=True)
+            if min_score > 0:
+                ranked = ranked[ranked["score"] >= min_score].reset_index(drop=True)
+            ranked["rank"] = range(1, len(ranked) + 1)
+            # 补策略/概念列（与daily_screener口径一致）
+            ranked = _add_strategy_cols(ranked)
+        st.session_state[key] = ranked
+        if rerun:
+            st.toast(f"已重新选股：{len(ranked)} 只（{'站上黄线' if above_yellow else '不限黄线'}）")
+    return st.session_state.get(key, pd.DataFrame())
+
+
+def _add_strategy_cols(df: pd.DataFrame) -> pd.DataFrame:
+    def _strat(r):
+        tags = []
+        if r.get("sig_b1"):
+            tags.append("B1")
+        if r.get("sig_volume_b1"):
+            tags.append("量能B1")
+        if r.get("sig_zhixing"):
+            tags.append("知行超短")
+        if float(r.get("weekly_cross", 0) or 0) >= 1.0:
+            tags.append("周线金叉")
+        return "+".join(tags) or "综合评分"
+    df = df.copy()
+    df["strategies"] = df.apply(_strat, axis=1)
+    return df
+
+
 @st.cache_data(ttl=600, show_spinner="加载日线...")
 def _kline(symbol: str):
     from replay_screen import load_stock
@@ -162,23 +253,26 @@ def _plot_kline(symbol: str, n_days: int = 250):
 
 
 def render():
-    date, df = _screen()
-    if df.empty:
-        st.info("暂无选股结果 — 运行 `python scripts/daily_screener.py`")
-        return
-
-    fc1, fc2, fc3 = st.columns([1, 1, 2])
-    min_score = fc1.slider("最低总分", 0, 100, 0, 5)
-    only_strict = fc2.toggle("仅严格信号 ⭐")
-    sectors = ["全部"] + sorted(s for s in df.get("sector", pd.Series()).dropna().unique() if s)
-    sel_sector = fc3.selectbox("板块", sectors)
-
-    view = df[df["score"] >= min_score]
-    if only_strict and "strict_signal" in view:
-        view = view[view["strict_signal"]]
-    if sel_sector != "全部":
-        view = view[view["sector"] == sel_sector]
-    view = view.reset_index(drop=True)
+    fdate, fdf = _factor_frame()
+    if fdf.empty:
+        # 回退到静态 Top50（旧版兼容）
+        _, df = _screen()
+        if df.empty:
+            st.info("暂无选股结果 — 运行 `python scripts/daily_screener.py`")
+            return
+        view = df.reset_index(drop=True)
+    else:
+        st.caption(f"数据日 {fdate} · 全市场 {len(fdf)} 只 · "
+                   f"站上黄线 {int(fdf['above_yellow'].sum()) if 'above_yellow' in fdf else '—'} 只")
+        ranked = _interactive_panel(fdate, fdf)
+        if ranked.empty:
+            st.warning("当前条件下无选股结果，放宽条件后重试")
+            return
+        # 板块快速筛选（在重排结果上）
+        sectors = ["全部"] + sorted(s for s in ranked.get("sector", pd.Series()).dropna().unique() if s)
+        sel_sector = st.selectbox("板块快筛", sectors, key="wb_sec_filter")
+        view = ranked if sel_sector == "全部" else ranked[ranked["sector"] == sel_sector]
+        view = view.reset_index(drop=True)
 
     show_cols = [c for c in ["rank", "symbol", "name", "score", "strategies",
                              "sector", "concepts", "pct_change", "strict_signal",
