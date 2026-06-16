@@ -222,8 +222,13 @@ def main() -> int:
                     consecutive_failures = 0
                     continue
             save_progress(today_str, i, stats)
-            alert(f"baostock 连接持续失败，已保存进度（{i}/{len(symbols)}），下次续传。{stats}")
             bs.logout()
+            # baostock 断连但 pytdx 可能已覆盖主力：覆盖率达标则不算失败
+            cov = _coverage(data_path, latest)
+            if cov >= 0.75:
+                print(f"  baostock断连但覆盖率{cov*100:.0f}%达标，视为完成")
+                return 0
+            alert(f"baostock 连接持续失败，覆盖率{cov*100:.0f}%，已存进度（{i}/{len(symbols)}）下次续传。")
             return 4
         sym = symbols[i]
         fpath = data_path / f"{sym}.csv"
@@ -324,20 +329,33 @@ def main() -> int:
 
     bs.logout()
 
+    # 健康判据用"全市场覆盖率"（已到最新交易日占比），而非 baostock 失败数：
+    # baostock 限流时 pytdx 备援已接住主力，失败的多是除权卡死股(由 recover_stale 治本)
+    coverage = _coverage(data_path, latest)
     status = "TIMEOUT（下次续传）" if timed_out else "完成"
-    summary = (f"数据更新{status} @ {latest}: 已最新 {stats['current']}，更新 {stats['updated']}，"
-               f"复权重下 {stats['refetched']}，新增 {stats['new']}，失败 {stats['failed']}，"
-               f"TDX备援 {stats.get('tdx_fallback', 0)}")
+    summary = (f"数据更新{status} @ {latest}: 覆盖率 {coverage*100:.0f}%，已最新 {stats['current']}，"
+               f"更新 {stats['updated']}，复权重下 {stats['refetched']}，新增 {stats['new']}，"
+               f"失败 {stats['failed']}，TDX备援 {stats.get('tdx_fallback', 0)}")
     print(f"[{datetime.now():%H:%M:%S}] {summary}")
 
-    if timed_out:
+    save_progress(today_str, len(symbols), stats)
+    if timed_out and coverage < 0.75:
         alert(summary)
         return 3
-    save_progress(today_str, len(symbols), stats)  # 标记当日完成
-    if stats["failed"] > len(symbols) * 0.1:
-        alert(f"失败率过高: {summary}")
+    # 覆盖率达标即视为健康（除权卡死股交由 recover_stale 专项恢复，不算每日更新失败）
+    if coverage < 0.75:
+        alert(f"覆盖率不足 {coverage*100:.0f}%（<75%）: {summary}")
         return 1
     return 0
+
+
+def _coverage(data_path: Path, latest: str) -> float:
+    """全市场已更新到最新交易日的占比（读尾行，快）。"""
+    files = list(data_path.glob("*.csv"))
+    if not files:
+        return 0.0
+    n_latest = sum(1 for f in files if read_csv_last_date(f) == latest)
+    return n_latest / len(files)
 
 
 if __name__ == "__main__":
