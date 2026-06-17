@@ -55,6 +55,38 @@ def _price_position_in_range(
     return position.fillna(0.5)
 
 
+def compute(
+    data: pd.DataFrame,
+    shadow_ratio_threshold: float = 0.6,
+    j_threshold: float = 13.0,
+    position_threshold: float = 0.30,
+    position_lookback: int = 60,
+    shrink_ratio: float = 0.25,
+    shrink_period: int = 5,
+) -> pd.Series:
+    """单针下三十买点（最新bar口径，与 generate_signals 同条件）。
+
+    长下影 + J超卖 + 近N日区间下30% + 缩量 + 前一日非长下影（单针）。
+
+    Returns:
+        pd.Series[bool]: 每根K线是否触发单针下三十买入信号
+    """
+    shadow_ratio = _lower_shadow_ratio(
+        data["open"], data["high"], data["low"], data["close"])
+    cond_shadow = shadow_ratio > shadow_ratio_threshold
+    _, _, j = compute_kdj(data["high"], data["low"], data["close"])
+    cond_j_low = j < j_threshold
+    price_pos = _price_position_in_range(
+        data["close"], data["high"], data["low"], position_lookback)
+    cond_low_position = price_pos < position_threshold
+    cond_shrink = vol_cont_shrink.compute(
+        data, shrink_ratio=shrink_ratio, recent_period=shrink_period)
+    signal_mask = cond_shadow & cond_j_low & cond_low_position & cond_shrink
+    # 单针确认：前一日非长下影（避免连续下影误判）
+    signal_mask &= shadow_ratio.shift(1) <= shadow_ratio_threshold
+    return signal_mask.fillna(False).astype(bool)
+
+
 def generate_signals(
     data: pd.DataFrame,
     symbol: str = "",

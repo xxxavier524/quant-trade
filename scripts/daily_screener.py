@@ -154,6 +154,8 @@ def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
                 tags.append("量能B1")
             if r.get("sig_zhixing"):
                 tags.append("知行超短")
+            if r.get("sig_needle"):
+                tags.append("单针下三十")
             if float(r.get("weekly_cross", 0) or 0) >= 1.0:
                 tags.append("周线金叉")
             if not tags:

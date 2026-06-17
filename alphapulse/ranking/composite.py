@@ -12,6 +12,7 @@ from pathlib import Path
 import pandas as pd
 
 from alphapulse.factors import b1_formula, volume_b1, zhixing_trend
+from alphapulse.strategies import needle
 from alphapulse.ranking.stock_ranker import rank_stocks
 from alphapulse.ranking.sub_scores import compute_sub_scores
 
@@ -70,8 +71,10 @@ def build_stock_row(symbol: str, name: str, data: pd.DataFrame) -> dict | None:
         row["sig_b1"] = bool(b1_formula.compute(data).iloc[-1])
         row["sig_volume_b1"] = bool(volume_b1.compute(data).iloc[-1])
         row["sig_zhixing"] = bool(zhixing_trend.compute_ultra(data).iloc[-1])
+        row["sig_needle"] = bool(needle.compute(data).iloc[-1])
     except Exception:
         row["sig_b1"] = row["sig_volume_b1"] = row["sig_zhixing"] = False
+        row["sig_needle"] = False
     row["close"] = round(float(data["close"].iloc[-1]), 2)
     prev = float(data["close"].iloc[-2]) if len(data) > 1 else None
     row["pct_change"] = round((row["close"] / prev - 1) * 100, 2) if prev else 0.0
@@ -119,8 +122,9 @@ def rank_all(factor_df: pd.DataFrame, top_n: int = 50,
     detail_cols = [c for c in factor_df.columns
                    if c not in ranked.columns and c != "symbol"]
     merged = ranked.merge(factor_df[["symbol"] + detail_cols], on="symbol", how="left")
-    badge = merged[["sig_b1", "sig_volume_b1", "sig_zhixing"]].any(axis=1)
-    merged["strict_signal"] = badge
+    badge_cols = [c for c in ["sig_b1", "sig_volume_b1", "sig_zhixing", "sig_needle"]
+                  if c in merged.columns]
+    merged["strict_signal"] = merged[badge_cols].any(axis=1)
     merged = merged.sort_values(["strict_signal", "score"],
                                 ascending=[False, False]).reset_index(drop=True)
     merged["rank"] = range(1, len(merged) + 1)

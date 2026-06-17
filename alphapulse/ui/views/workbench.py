@@ -59,8 +59,12 @@ ADJ_FACTORS = {
 }
 
 
-def _interactive_panel(date: str, fdf: pd.DataFrame) -> pd.DataFrame:
-    """交互式选股控制面板 → 返回重排后的结果（用户调条件/参数后手动重选）。"""
+def _interactive_panel(date: str, fdf: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """交互式选股控制面板 → 返回 (全市场重排结果, 每类显示数量)。
+
+    全市场排序一次（不截断），四类视图各自从全量结果切片，
+    避免 B1/单针 等小众类别被综合 Top-N 截掉。
+    """
     from alphapulse.ranking.composite import rank_all, load_weights
 
     with st.expander("⚙️ 选股条件与参数（调整后点『重新选股』）", expanded=False):
@@ -68,9 +72,9 @@ def _interactive_panel(date: str, fdf: pd.DataFrame) -> pd.DataFrame:
         above_yellow = c1.toggle("股价必须站上黄线", value=True,
                                  help="知行多空线之上才是多头回调买点（铁律，默认开）")
         only_strict = c2.toggle("仅严格信号 ⭐", value=False,
-                                help="只保留满足B1/量能B1/知行超短原始公式的票")
+                                help="只保留满足B1/量能B1/知行超短/单针原始公式的票")
         min_score = c3.slider("最低评分", 0, 100, 0, 5)
-        top_n = c4.select_slider("出票数量", [20, 30, 50, 80, 100], value=50)
+        top_n = c4.select_slider("每类显示数量", [20, 30, 50, 80, 100], value=50)
 
         sec_min = st.slider("所属板块强度下限（0=不限）", 0, 100, 0, 5,
                             help="只保留处于强势板块的个股")
@@ -85,13 +89,15 @@ def _interactive_panel(date: str, fdf: pd.DataFrame) -> pd.DataFrame:
 
         rerun = st.button("🔄 重新选股", type="primary")
 
-    # 触发重排（首次进入也算一次）
+    # 触发重排（首次进入也算一次）；存全市场排序结果，类别切片在 render 做
     key = f"wb_ranked_{date}"
-    if rerun or key not in st.session_state:
+    cond_key = (above_yellow, only_strict, min_score, sec_min, tuple(sorted(weights.items())))
+    if rerun or key not in st.session_state or st.session_state.get(f"{key}_cond") != cond_key:
         work = fdf.copy()
         if sec_min > 0 and "sector_score" in work.columns:
             work = work[pd.to_numeric(work["sector_score"], errors="coerce").fillna(0) >= sec_min]
-        ranked = rank_all(work, top_n=top_n, macro_level=_macro_level(),
+        # top_n=全量 → 得到完整排序帧，供四类切片
+        ranked = rank_all(work, top_n=len(work) or 1, macro_level=_macro_level(),
                           require_above_yellow=above_yellow, weights=weights)
         if not ranked.empty:
             if only_strict and "strict_signal" in ranked.columns:
@@ -102,9 +108,96 @@ def _interactive_panel(date: str, fdf: pd.DataFrame) -> pd.DataFrame:
             # 补策略/概念列（与daily_screener口径一致）
             ranked = _add_strategy_cols(ranked)
         st.session_state[key] = ranked
+        st.session_state[f"{key}_cond"] = cond_key
         if rerun:
-            st.toast(f"已重新选股：{len(ranked)} 只（{'站上黄线' if above_yellow else '不限黄线'}）")
-    return st.session_state.get(key, pd.DataFrame())
+            st.toast(f"已重新选股：全市场 {len(ranked)} 只（{'站上黄线' if above_yellow else '不限黄线'}）")
+    return st.session_state.get(key, pd.DataFrame()), top_n
+
+
+# ── 四类选股 ──
+def _as_bool(s: pd.Series) -> pd.Series:
+    """CSV 读回的 sig_* 可能是 bool 或 'True'/'False' 字符串，统一成 bool。"""
+    if s.dtype == bool:
+        return s
+    return s.astype(str).str.strip().str.lower().isin(("true", "1", "1.0"))
+
+
+def _category_mask(df: pd.DataFrame, cat: str) -> pd.Series:
+    """四类选股的成员掩码。"""
+    def col(name):
+        return _as_bool(df[name]) if name in df.columns else pd.Series(False, index=df.index)
+    if cat == "B1":          # 要求最高：B1六条件公式全满足（完美图形）
+        return col("sig_b1")
+    if cat == "超短":         # 更宽：知行超短 ∪ 量能B1
+        return col("sig_zhixing") | col("sig_volume_b1")
+    if cat == "单针下三十":    # 长下影+J超卖+低位+缩量
+        return col("sig_needle")
+    return pd.Series(True, index=df.index)  # 综合评分：全部
+
+
+CATEGORIES = ["综合评分", "B1", "超短", "单针下三十"]
+CAT_DESC = {
+    "综合评分": "全市场加权评分排序（0-100），不限信号类型。",
+    "B1": "要求最高：B1 六条件公式全部满足的『完美图形』票（涨幅±3%/振幅<9%/J<13/白>黄/DIF>-0.1/市值>10亿）。",
+    "超短": "较多：知行超短 ∪ 量能B1 原始公式触发的短线买点。",
+    "单针下三十": "长下影单针探底 + J值超卖 + 近60日区间下30% + 缩量确认。",
+}
+
+# Excel 导出列（含子分数明细）
+_XLSX_COLS = ["rank", "symbol", "name", "score", "strategies", "sector", "concepts",
+              "close", "pct_change", "yellow_line", "above_yellow", "strict_signal",
+              "sig_b1", "sig_volume_b1", "sig_zhixing", "sig_needle", "ml_score",
+              "j_low", "trend_gap", "vol_shrink", "yangyin", "surge", "dif", "ql_pos",
+              "amplitude", "bowl", "washout_recover", "weekly_cross", "sector_score"]
+_XLSX_HEAD = {"rank": "排名", "symbol": "代码", "name": "名称", "score": "评分",
+              "strategies": "选股策略", "sector": "板块", "concepts": "概念",
+              "close": "现价", "pct_change": "涨幅%", "yellow_line": "黄线",
+              "above_yellow": "站上黄线", "strict_signal": "严格信号",
+              "sector_score": "板块强度"}
+
+
+def _to_excel(df: pd.DataFrame, cat: str) -> bytes:
+    """当前类别结果导出为 xlsx 字节流（供 download_button）。"""
+    import io
+    cols = [c for c in _XLSX_COLS if c in df.columns]
+    out = df[cols].rename(columns=_XLSX_HEAD)
+    buf = io.BytesIO()
+    sheet = (cat or "选股")[:31]
+    with pd.ExcelWriter(buf, engine="openpyxl") as w:
+        out.to_excel(w, index=False, sheet_name=sheet)
+    return buf.getvalue()
+
+
+def _wheel_nav_js():
+    """K线上滚轮上下 / ↑↓方向键 → 点击『上一只/下一只』按钮（同源父文档，best-effort）。"""
+    import streamlit.components.v1 as components
+    components.html(
+        """<script>
+        const doc = window.parent.document;
+        if (!doc.__apNavBound) {
+          doc.__apNavBound = true;
+          const click = (lbl) => {
+            const b = Array.from(doc.querySelectorAll('button'))
+              .find(x => ((x.innerText)||'').trim().includes(lbl));
+            if (b && !b.disabled) b.click();
+          };
+          let lock = false;
+          const step = (down) => {
+            if (lock) return; lock = true; setTimeout(() => { lock = false; }, 320);
+            click(down ? '下一只' : '上一只');
+          };
+          doc.addEventListener('wheel', (e) => {
+            const t = e.target;
+            if (!t || !t.closest || !t.closest('.stPlotlyChart, .js-plotly-plot')) return;
+            e.preventDefault();
+            if (e.deltaY > 0) step(true); else if (e.deltaY < 0) step(false);
+          }, {passive: false, capture: true});
+          doc.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') { e.preventDefault(); step(true); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); step(false); }
+          });
+        }
+        </script>""", height=0)
 
 
 def _add_strategy_cols(df: pd.DataFrame) -> pd.DataFrame:
@@ -116,6 +209,8 @@ def _add_strategy_cols(df: pd.DataFrame) -> pd.DataFrame:
             tags.append("量能B1")
         if r.get("sig_zhixing"):
             tags.append("知行超短")
+        if r.get("sig_needle"):
+            tags.append("单针下三十")
         if float(r.get("weekly_cross", 0) or 0) >= 1.0:
             tags.append("周线金叉")
         return "+".join(tags) or "综合评分"
@@ -256,23 +351,55 @@ def render():
     fdate, fdf = _factor_frame()
     if fdf.empty:
         # 回退到静态 Top50（旧版兼容）
-        _, df = _screen()
-        if df.empty:
+        fdate, ranked = _screen()
+        if ranked.empty:
             st.info("暂无选股结果 — 运行 `python scripts/daily_screener.py`")
             return
-        view = df.reset_index(drop=True)
+        ranked = ranked.reset_index(drop=True)
+        display_n = len(ranked)
     else:
         st.caption(f"数据日 {fdate} · 全市场 {len(fdf)} 只 · "
                    f"站上黄线 {int(fdf['above_yellow'].sum()) if 'above_yellow' in fdf else '—'} 只")
-        ranked = _interactive_panel(fdate, fdf)
+        ranked, display_n = _interactive_panel(fdate, fdf)
         if ranked.empty:
             st.warning("当前条件下无选股结果，放宽条件后重试")
             return
-        # 板块快速筛选（在重排结果上）
-        sectors = ["全部"] + sorted(s for s in ranked.get("sector", pd.Series()).dropna().unique() if s)
-        sel_sector = st.selectbox("板块快筛", sectors, key="wb_sec_filter")
-        view = ranked if sel_sector == "全部" else ranked[ranked["sector"] == sel_sector]
-        view = view.reset_index(drop=True)
+
+    # ── 四类选股切换（综合评分 / B1 / 超短 / 单针下三十）──
+    counts = {c: int(_category_mask(ranked, c).sum()) for c in CATEGORIES}
+    cat_labels = {f"{c}（{counts[c]}）": c for c in CATEGORIES}
+    choice = st.radio("选股类型", list(cat_labels), horizontal=True, key="wb_category",
+                      label_visibility="collapsed")
+    cat = cat_labels[choice]
+    st.caption(CAT_DESC[cat])
+
+    cat_df = ranked[_category_mask(ranked, cat)].reset_index(drop=True)
+    if cat_df.empty:
+        if cat == "单针下三十" and "sig_needle" not in ranked.columns:
+            st.warning("当前选股结果尚无『单针下三十』信号列 — 请重新运行 "
+                       "`python scripts/daily_screener.py` 生成最新因子帧。")
+        else:
+            st.info(f"今日无『{cat}』类选股结果。")
+        return
+    cat_df = cat_df.head(display_n).copy()
+    cat_df["rank"] = range(1, len(cat_df) + 1)
+
+    # 板块快速筛选（在类别结果上）
+    sectors = ["全部"] + sorted(s for s in cat_df.get("sector", pd.Series()).dropna().unique() if s)
+    sel_sector = st.selectbox("板块快筛", sectors, key="wb_sec_filter")
+    view = cat_df if sel_sector == "全部" else cat_df[cat_df["sector"] == sel_sector]
+    view = view.reset_index(drop=True)
+
+    # ── 一键导出 Excel（当前类别 + 板块筛选后的结果）──
+    dl_col, info_col = st.columns([1, 5])
+    dl_col.download_button(
+        "⬇️ 导出 Excel", _to_excel(view, cat),
+        file_name=f"选股_{cat}_{fdate or 'latest'}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True, key="wb_xlsx")
+    info_col.caption(f"『{cat}』共 {len(view)} 只"
+                     + (f" · 板块：{sel_sector}" if sel_sector != "全部" else "")
+                     + " · 点击行查看依据与K线")
 
     show_cols = [c for c in ["rank", "symbol", "name", "score", "strategies",
                              "sector", "concepts", "pct_change", "strict_signal",
@@ -296,9 +423,23 @@ def render():
     if event.selection.rows:
         st.session_state["wb_symbol"] = str(view.iloc[event.selection.rows[0]]["symbol"])
     symbol = st.session_state.get("wb_symbol")
-    if not symbol and len(view):
-        symbol = str(view.iloc[0]["symbol"])
+    syms = view["symbol"].astype(str).tolist()
+    if not symbol or symbol not in syms:
+        symbol = syms[0] if syms else None
     if symbol:
+        # ── 上一只/下一只切换（按钮 + K线滚轮上下 + ↑↓方向键）──
+        cur_i = syms.index(symbol)
+        nprev, nnext, nlbl = st.columns([2, 2, 6])
+        if nprev.button("◀ 上一只", use_container_width=True,
+                        disabled=cur_i <= 0, key="wb_prev"):
+            st.session_state["wb_symbol"] = syms[cur_i - 1]
+            st.rerun()
+        if nnext.button("下一只 ▶", use_container_width=True,
+                        disabled=cur_i >= len(syms) - 1, key="wb_next"):
+            st.session_state["wb_symbol"] = syms[cur_i + 1]
+            st.rerun()
+        nlbl.caption(f"第 {cur_i + 1}/{len(syms)} 只 · 鼠标在K线上滚轮上下 或 ↑↓方向键 切换股票")
+        _wheel_nav_js()
         sel = view[view["symbol"] == symbol]
         row = sel.iloc[0] if not sel.empty else None
         title = f"{symbol}"
