@@ -79,62 +79,41 @@ def factor_agent(df: pd.DataFrame) -> StockOpinion:
     return StockOpinion("factor", signal, conf, ev, reason)
 
 
-def pattern_agent(df: pd.DataFrame, b2_wait: int = 5, recent: int = 6) -> StockOpinion:
-    """当前战法态 + GBDT 胜率。
+def pattern_agent(df: pd.DataFrame) -> StockOpinion:
+    """战法序列状态 + GBDT 胜率（与回测共源，见 patterns.py）。
 
-    近端 B1/量能B1 买点 → B1买点(新)/B1候B2；近端单针 → 单针探底；
-    置信度用 GBDT predict_ml_score（缺模型时按战法态定性）。
+    回测结论（agent_team_backtest.md）：B1 信号日无边际优势，B2 放量确认才有
+    （B1→B2 序列 72.4% 胜率）——因此 B2确认=多头、B1候B2=中性等确认。
     """
-    from alphapulse.factors import b1_formula, volume_b1
-    from alphapulse.strategies import needle
+    from alphapulse.agent_team.patterns import (
+        pattern_state_series, pattern_conf_signed, STATE_CN)
     try:
         from alphapulse.ml.pattern_model import predict_ml_score
-        ml = predict_ml_score(df)
+        ml_last = predict_ml_score(df)
     except Exception:
-        ml = None
+        ml_last = None
 
-    try:
-        b1 = b1_formula.compute(df).fillna(False)
-    except Exception:
-        b1 = pd.Series(False, index=df.index)
-    try:
-        vb1 = volume_b1.compute(df).fillna(False)
-    except Exception:
-        vb1 = pd.Series(False, index=df.index)
-    try:
-        nd = needle.compute(df).fillna(False)
-    except Exception:
-        nd = pd.Series(False, index=df.index)
+    state = pattern_state_series(df)
+    ml_arr = None
+    if ml_last is not None:
+        ml_arr = np.full(len(df), np.nan)
+        ml_arr[-1] = float(ml_last)
+    conf_arr, signed_arr = pattern_conf_signed(state, ml_arr)
+    conf, signed = float(conf_arr[-1]), float(signed_arr[-1])
 
-    buy_idx = np.flatnonzero((b1 | vb1).values)
-    last_buy = (len(df) - 1 - int(buy_idx[-1])) if len(buy_idx) else None
-    needle_recent = bool(nd.tail(recent).any())
-
-    if last_buy is not None and last_buy <= 1:
-        state = "B1买点(新)"
-    elif last_buy is not None and last_buy <= b2_wait:
-        state = "B1候B2"
-    elif needle_recent:
-        state = "单针探底"
-    else:
-        state = "无明确战法态"
-    bullish_state = state != "无明确战法态"
-
-    if ml is not None:
-        conf = round(float(ml) * 100.0, 1)
-    else:
-        conf = 60.0 if bullish_state else 40.0
-
-    if bullish_state and conf >= 50.0:
+    if signed > 0:
         signal = SIGNAL_BULL
-    elif (not bullish_state) and ml is not None and ml < 0.35:
+    elif signed < 0:
         signal = SIGNAL_BEAR
     else:
         signal = SIGNAL_NEUTRAL
+    if signed != 0:
+        conf = abs(signed)      # 保证 opinion.signed() 与回测 signed 序列严格一致
 
-    ev = {"state": state, "bars_since_buy": last_buy,
-          "gbdt": (round(float(ml), 3) if ml is not None else None)}
-    reason = state + (f"·GBDT胜率{ml:.2f}" if ml is not None else "·无ML模型")
+    state_cn = STATE_CN[int(state[-1])]
+    ev = {"state": state_cn,
+          "gbdt": (round(float(ml_last), 3) if ml_last is not None else None)}
+    reason = state_cn + (f"·GBDT胜率{ml_last:.2f}" if ml_last is not None else "·无ML模型")
     return StockOpinion("pattern", signal, conf, ev, reason)
 
 

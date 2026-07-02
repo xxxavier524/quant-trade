@@ -162,13 +162,9 @@ def _stock_pass(sym, df, start, weights, model, feat_cols,
     f_signed = np.where(strict | (fconf_eff >= 55.0), fconf_eff,
                         np.where(fconf_eff < 35.0, -fconf_eff, 0.0))
 
-    # pattern：近端买点态 + GBDT
-    buy = b1 | vb1
-    idx_arr = np.arange(n, dtype=float)
-    last_buy = pd.Series(np.where(buy, idx_arr, np.nan)).ffill().values
-    bars_since = idx_arr - last_buy
-    nd_recent = pd.Series(nd).rolling(6, min_periods=1).max().fillna(0).values > 0
-    state_bull = (bars_since <= 5) | nd_recent
+    # pattern：战法序列状态 + GBDT（与 pattern_agent 严格共源，见 agent_team/patterns.py）
+    from alphapulse.agent_team.patterns import pattern_state_series, pattern_conf_signed
+    state = pattern_state_series(df)
     ml = None
     if model is not None:
         try:
@@ -176,13 +172,7 @@ def _stock_pass(sym, df, start, weights, model, feat_cols,
             ml = model.predict_proba(X)[:, 1]
         except Exception:
             ml = None
-    if ml is not None:
-        pconf = ml * 100.0
-        p_signed = np.where(state_bull & (pconf >= 50.0), pconf,
-                            np.where((~state_bull) & (ml < 0.35), -pconf, 0.0))
-    else:
-        pconf = np.where(state_bull, 60.0, 40.0)
-        p_signed = np.where(state_bull, pconf, 0.0)
+    _, p_signed = pattern_conf_signed(state, ml)
 
     # sector：周度分 ffill 到日
     sec = sector_map.get(sym, "")

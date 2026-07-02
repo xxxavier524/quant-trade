@@ -89,8 +89,41 @@ def test_factor_agent_insufficient_history_neutral():
 def test_pattern_agent_structure():
     op = pattern_agent(_ohlcv(250))
     assert op.agent == "pattern"
-    assert op.evidence["state"] in ("B1买点(新)", "B1候B2", "单针探底", "无明确战法态")
+    assert op.evidence["state"] in ("B2确认", "B1候B2", "单针探底", "无明确战法态")
     assert 0.0 <= op.confidence <= 100.0
+
+
+def test_pattern_b2_confirm_is_bull():
+    """构造 B1→次日放量阳 → 应识别为 B2确认 且多头。"""
+    from alphapulse.agent_team.patterns import (
+        pattern_state_series, pattern_conf_signed, STATE_B2_CONFIRM)
+    df = _ohlcv(250)
+    n = len(df)
+    # 人工植入：倒数第3日 B1(借 volume_b1 难,直接测状态机对 buy 序列的反应
+    # 用 needle/b1 难构造 → 改为直接单测状态转移函数的 B2 判据)
+    import numpy as np
+    close = df["close"].values.copy()
+    open_ = df["open"].values.copy()
+    vol = df["volume"].values.copy()
+    open_[-1] = close[-1] * 0.98          # 末日阳线
+    vol[-1] = vol[-2] * 3.0               # 末日放量
+    df2 = df.copy()
+    df2["open"], df2["volume"] = open_, vol
+    # monkeypatch b1: 用倒数第2日为买点
+    from alphapulse.agent_team import patterns as P
+    from alphapulse.factors import b1_formula
+    orig = b1_formula.compute
+    try:
+        import pandas as pd
+        fake = pd.Series(False, index=df2.index)
+        fake.iloc[-2] = True
+        b1_formula.compute = lambda d, **k: fake
+        state = pattern_state_series(df2)
+        assert state[-1] == STATE_B2_CONFIRM
+        conf, signed = pattern_conf_signed(state, None)
+        assert signed[-1] > 0             # B2确认 → 多头贡献
+    finally:
+        b1_formula.compute = orig
 
 
 # ── sector_agent ──
