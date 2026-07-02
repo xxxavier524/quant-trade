@@ -29,8 +29,19 @@ def main():
     stocks = load_universe(Path(args.data_dir), args.sample, "9999-12-31")
     print(f"universe: {len(stocks)} 只")
 
+    # 战法模拟参数：读 best_params 的调优止损口径（2026-07-02 网格：stop_pct=0.10）
+    pb_kwargs = {}
+    try:
+        bp = json.loads((PROJECT_ROOT / "config" / "best_params.json").read_text())
+        sp = bp.get("PLAYBOOK_B1B2B3", {}).get("stop_pct")
+        if sp:
+            pb_kwargs["B1B2B3"] = {"stop_pct": sp}
+            print(f"B1B2B3 标签口径: stop_pct={sp}（best_params）")
+    except Exception:
+        pass
+
     print("构建训练集（战法交易特征化，较慢）...")
-    train_df = pm.build_training_set(stocks)
+    train_df = pm.build_training_set(stocks, playbook_kwargs=pb_kwargs)
     print(f"  战法交易样本: {len(train_df)} 笔")
     train_df = pm.append_boost_samples(train_df, stocks)
     print(f"  并入连涨强化样本后: {len(train_df)} 笔")

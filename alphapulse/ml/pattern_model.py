@@ -89,10 +89,16 @@ def features_at(df: pd.DataFrame, i: int) -> dict | None:
 
 
 def build_training_set(stocks: dict[str, pd.DataFrame],
-                       playbooks: list[str] | None = None) -> pd.DataFrame:
-    """全部战法交易 → 特征表（每笔交易一行 + label + entry_year + weight）。"""
+                       playbooks: list[str] | None = None,
+                       playbook_kwargs: dict[str, dict] | None = None) -> pd.DataFrame:
+    """全部战法交易 → 特征表（每笔交易一行 + label + entry_year + weight）。
+
+    playbook_kwargs: 每个战法的模拟参数覆盖（如 {"B1B2B3": {"stop_pct": 0.10}}，
+    用调优后的止损口径生成标签，见 config/best_params.json）。
+    """
     from alphapulse.strategies.playbook_engine import PLAYBOOKS
     playbooks = playbooks or list(PLAYBOOKS)
+    playbook_kwargs = playbook_kwargs or {}
     rows = []
     for sym, df in stocks.items():
         frame = feature_frame(df)  # 每股只算一次
@@ -102,7 +108,7 @@ def build_training_set(stocks: dict[str, pd.DataFrame],
         idx_map = {d: i for i, d in enumerate(dates)}
         for pb in playbooks:
             try:
-                trades = PLAYBOOKS[pb](df, symbol=sym)
+                trades = PLAYBOOKS[pb](df, symbol=sym, **playbook_kwargs.get(pb, {}))
             except Exception:
                 continue
             for t in trades:
@@ -111,6 +117,7 @@ def build_training_set(stocks: dict[str, pd.DataFrame],
                     continue
                 rows.append({**frame.iloc[i].to_dict(),
                              "label": int(t["net_return"] > 0),
+                             "net_return": float(t["net_return"]),
                              "entry_year": int(t["entry_date"][:4]),
                              "playbook": pb, "symbol": sym,
                              "entry_date": t["entry_date"], "weight": 1.0})
@@ -156,7 +163,8 @@ def train(train_df: pd.DataFrame, train_until: int = 2023,
     from lightgbm import LGBMClassifier
     from sklearn.metrics import roc_auc_score
 
-    meta_cols = {"label", "entry_year", "playbook", "symbol", "entry_date", "weight"}
+    meta_cols = {"label", "entry_year", "playbook", "symbol", "entry_date",
+                 "weight", "net_return"}   # net_return 是结果列，绝不能进特征（防泄漏）
     feat_cols = [c for c in train_df.columns if c not in meta_cols]
 
     tr = train_df[train_df["entry_year"] <= train_until]

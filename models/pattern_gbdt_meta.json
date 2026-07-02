@@ -1,8 +1,8 @@
 {
-  "n_train": 84294,
-  "n_valid": 24195,
-  "n_test": 41850,
-  "base_win_rate": 0.3648,
+  "n_train": 143837,
+  "n_valid": 41724,
+  "n_test": 74743,
+  "base_win_rate": 0.3789,
   "features": [
     "ret_5",
     "ret_10",
@@ -28,74 +28,76 @@
     "surge",
     "ql_pos",
     "bowl",
-    "washout_recover"
+    "washout_recover",
+    "ma_bull",
+    "weekly_cross"
   ],
-  "valid_auc": 0.5544,
-  "valid_top_decile_win": 0.5343,
-  "valid_bottom_decile_win": 0.3661,
-  "test_auc": 0.5452,
-  "test_top_decile_win": 0.482,
-  "test_bottom_decile_win": 0.3398,
+  "valid_auc": 0.5609,
+  "valid_top_decile_win": 0.5056,
+  "valid_bottom_decile_win": 0.3197,
+  "test_auc": 0.5506,
+  "test_top_decile_win": 0.5011,
+  "test_bottom_decile_win": 0.3362,
   "feature_importance": [
     [
-      "yangyin",
-      687
-    ],
-    [
-      "amp_20",
-      666
-    ],
-    [
-      "amplitude",
-      663
-    ],
-    [
-      "ret_5",
-      661
-    ],
-    [
-      "vol_ratio_5",
-      656
-    ],
-    [
-      "vol_trend",
-      644
+      "ql_pos",
+      788
     ],
     [
       "volatility_20",
-      642
-    ],
-    [
-      "ret_60",
-      639
-    ],
-    [
-      "ret_10",
-      625
-    ],
-    [
-      "ql_pos",
-      622
+      716
     ],
     [
       "ret_20",
-      603
+      699
     ],
     [
-      "pos_in_120d",
-      590
+      "vol_trend",
+      697
+    ],
+    [
+      "yangyin",
+      645
+    ],
+    [
+      "ret_60",
+      633
+    ],
+    [
+      "amplitude",
+      611
+    ],
+    [
+      "ret_10",
+      596
+    ],
+    [
+      "vol_ratio_5",
+      580
+    ],
+    [
+      "ret_5",
+      574
     ],
     [
       "dist_white",
-      541
-    ],
-    [
-      "dif_pct",
-      487
+      566
     ],
     [
       "j_value",
-      483
+      526
+    ],
+    [
+      "amp_20",
+      525
+    ],
+    [
+      "vol_shrink",
+      495
+    ],
+    [
+      "pos_in_120d",
+      490
     ]
   ]
 }
