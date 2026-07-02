@@ -54,8 +54,10 @@ def _pick_symbols(top_n: int, date: str | None, names: dict) -> list[tuple[str, 
     if not files:
         sys.exit("无 screen_*.csv，请先运行 scripts/daily_screener.py，或用 --symbols 指定")
     df = pd.read_csv(files[-1], dtype={"symbol": str}).head(top_n)
-    return [(r["symbol"], str(r.get("name", "") or names.get(r["symbol"], "")))
-            for _, r in df.iterrows()]
+    def _name(r):
+        n = r.get("name", "")
+        return str(n) if pd.notna(n) and str(n) != "nan" else names.get(r["symbol"], "")
+    return [(r["symbol"], _name(r)) for _, r in df.iterrows()]
 
 
 def _resolve_csv(symbol: str, data_dir: Path) -> Path | None:
