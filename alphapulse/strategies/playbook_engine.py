@@ -118,19 +118,29 @@ def _make_trade(ctx: dict, symbol: str, playbook: str, sig_type: str,
     }
 
 
-def _stop_from_entry(ctx: dict, entry_i: int, price_ticks: int = 3) -> float:
-    """止损价 = 买入日最低价 - N 个价位（A股价位=0.01元）。"""
-    return ctx["low"][entry_i] - price_ticks * 0.01
+def _stop_from_entry(ctx: dict, entry_i: int, price_ticks: int = 3,
+                     stop_pct: float | None = None) -> float:
+    """止损价 = 买入日最低价 - N 个价位（A股价位=0.01元）。
+
+    stop_pct 给定时改用百分比口径：低点 × (1 - stop_pct)。
+    绝对价位数对高价股过紧（百元股3价位=0.03%），百分比口径价格尺度不变。
+    """
+    low = ctx["low"][entry_i]
+    if stop_pct is not None:
+        return low * (1.0 - stop_pct)
+    return low - price_ticks * 0.01
 
 
 # ──────────────────────────── 战法一 B1B2B3 ────────────────────────────
 
 def simulate_b1b2b3(df: pd.DataFrame, symbol: str = "", b2_wait: int = 5,
                     b2_vol_mult: float = 1.85, price_ticks: int = 3,
-                    max_hold: int = 60, **params) -> list[dict]:
+                    max_hold: int = 60, stop_pct: float | None = None,
+                    **params) -> list[dict]:
     """B1买入→等B2（放量阳，b2_wait日内没来换股）→持有→空头体系卖出。
 
     B3（B2后缩量阳不破位）记录在交易标记中（确定性更高），不改变仓位。
+    stop_pct：百分比止损（None=沿用绝对价位数 price_ticks）。
     """
     if len(df) < 120:
         return []
@@ -152,7 +162,7 @@ def simulate_b1b2b3(df: pd.DataFrame, symbol: str = "", b2_wait: int = 5,
     for i in b1_idx:
         if i <= busy_until or i >= ctx["n"] - 2:
             continue
-        stop = _stop_from_entry(ctx, i, price_ticks)
+        stop = _stop_from_entry(ctx, i, price_ticks, stop_pct)
         # 等待B2：b2_wait日内的放量阳线（量>前日1.85倍且阳线）
         b2_i = None
         for j in range(i + 1, min(i + 1 + b2_wait, ctx["n"])):

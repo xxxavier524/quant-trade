@@ -31,7 +31,22 @@ def main():
     ap.add_argument("--start", default="2020-01-01")
     ap.add_argument("--end", default="9999-12-31")
     ap.add_argument("--data-dir", default=DATA_DIR)
+    ap.add_argument("--stop-pct", type=float, default=None,
+                    help="B1B2B3 百分比止损；缺省读 config/best_params.json "
+                         "PLAYBOOK_B1B2B3.stop_pct（网格调优值0.10），传 0 用旧绝对价位")
     args = ap.parse_args()
+
+    stop_pct = args.stop_pct
+    if stop_pct is None:
+        try:
+            bp = json.loads((PROJECT_ROOT / "config" / "best_params.json").read_text())
+            stop_pct = bp.get("PLAYBOOK_B1B2B3", {}).get("stop_pct")
+        except Exception:
+            stop_pct = None
+    elif stop_pct == 0:
+        stop_pct = None
+    if stop_pct:
+        print(f"B1B2B3 止损口径: stop_pct={stop_pct}（best_params 网格调优）")
 
     stocks = load_universe(Path(args.data_dir), args.sample, args.end)
     print(f"universe: {len(stocks)} 只")
@@ -42,9 +57,10 @@ def main():
         fn = PLAYBOOKS[name]
         t0 = time.monotonic()
         all_trades = []
+        kw = {"stop_pct": stop_pct} if (name == "B1B2B3" and stop_pct) else {}
         for sym, df in stocks.items():
             try:
-                all_trades += fn(df, symbol=sym)
+                all_trades += fn(df, symbol=sym, **kw)
             except Exception:
                 continue
         all_trades = [t for t in all_trades if args.start <= t["entry_date"] <= args.end]
