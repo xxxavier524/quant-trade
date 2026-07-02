@@ -51,11 +51,84 @@ def _level_chip(level: str) -> str:
     return f'<span style="color:{color};font-weight:600">{flag}</span>'
 
 
+def _run_team(date: str, df: pd.DataFrame, top_n: int, debate: bool):
+    """进程内跑 agent team（Top-N），返回 verdicts。"""
+    from alphapulse.agent_team import build_context, analyze_batch
+    from alphapulse.config.settings import DATA_DIR
+    from replay_screen import load_stock
+
+    data_dir = Path(DATA_DIR)
+    local_day = PROJECT_ROOT / "data" / "day"
+    items = []
+    for _, r in df.head(top_n).iterrows():
+        sym = str(r["symbol"])
+        name = str(r.get("name", "") or "")
+        if name == "nan":
+            name = ""
+        csv = data_dir / f"{sym}.csv"
+        if not csv.exists():
+            csv = local_day / f"{sym}.csv"
+        d = load_stock(csv, "9999-12-31", min_rows=120) if csv.exists() else None
+        items.append((sym, name, d))
+    ctx = build_context()
+    return analyze_batch(items, ctx, debate=debate), ctx
+
+
+def _agent_team_section(date: str, df: pd.DataFrame):
+    """Agent Team 多角色研判区（阶段二）。"""
+    from alphapulse.llm.client import is_configured
+
+    st.markdown("##### 🤖 Agent Team 多角色研判")
+    st.caption("数据/因子/形态/板块 四角色 → 组合经理聚合评级；高分标的可加 DeepSeek 多空辩论")
+    c1, c2, c3 = st.columns([1, 1, 3])
+    run_quick = c1.button("运行研判(纯量化)")
+    run_debate = c2.button("运行研判(含辩论)", type="primary",
+                           disabled=not is_configured(),
+                           help="团队分≥65标的跑 Bull/Bear/仲裁(v4-pro)+贝叶斯融合,约¥0.3/股")
+    if not is_configured():
+        c3.caption("未配置 DEEPSEEK_API_KEY，辩论不可用")
+
+    key = f"team_{date}"
+    if run_quick or run_debate:
+        with st.spinner("agent team 分析中..."):
+            verdicts, ctx = _run_team(date, df, top_n=10, debate=run_debate)
+        st.session_state[key] = verdicts
+
+    verdicts = st.session_state.get(key)
+    if not verdicts:
+        return
+    ok = sorted([v for v in verdicts if v.ok], key=lambda v: v.score, reverse=True)
+    rows = []
+    for v in ok:
+        ref = next((op for op in v.opinions if op.agent == "referee"), None)
+        rows.append({
+            "评级": v.rating, "代码": v.symbol, "名称": v.name,
+            "团队分": v.score, "仓位%": v.meta.get("position_pct", 0.0),
+            "辩论": (f"{ref.signal[:4]}·{ref.confidence:.0f}" if ref else "—"),
+            "摘要": v.reasoning})
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True,
+                 column_config={"团队分": st.column_config.ProgressColumn(
+                     "团队分", min_value=0, max_value=100, format="%.0f")})
+    for v in ok:
+        with st.expander(f"{v.rating} · {v.symbol} {v.name} — 团队分 {v.score:.0f}"):
+            for op in v.opinions:
+                if op.agent == "referee":
+                    st.markdown(f"**多方** {op.evidence.get('bull','')}")
+                    st.markdown(f"**空方** {op.evidence.get('bear','')}")
+                    st.markdown(f"**仲裁** [{op.signal} {op.confidence:.0f}] {op.reasoning}"
+                                f"（P0 {op.evidence['p0_score']:.0f}→融合 {v.score:.0f}）")
+                else:
+                    st.markdown(f"**{op.agent}** [{op.signal} {op.confidence:.0f}] {op.reasoning}")
+    st.divider()
+
+
 def render():
     date, df = _screen()
     if df.empty:
         st.info("暂无选股结果 — 运行 `python scripts/daily_screener.py`")
         return
+
+    _agent_team_section(date, df)
 
     st.markdown("##### 投资判断 · B1 概念挖掘与产业链分析")
     st.caption(f"数据日 {date} · 回答「当下选到的 B1 都是什么概念」→ 挖掘产业链上下游、概念低位、催化因素")

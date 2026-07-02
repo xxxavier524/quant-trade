@@ -5,6 +5,7 @@
 
 用法：
     python scripts/run_agent_team.py --top 10
+    python scripts/run_agent_team.py --top 10 --debate          # 高分标的加 DeepSeek 多空辩论
     python scripts/run_agent_team.py --symbols 600519 000001 --date 2026-06-16
 输出：reports/agent_team_YYYY-MM-DD.md
 """
@@ -72,12 +73,14 @@ def _render_md(verdicts, date: str, ctx) -> str:
     ok.sort(key=lambda v: v.score, reverse=True)
     watch = [v for v in verdicts if not v.ok]
 
+    n_debated = sum(1 for v in ok if v.meta.get("debated"))
     lines = [f"# Agent Team 投研建议 {date}",
              f"\n大盘：{ctx.macro_level}（{ctx.macro_score:.0f}/100） · "
-             f"分析 {len(verdicts)} 只（有效 {len(ok)} / 观望 {len(watch)}）\n",
+             f"分析 {len(verdicts)} 只（有效 {len(ok)} / 观望 {len(watch)}"
+             + (f" / 辩论 {n_debated}" if n_debated else "") + "）\n",
              "## 综合评级",
-             "| 评级 | 代码 | 名称 | 团队分 | 因子 | 形态 | 板块 | 摘要 |",
-             "|---|---|---|---|---|---|---|---|"]
+             "| 评级 | 代码 | 名称 | 团队分 | 仓位 | 因子 | 形态 | 板块 | 辩论 | 摘要 |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
 
     def _sig(v, agent):
         for op in v.opinions:
@@ -85,21 +88,41 @@ def _render_md(verdicts, date: str, ctx) -> str:
                 return f"{op.signal[:4]}·{op.confidence:.0f}"
         return "—"
 
+    def _pos(v):
+        pct = v.meta.get("position_pct", 0)
+        if pct:
+            return f"{pct:.0f}%"
+        risk = next((op for op in v.opinions if op.agent == "risk"), None)
+        return "候补" if risk and risk.evidence.get("standby") else "—"
+
+    def _debate_cell(v):
+        ref = next((op for op in v.opinions if op.agent == "referee"), None)
+        if ref is None:
+            return "—"
+        return f"{ref.signal[:4]}·{ref.confidence:.0f}({ref.evidence['p0_score']:.0f}→{v.score:.0f})"
+
     for v in ok:
         lines.append(
             f"| {RATING_EMOJI.get(v.rating,'')} {v.rating} | {v.symbol} | {v.name} "
-            f"| **{v.score:.0f}** | {_sig(v,'factor')} | {_sig(v,'pattern')} "
-            f"| {_sig(v,'sector')} | {v.reasoning} |")
+            f"| **{v.score:.0f}** | {_pos(v)} | {_sig(v,'factor')} | {_sig(v,'pattern')} "
+            f"| {_sig(v,'sector')} | {_debate_cell(v)} | {v.reasoning} |")
     for v in watch:
-        lines.append(f"| ⏸ 观望 | {v.symbol} | {v.name} | — | — | — | — | {v.reasoning} |")
+        lines.append(f"| ⏸ 观望 | {v.symbol} | {v.name} | — | — | — | — | — | — | {v.reasoning} |")
 
     lines.append("\n## 逐股依据")
     for v in ok:
         lines.append(f"\n### {RATING_EMOJI.get(v.rating,'')} {v.symbol} {v.name} — "
                      f"{v.rating}（团队分 {v.score:.0f}）")
         for op in v.opinions:
+            if op.agent == "referee":
+                lines.append(f"- **多方** {op.evidence.get('bull','')}")
+                lines.append(f"- **空方** {op.evidence.get('bear','')}")
+                lines.append(f"- **仲裁** [{op.signal} {op.confidence:.0f}] {op.reasoning}"
+                             f"　`P0 {op.evidence['p0_score']:.0f} → 融合 "
+                             f"{op.evidence['fused_score']:.0f}`")
+                continue
             ev = " ".join(f"{k}={val}" for k, val in op.evidence.items()
-                          if k not in ("weights",))
+                          if k not in ("weights", "notes"))
             lines.append(f"- **{op.agent}** [{op.signal} {op.confidence:.0f}] "
                          f"{op.reasoning}　`{ev}`")
     return "\n".join(lines) + "\n"
@@ -111,6 +134,10 @@ def main() -> int:
     ap.add_argument("--symbols", nargs="+", help="显式指定代码（覆盖 --top）")
     ap.add_argument("--date", help="回放日 YYYY-MM-DD")
     ap.add_argument("--data-dir", default=DATA_DIR)
+    ap.add_argument("--debate", action="store_true",
+                    help="高分标的加 DeepSeek v4-pro 多空辩论+贝叶斯融合")
+    ap.add_argument("--debate-min", type=float, default=65.0,
+                    help="触发辩论的最低团队分（默认65）")
     args = ap.parse_args()
 
     data_dir = Path(args.data_dir)
@@ -135,7 +162,8 @@ def main() -> int:
         logger.warning(f"{len(missing)} 只无足够日线（外接盘未挂载？）: {missing[:8]}")
 
     ctx = build_context(end_date=end_date, date=args.date)
-    verdicts = analyze_batch(items, ctx)
+    verdicts = analyze_batch(items, ctx, debate=args.debate,
+                             debate_min=args.debate_min)
 
     REPORTS_DIR.mkdir(exist_ok=True)
     out = REPORTS_DIR / f"agent_team_{date}.md"
@@ -144,7 +172,9 @@ def main() -> int:
 
     ok = sorted([v for v in verdicts if v.ok], key=lambda v: v.score, reverse=True)
     for v in ok[:10]:
-        print(f"{v.rating:>4} {v.score:5.1f}  {v.symbol} {v.name}  {v.reasoning}")
+        pos = v.meta.get("position_pct", 0)
+        pos_s = f"仓{pos:.0f}%" if pos else "  —  "
+        print(f"{v.rating:>4} {v.score:5.1f} {pos_s}  {v.symbol} {v.name}  {v.reasoning}")
     if not ok:
         print("（无有效标的——多为数据不足，挂载外接盘后重跑）")
     return 0

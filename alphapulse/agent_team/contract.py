@@ -56,6 +56,7 @@ class TeamVerdict:
     opinions: list[StockOpinion] = field(default_factory=list)
     reasoning: str = ""
     ok: bool = True
+    meta: dict = field(default_factory=dict)   # float_mv_yi / position_pct 等附加信息
 
     def to_row(self) -> dict:
         row = {"symbol": self.symbol, "name": self.name,
