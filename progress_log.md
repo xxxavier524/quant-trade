@@ -446,3 +446,13 @@
 - 采纳 stop_pct=0.10（保留灾难止损），写入 best_params.json PLAYBOOK_B1B2B3；
   run_playbook --stop-pct 默认读 best_params
 - 尾部代价 p5 -5.6%→-9.9%，由单票≤20%仓位控制；GBDT需按新口径重训（队列）
+
+## 2026-07-04 系统体检+基础设施治理+调参循环（v4-fusion）
+
+**根因修复**：外接盘3次掉线(7-3流水线全失败) → 日线迁内置盘data/day/(523MB)+DATA_DIR切换;
+launchd治理:15:30三任务并发(限流打架+CSV竞态)+凌晨双跑 → 禁用3冗余,保留eod_pipeline+daily-auto。
+**调参**:b2_wait网格 → 每持有日收益w=8见顶(+0.041%/日,近1年+1.68% vs w5 +0.85%),
+best_params落盘+patterns同步;auto_retune.py每周日04:00邻域周检(只建议不自动改参),实测邻域最优。
+**UMP**:时间外推0/40失败簇+敏感性6配置全不过 → 否决接入(止损修复已吸收其攻击面),负结果入日记。
+**人格插槽**:config/personas/*.md即插即用(金渐成由外部AI供给)。数据补至7-3(85%),
+recover_stale后台修复除权卡死群。234 tests passed。
