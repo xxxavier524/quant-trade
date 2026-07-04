@@ -1,21 +1,38 @@
 {
   "weights": {
     "B1_SCORE": {
-      "j_low": 0.18,
-      "trend_gap": 0.16,
-      "vol_shrink": 0.13,
-      "yangyin": 0.12,
-      "surge": 0.1,
-      "dif": 0.08,
-      "ql_pos": 0.08,
-      "pct_calm": 0.05,
-      "amplitude": 0.04,
-      "bowl": 0.04,
-      "washout_recover": 0.02,
-      "ml_score": 0.15,
-      "ma_bull": 0.05,
-      "weekly_cross": 0.08
+      "j_low": 0.1438,
+      "trend_gap": 0.0,
+      "vol_shrink": 0.3427,
+      "yangyin": 0.0,
+      "surge": 0.0,
+      "dif": 0.0,
+      "ql_pos": 0.0,
+      "pct_calm": 0.3029,
+      "amplitude": 0.3709,
+      "bowl": 0.0,
+      "washout_recover": 0.0,
+      "ml_score": 0.1197,
+      "ma_bull": 0.0,
+      "weekly_cross": 0.0
     }
   },
-  "ic_history": {}
+  "ic_history": {
+    "2026-07-04": {
+      "amplitude": 0.0642,
+      "vol_shrink": 0.0593,
+      "pct_calm": 0.0524,
+      "j_low": 0.0249,
+      "ml_score": 0.0207,
+      "washout_recover": -0.0031,
+      "bowl": -0.0034,
+      "weekly_cross": -0.0151,
+      "trend_gap": -0.0349,
+      "yangyin": -0.0353,
+      "ma_bull": -0.0372,
+      "dif": -0.0382,
+      "surge": -0.0421,
+      "ql_pos": -0.0569
+    }
+  }
 }

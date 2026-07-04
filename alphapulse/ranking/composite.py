@@ -75,6 +75,12 @@ def build_stock_row(symbol: str, name: str, data: pd.DataFrame) -> dict | None:
     except Exception:
         row["sig_b1"] = row["sig_volume_b1"] = row["sig_zhixing"] = False
         row["sig_needle"] = False
+    # 战法序列状态（回测证明 B2确认 才是优势所在，B1候B2=等确认——直接展示给用户）
+    try:
+        from alphapulse.agent_team.patterns import pattern_state_series, STATE_CN
+        row["pattern_state"] = STATE_CN[int(pattern_state_series(data)[-1])]
+    except Exception:
+        row["pattern_state"] = ""
     row["close"] = round(float(data["close"].iloc[-1]), 2)
     prev = float(data["close"].iloc[-2]) if len(data) > 1 else None
     row["pct_change"] = round((row["close"] / prev - 1) * 100, 2) if prev else 0.0

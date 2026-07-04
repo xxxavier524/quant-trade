@@ -144,12 +144,14 @@ CAT_DESC = {
 }
 
 # Excel 导出列（含子分数明细）
-_XLSX_COLS = ["rank", "symbol", "name", "score", "strategies", "sector", "concepts",
+_XLSX_COLS = ["rank", "symbol", "name", "score", "pattern_state",
+              "strategies", "sector", "concepts",
               "close", "pct_change", "yellow_line", "above_yellow", "strict_signal",
               "sig_b1", "sig_volume_b1", "sig_zhixing", "sig_needle", "ml_score",
               "j_low", "trend_gap", "vol_shrink", "yangyin", "surge", "dif", "ql_pos",
               "amplitude", "bowl", "washout_recover", "weekly_cross", "sector_score"]
 _XLSX_HEAD = {"rank": "排名", "symbol": "代码", "name": "名称", "score": "评分",
+              "pattern_state": "战法态",
               "strategies": "选股策略", "sector": "板块", "concepts": "概念",
               "close": "现价", "pct_change": "涨幅%", "yellow_line": "黄线",
               "above_yellow": "站上黄线", "strict_signal": "严格信号",
@@ -401,15 +403,19 @@ def render():
                      + (f" · 板块：{sel_sector}" if sel_sector != "全部" else "")
                      + " · 点击行查看依据与K线")
 
-    show_cols = [c for c in ["rank", "symbol", "name", "score", "strategies",
-                             "sector", "concepts", "pct_change", "strict_signal",
-                             "ml_score"] if c in view.columns]
+    show_cols = [c for c in ["rank", "symbol", "name", "score", "pattern_state",
+                             "strategies", "sector", "concepts", "pct_change",
+                             "strict_signal", "ml_score"] if c in view.columns]
     event = st.dataframe(
         view[show_cols], height=420, hide_index=True, use_container_width=True,
         column_config={
             "rank": st.column_config.NumberColumn("#", width="small"),
             "symbol": "代码", "name": "名称",
             "score": st.column_config.ProgressColumn("评分", min_value=0, max_value=100, format="%.0f"),
+            "pattern_state": st.column_config.TextColumn(
+                "战法态", width="small",
+                help="B2确认=放量确认已现(统计优势所在,B1→B2序列72%+胜率) / "
+                     "B1候B2=信号已出等确认 / 单针探底 / 无"),
             "strategies": "选股策略",
             "sector": "板块",
             "concepts": st.column_config.TextColumn("概念", width="medium"),
