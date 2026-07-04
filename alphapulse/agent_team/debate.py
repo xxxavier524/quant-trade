@@ -40,7 +40,7 @@ _REFEREE_TMPL = """{symbol} {name} 的量化证据（JSON）：
 多方观点：{bull}
 
 空方观点：{bear}
-
+{extra}
 你是研究经理，仲裁多空辩论。综合量化证据与双方论点，输出严格 JSON（不要多余文字）：
 {{"signal": "bullish|bearish|neutral", "confidence": 0到100的数字, "reasoning": "不超过80字的裁决理由"}}"""
 
@@ -84,10 +84,12 @@ def parse_referee(text: str) -> dict | None:
             "reasoning": str(d.get("reasoning", ""))[:200]}
 
 
-def run_debate(verdict: TeamVerdict, chat_fn=None) -> DebateOutcome | None:
+def run_debate(verdict: TeamVerdict, chat_fn=None,
+               extra_views: list[tuple[str, str]] | None = None) -> DebateOutcome | None:
     """对单股跑 Bull→Bear→Referee 三轮（v4-pro）。失败返回 None。
 
     chat_fn: 注入点（测试 mock 用）；默认 llm.client.chat + MODEL_REASONING。
+    extra_views: 额外观点（如人格角色），注入仲裁上下文 [(角色名, 观点文本)]。
     """
     if chat_fn is None:
         try:
@@ -104,10 +106,14 @@ def run_debate(verdict: TeamVerdict, chat_fn=None) -> DebateOutcome | None:
 
     ev = _evidence_json(verdict)
     args = {"symbol": verdict.symbol, "name": verdict.name, "evidence": ev}
+    extra = ""
+    if extra_views:
+        extra = "\n" + "\n".join(f"{n}的观点：{t}" for n, t in extra_views) + "\n"
     try:
         bull = chat_fn(_BULL_TMPL.format(**args))
         bear = chat_fn(_BEAR_TMPL.format(**args, bull=bull))
-        ref_raw = chat_fn(_REFEREE_TMPL.format(**args, bull=bull, bear=bear))
+        ref_raw = chat_fn(_REFEREE_TMPL.format(**args, bull=bull, bear=bear,
+                                               extra=extra))
     except Exception as e:
         logger.warning(f"{verdict.symbol} 辩论调用失败: {e}")
         return None

@@ -174,3 +174,51 @@ def test_batch_debate_fuses_score():
     assert v1.meta.get("debated") and v1.score < v0.score   # 看空仲裁拉低分数
     ref = [op for op in v1.opinions if op.agent == "referee"]
     assert ref and ref[0].evidence["p0_score"] == v0.score
+
+
+# ── persona 人格角色（mock）──
+def test_persona_opinions_from_skill_file(tmp_path, monkeypatch):
+    from alphapulse.agent_team import persona as P
+    pdir = tmp_path / "personas"
+    pdir.mkdir()
+    (pdir / "金渐成.md").write_text("你是金渐成，严守知行体系纪律。", encoding="utf-8")
+    monkeypatch.setattr(P, "PERSONA_DIR", pdir)
+
+    seen = {}
+    def fake_chat(prompt, system):
+        seen["system"] = system
+        return '{"signal": "bullish", "confidence": 70, "reasoning": "白上黄，缩量回踩"}'
+    ops = P.persona_opinions(_verdict(), chat_fn=fake_chat)
+    assert len(ops) == 1 and ops[0].agent == "persona:金渐成"
+    assert ops[0].signal == "bullish" and ops[0].confidence == 70.0
+    assert "金渐成" in seen["system"]          # skill 内容进入 system prompt
+
+
+def test_persona_views_injected_into_referee(tmp_path, monkeypatch):
+    from alphapulse.agent_team import persona as P
+    pdir = tmp_path / "personas"
+    pdir.mkdir()
+    (pdir / "金渐成.md").write_text("知行体系。", encoding="utf-8")
+    monkeypatch.setattr(P, "PERSONA_DIR", pdir)
+
+    prompts = []
+    def fake_debate_chat(prompt):
+        prompts.append(prompt)
+        return '{"signal": "bullish", "confidence": 66, "reasoning": "ok"}'
+    def fake_persona_chat(prompt, system):
+        return '{"signal": "bearish", "confidence": 61, "reasoning": "破位"}'
+
+    out = core.analyze_batch([("600000", "A", _ohlcv())], _ctx(),
+                             debate=True, debate_min=0.0,
+                             chat_fn=fake_debate_chat,
+                             persona_chat_fn=fake_persona_chat)
+    v = out[0]
+    assert any(op.agent == "persona:金渐成" for op in v.opinions)
+    # 仲裁 prompt（第3次调用）应包含人格观点
+    assert "persona:金渐成的观点" in prompts[2] and "破位" in prompts[2]
+
+
+def test_persona_absent_no_effect(monkeypatch):
+    from alphapulse.agent_team import persona as P
+    monkeypatch.setattr(P, "PERSONA_DIR", Path("/nonexistent"))
+    assert P.persona_opinions(_verdict(), chat_fn=lambda p, s: "x") == []

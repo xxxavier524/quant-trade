@@ -39,12 +39,18 @@ def analyze_stock(df: pd.DataFrame | None, symbol: str, name: str, ctx) -> TeamV
     return v
 
 
-def _apply_debate(v: TeamVerdict, chat_fn=None) -> None:
-    """辩论→贝叶斯融合，就地更新 verdict（失败保持 P0 结论）。"""
+def _apply_debate(v: TeamVerdict, chat_fn=None, persona_chat_fn=None) -> None:
+    """人格观点→辩论→贝叶斯融合，就地更新 verdict（失败保持 P0 结论）。"""
     from alphapulse.agent_team.debate import run_debate
     from alphapulse.agent_team.fusion import fuse_team_score
+    from alphapulse.agent_team.persona import persona_opinions
 
-    outcome = run_debate(v, chat_fn=chat_fn)
+    p_ops = persona_opinions(v, chat_fn=persona_chat_fn)
+    v.opinions.extend(p_ops)
+    extra = [(op.agent, f"[{op.signal} {op.confidence:.0f}] {op.reasoning}")
+             for op in p_ops]
+
+    outcome = run_debate(v, chat_fn=chat_fn, extra_views=extra or None)
     if outcome is None:
         return
     p0 = v.score
@@ -63,7 +69,8 @@ def _apply_debate(v: TeamVerdict, chat_fn=None) -> None:
 
 def analyze_batch(items, ctx, debate: bool = False,
                   debate_min: float = DEBATE_MIN_SCORE,
-                  max_positions: int = 5, chat_fn=None) -> list[TeamVerdict]:
+                  max_positions: int = 5, chat_fn=None,
+                  persona_chat_fn=None) -> list[TeamVerdict]:
     """items: 可迭代 (symbol, name, df)。共享 ctx 只建一次（见 context.build_context）。
 
     debate=True 时：team_score ≥ debate_min 的标的跑 Bull/Bear/仲裁（v4-pro）
@@ -80,7 +87,7 @@ def analyze_batch(items, ctx, debate: bool = False,
         for v in out:
             if v.ok and v.score >= debate_min:
                 try:
-                    _apply_debate(v, chat_fn=chat_fn)
+                    _apply_debate(v, chat_fn=chat_fn, persona_chat_fn=persona_chat_fn)
                 except Exception as e:
                     logger.warning(f"{v.symbol} 辩论异常(保持P0): {e}")
 
