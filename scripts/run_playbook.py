@@ -36,17 +36,22 @@ def main():
                          "PLAYBOOK_B1B2B3.stop_pct（网格调优值0.10），传 0 用旧绝对价位")
     args = ap.parse_args()
 
-    stop_pct = args.stop_pct
-    if stop_pct is None:
-        try:
-            bp = json.loads((PROJECT_ROOT / "config" / "best_params.json").read_text())
-            stop_pct = bp.get("PLAYBOOK_B1B2B3", {}).get("stop_pct")
-        except Exception:
-            stop_pct = None
-    elif stop_pct == 0:
-        stop_pct = None
-    if stop_pct:
-        print(f"B1B2B3 止损口径: stop_pct={stop_pct}（best_params 网格调优）")
+    # B1B2B3 调优参数：CLI 显式 > best_params（stop_pct/b2_wait/b2_vol_mult）
+    b1b2b3_kw = {}
+    try:
+        bp = json.loads((PROJECT_ROOT / "config" / "best_params.json").read_text())
+        tuned = bp.get("PLAYBOOK_B1B2B3", {})
+        b1b2b3_kw = {k: tuned[k] for k in ("stop_pct", "b2_wait", "b2_vol_mult")
+                     if k in tuned}
+    except Exception:
+        pass
+    if args.stop_pct is not None:
+        if args.stop_pct == 0:
+            b1b2b3_kw.pop("stop_pct", None)
+        else:
+            b1b2b3_kw["stop_pct"] = args.stop_pct
+    if b1b2b3_kw:
+        print(f"B1B2B3 调优参数: {b1b2b3_kw}（best_params 网格）")
 
     stocks = load_universe(Path(args.data_dir), args.sample, args.end)
     print(f"universe: {len(stocks)} 只")
@@ -57,7 +62,7 @@ def main():
         fn = PLAYBOOKS[name]
         t0 = time.monotonic()
         all_trades = []
-        kw = {"stop_pct": stop_pct} if (name == "B1B2B3" and stop_pct) else {}
+        kw = b1b2b3_kw if name == "B1B2B3" else {}
         for sym, df in stocks.items():
             try:
                 all_trades += fn(df, symbol=sym, **kw)

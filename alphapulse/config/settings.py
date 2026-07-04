@@ -4,9 +4,11 @@ import os
 
 # === 路径 ===
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 2026-07-04 迁移：外接盘频繁掉线致流水线失败，日线主存储迁回内置盘（523MB）；
+# 外接盘副本转冷备。临时切换用环境变量 ALPHAPULSE_DATA_DIR 覆盖。
 DATA_DIR = os.environ.get(
     "ALPHAPULSE_DATA_DIR",
-    "/Volumes/Mac-480g外接/quantan_data/day",
+    os.path.join(PROJECT_ROOT, "data", "day"),
 )
 BACKTEST_RESULTS_DIR = os.path.join(PROJECT_ROOT, "backtest_results")
 REPORTS_DIR = os.path.join(PROJECT_ROOT, "reports")

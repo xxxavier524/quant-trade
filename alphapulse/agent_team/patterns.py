@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 B2_VOL_MULT = 1.85     # 与 playbook_engine.simulate_b1b2b3 默认一致
-B2_WAIT = 5
+B2_WAIT = 8            # 2026-07-04 网格调优：每持有日收益 w=8 见顶（best_params 同步）
 NEEDLE_RECENT = 6
 
 STATE_NONE = 0
