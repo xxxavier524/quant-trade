@@ -13,7 +13,7 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = "/Volumes/Mac-480g外接/quantan_data/day"
+from alphapulse.config.settings import DATA_DIR
 LOG_FILE = PROJECT_ROOT / "logs" / "monitor.log"
 CHECKLIST_FILE = PROJECT_ROOT / "logs" / "monitor_checklist.json"
 

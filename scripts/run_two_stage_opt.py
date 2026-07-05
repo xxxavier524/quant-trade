@@ -19,7 +19,7 @@ from alphapulse.factors.industry_rotation import load_industry_map, get_industry
 from alphapulse.factors.beta_fundamental import predict_beta, rank_stocks_by_beta
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = "/Volumes/Mac-480g外接/quantan_data/day"
+from alphapulse.config.settings import DATA_DIR
 
 # --- Parameter grid: 20 combos ---
 # Key tunables:

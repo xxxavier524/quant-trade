@@ -35,7 +35,7 @@ from scripts.run_backtest import load_stocks
 from alphapulse.strategies.b1_b2_b3_strategy import generate_signals
 
 CASE_FILE = Path(__file__).resolve().parent.parent / "cases" / "case_stocks.csv"
-DATA_DIR = "/Volumes/Mac-480g外接/quantan_data/day"
+from alphapulse.config.settings import DATA_DIR
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "backtest_results"
 BEST_PARAMS_FILE = Path(__file__).resolve().parent.parent / "config" / "best_params.json"
 

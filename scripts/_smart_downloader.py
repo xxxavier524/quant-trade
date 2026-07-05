@@ -39,7 +39,7 @@ except ImportError:
     _HAS_V3 = False
 
 # ── Paths ──────────────────────────────────────────────────
-DATA_DIR = "/Volumes/Mac-480g外接/quantan_data/day"
+from alphapulse.config.settings import DATA_DIR
 LOG_DIR  = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
 PID_FILE = os.path.join(LOG_DIR, "smart_downloader.pid")
 START_DATE = "2020-01-01"

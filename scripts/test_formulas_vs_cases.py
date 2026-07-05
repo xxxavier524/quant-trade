@@ -28,7 +28,8 @@ from collections import defaultdict
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CASES_PATH = PROJECT_ROOT / "cases" / "case_stocks.csv"
 TEMP_DATA_DIR = PROJECT_ROOT / "temp_data"
-EXTERNAL_DATA_DIR = Path("/Volumes/Mac-480g外接/quantan_data/day")
+from alphapulse.config.settings import DATA_DIR as _DD
+EXTERNAL_DATA_DIR = Path(_DD)
 REPORTS_DIR = PROJECT_ROOT / "reports"
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 

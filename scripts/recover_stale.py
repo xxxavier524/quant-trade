@@ -29,7 +29,7 @@ socket.setdefaulttimeout(30)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-DATA_DIR = os.environ.get("ALPHAPULSE_DATA_DIR", "/Volumes/Mac-480g外接/quantan_data/day")
+from alphapulse.config.settings import DATA_DIR  # 统一读settings(2026-07-05迁内置盘)
 COLUMNS = ["date", "open", "high", "low", "close", "volume", "amount", "turnover"]
 
 

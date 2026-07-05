@@ -11,7 +11,7 @@ from alphapulse.strategies.b1_formula_strategy import generate_signals as b1
 from alphapulse.utils.filters import get_st_stocks, get_delisted_stocks, is_at_limit_up
 
 TARGET = "2026-05-22"
-DATA_DIR = "/Volumes/Mac-480g外接/quantan_data/day"
+from alphapulse.config.settings import DATA_DIR
 PROJECT_ROOT = Path(".")
 
 STRATS = {"B1_FORMULA": b1, "B1_B2_B3": b1b2b3, "BRICK_3": brick3, "NEEDLE_WASHOUT": nw}

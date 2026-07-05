@@ -11,7 +11,8 @@ from alphapulse.utils.filters import get_st_stocks, get_delisted_stocks, is_at_l
 TARGET = "2026-05-21"
 
 print("Loading data...")
-stocks = load_stocks('/Volumes/Mac-480g外接/quantan_data/day', min_days=200)
+from alphapulse.config.settings import DATA_DIR
+stocks = load_stocks(DATA_DIR, min_days=200)
 print(f"Loaded {len(stocks)} stocks")
 
 thu = {s: d for s, d in stocks.items() if str(d.index[-1])[:10] >= TARGET}

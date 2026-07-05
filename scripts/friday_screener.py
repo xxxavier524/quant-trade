@@ -19,7 +19,7 @@ from alphapulse.utils.filters import (
     is_at_limit_up,
 )
 
-DATA_DIR = "/Volumes/Mac-480g外接/quantan_data/day"
+from alphapulse.config.settings import DATA_DIR
 TARGET_DATE = "2026-05-22"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 

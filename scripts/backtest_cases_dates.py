@@ -16,7 +16,7 @@ from alphapulse.strategies.brick_ultra_strategy import generate_signals as brick
 from alphapulse.strategies.needle_enhanced import generate_signals as needle
 from alphapulse.strategies.b1_enhanced import generate_signals as b1_enh
 
-DATA_DIR = "/Volumes/Mac-480g外接/quantan_data/day"
+from alphapulse.config.settings import DATA_DIR
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 STRATEGIES = {

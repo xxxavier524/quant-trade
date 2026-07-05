@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts.run_backtest import load_stocks
 from alphapulse.strategies.brick_three_types import generate_signals
 
-DATA_DIR = "/Volumes/Mac-480g外接/quantan_data/day"
+from alphapulse.config.settings import DATA_DIR
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "backtest_results"
 BEST_PARAMS_FILE = Path(__file__).resolve().parent.parent / "config" / "best_params.json"
 

@@ -14,7 +14,7 @@ from alphapulse.config.settings import FEISHU_WEBHOOK_URL, AUTO_RESEARCH_START_H
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("nightly_runner")
-DATA_DIR = Path(DATA_DIR) if DATA_DIR else Path("/Volumes/Mac-480g外接/quantan_data/day/")
+DATA_DIR = Path(DATA_DIR) if DATA_DIR else Path(__file__).resolve().parent.parent / "data" / "day"
 
 def validate_data():
     files = list(DATA_DIR.glob("*.csv"))
