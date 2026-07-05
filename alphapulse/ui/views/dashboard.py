@@ -160,6 +160,15 @@ def _board_selector():
         board_dialog(board)
 
 
+@st.cache_data(ttl=600)
+def _morning_brief():
+    """最新早报（morning_brief.py 每日07:30生成）。"""
+    files = sorted(REPORTS_DIR.glob("morning_brief_*.md"))
+    if not files:
+        return "", ""
+    return files[-1].stem.replace("morning_brief_", ""), files[-1].read_text(encoding="utf-8")
+
+
 def render():
     try:
         m = _market()
@@ -167,6 +176,12 @@ def render():
         m = {"score": 50, "level": "震荡", "advice": "指数数据缺失", "detail": {}}
     date, screen = _screen()
     sectors = _sectors()
+
+    # ── 每日早报（东财+新浪快讯 → DeepSeek 摘要，关联概念库）──
+    bdate, brief = _morning_brief()
+    if brief:
+        with st.expander(f"📰 每日早报 {bdate}（宏观/题材/个股/风险）", expanded=False):
+            st.markdown(brief)
 
     # ── 数据/选股更新状态条 ──
     upd = _last_update()
