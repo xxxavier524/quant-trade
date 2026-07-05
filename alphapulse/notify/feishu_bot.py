@@ -50,7 +50,14 @@ def build_daily_report(macro_score, macro_level, strong_sectors, b1b2_top5, bric
 
 
 def send_feishu(webhook_url, content):
-    payload = content if isinstance(content, dict) else {"msg_type": "text", "content": {"text": str(content)}}
+    # 文本消息统一带 [AlphaPulse] 前缀——匹配机器人安全设置的自定义关键词
+    if not isinstance(content, dict):
+        text = str(content)
+        if "AlphaPulse" not in text:
+            text = "[AlphaPulse] " + text
+        payload = {"msg_type": "text", "content": {"text": text}}
+    else:
+        payload = content
     try:
         resp = requests.post(webhook_url, json=payload, timeout=10)
         if resp.status_code == 200 and resp.json().get("code") == 0:

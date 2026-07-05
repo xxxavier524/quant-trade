@@ -54,12 +54,16 @@ def main() -> int:
     # 信号追踪：录入今日Top + 回填历史表现（非关键，失败不影响）
     steps.append(run_step("信号追踪",
                           ["scripts/track_signals.py"], timeout=300))
+    # agent决策对账：决策日志 vs 实际行情，各角色命中率（非关键）
+    steps.append(run_step("agent决策对账",
+                          ["scripts/review_agent_decisions.py"], timeout=300))
 
     REPORTS_DIR.mkdir(exist_ok=True)
+    _noncritical = {"信号追踪", "agent决策对账"}
     marker = {
         "finished_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "steps": steps,
-        "ok": all(s["ok"] for s in steps if s["step"] != "信号追踪"),
+        "ok": all(s["ok"] for s in steps if s["step"] not in _noncritical),
     }
     (REPORTS_DIR / "last_run.json").write_text(
         json.dumps(marker, ensure_ascii=False, indent=2))

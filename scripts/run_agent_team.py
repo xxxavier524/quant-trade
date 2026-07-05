@@ -170,6 +170,16 @@ def main() -> int:
     out.write_text(_render_md(verdicts, date, ctx), encoding="utf-8")
     logger.info(f"→ {out}")
 
+    # 决策日志（晚间 review_agent_decisions.py 对账各角色命中率）
+    try:
+        from alphapulse.agent_team.decision_log import append_decisions
+        trade_date = args.date or max(
+            (df.iloc[-1]["date"] for _, _, df in items if df is not None), default=date)
+        n_logged = append_decisions(verdicts, str(trade_date))
+        logger.info(f"决策日志 +{n_logged} 条（数据日 {trade_date}）")
+    except Exception as e:
+        logger.warning(f"决策日志写入失败: {e}")
+
     ok = sorted([v for v in verdicts if v.ok], key=lambda v: v.score, reverse=True)
     for v in ok[:10]:
         pos = v.meta.get("position_pct", 0)

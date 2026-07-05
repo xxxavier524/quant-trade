@@ -71,7 +71,13 @@ def _run_team(date: str, df: pd.DataFrame, top_n: int, debate: bool):
         d = load_stock(csv, "9999-12-31", min_rows=120) if csv.exists() else None
         items.append((sym, name, d))
     ctx = build_context()
-    return analyze_batch(items, ctx, debate=debate), ctx
+    verdicts = analyze_batch(items, ctx, debate=debate)
+    try:
+        from alphapulse.agent_team.decision_log import append_decisions
+        append_decisions(verdicts, date)
+    except Exception:
+        pass
+    return verdicts, ctx
 
 
 def _agent_team_section(date: str, df: pd.DataFrame):

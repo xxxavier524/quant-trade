@@ -82,7 +82,24 @@ AUTO_RESEARCH_END_HOUR = 5.5
 AUTO_RESEARCH_IMPROVEMENT_RATIO = 1.05
 AUTO_RESEARCH_SNAPSHOT_KEEP = 3
 
-FEISHU_WEBHOOK_URL = ""
+def _env_or_dotenv(key: str) -> str:
+    """环境变量优先，其次项目根 .env（gitignored，与 DEEPSEEK_API_KEY 同处）。"""
+    v = os.environ.get(key, "")
+    if v:
+        return v
+    try:
+        for line in open(os.path.join(PROJECT_ROOT, ".env")):
+            line = line.strip()
+            if line.startswith(f"{key}="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return ""
+
+
+# 飞书群机器人 webhook：配置在 .env（FEISHU_WEBHOOK_URL=https://open.feishu.cn/...）
+# 机器人安全设置用自定义关键词 "AlphaPulse"（所有推送消息统一带此前缀）
+FEISHU_WEBHOOK_URL = _env_or_dotenv("FEISHU_WEBHOOK_URL")
 VIBE_TRADING_URL = "http://localhost:8899"
 STREAMLIT_PORT = 8501
 SQLITE_DB_PATH = "backtest_results/short_term.db"

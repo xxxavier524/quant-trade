@@ -222,3 +222,19 @@ def test_persona_absent_no_effect(monkeypatch):
     from alphapulse.agent_team import persona as P
     monkeypatch.setattr(P, "PERSONA_DIR", Path("/nonexistent"))
     assert P.persona_opinions(_verdict(), chat_fn=lambda p, s: "x") == []
+
+
+# ── 决策日志闭环 ──
+def test_decision_log_roundtrip(tmp_path):
+    from alphapulse.agent_team import decision_log as DL
+    p = tmp_path / "d.jsonl"
+    v = _verdict(72.0, mv=50.0)
+    v.meta["position_pct"] = 12.0
+    n = DL.append_decisions([v, _verdict(ok=False)], "2026-07-03", path=p)
+    assert n == 1                                  # 观望不入库
+    # 同日重复研判 → 读取端只留最新
+    v2 = _verdict(80.0, mv=50.0)
+    DL.append_decisions([v2], "2026-07-03", path=p)
+    df = DL.load_decisions(path=p)
+    assert len(df) == 1 and df.iloc[0]["score"] == 80.0
+    assert df.iloc[0]["position_pct"] == 0.0 or "portfolio_signal" in df.columns
