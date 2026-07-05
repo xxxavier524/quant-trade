@@ -199,3 +199,89 @@ def generate_factor(description: str, name: str, use_llm: bool = True) -> dict:
 
     return {"ok": True, "name": slug, "path": str(path), "code": code,
             "message": f"已生成（{source}）。{note}。用 validate_signal 验证后再启用。"}
+
+
+# ============================================================ 表达式模式（路线图#3）
+# DeepSeek 输出一行 DSL 表达式而非 .py —— 幻觉面收窄、校验成本降一个量级。
+
+EXPR_SYSTEM_PROMPT = """你是A股量化因子工程师。把用户的中文选股/因子描述翻译成**一行表达式**。
+
+只输出一个JSON代码块：
+```json
+{"expr": "<表达式>", "params": {"参数名": 默认值}, "cast": "bool" 或 null, "description": "一句话"}
+```
+
+表达式DSL（只能用以下词表，函数区分大小写）：
+- 字段: open high low close volume amount turnover market_cap vwap
+- 时序: Ref(x,n) Delta(x,n)              # 只允许 n≥0，严禁未来数据
+- 滚动: Mean/MA(x,n) Sum(x,n) Std(x,n) Var Max/HHV(x,n) Min/LLV(x,n) Med Mad
+        Skew Kurt Quantile(x,n,q) Rank(x,n) IdxMax IdxMin Count(cond,n)
+- 回归: Slope(x,n) Rsquare(x,n) Resi(x,n)
+- 双序列: Corr(x,y,n) Cov(x,y,n)
+- 平滑: EMA(x,n) WMA(x,n) SMA(x,n,m)      # SMA为通达信语义 ewm(alpha=m/n)
+- 逐元素: Abs Log Sign Sqrt Power(a,b) Greater(a,b) Less(a,b) If(c,a,b) Cross(a,b)
+- 运算: + - * / ** % 比较 & | ~ and or not
+注意：Max/Min/HHV/LLV 是滚动窗口语义；两序列逐元素取大/小用 Greater/Less。
+
+领域惯用语：
+- 知行白线 = EMA(EMA(close,10),10)
+- 知行黄线(多空线) = (MA(close,14)+MA(close,28)+MA(close,57)+MA(close,114))/4
+- KDJ: rsv=100*(close-LLV(low,9))/(HHV(high,9)-LLV(low,9)); K=SMA(rsv,3,1); D=SMA(K,3,1); J=3*K-2*D
+- 缩量 = volume < ratio * Mean(volume, n)
+- 阈值一律写成参数名（如 j_threshold），默认值放 params，便于网格搜索
+
+示例（"J值小于15且缩量"）：
+```json
+{"expr": "(3*SMA(100*(close-LLV(low,9))/(HHV(high,9)-LLV(low,9)),3,1)-2*SMA(SMA(100*(close-LLV(low,9))/(HHV(high,9)-LLV(low,9)),3,1),3,1)) < j_threshold and volume < shrink_ratio*Mean(volume,5)",
+ "params": {"j_threshold": 15.0, "shrink_ratio": 0.5}, "cast": "bool",
+ "description": "KDJ的J低于阈值且当日缩量"}
+```"""
+
+
+def _extract_json(text: str) -> dict | None:
+    m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    raw = m.group(1) if m else text.strip()
+    try:
+        return json.loads(raw)
+    except Exception:
+        return None
+
+
+def generate_expression(description: str, name: str, use_llm: bool = True,
+                        max_retries: int = 1) -> dict:
+    """中文描述 → 一行表达式因子，注册到 expressions.json（enabled=False）。
+
+    校验/冒烟失败时把问题列表回喂 DeepSeek 重试 max_retries 次。
+
+    Returns:
+        dict: {ok, name, expr, message}
+    """
+    from alphapulse.factors import expr_engine
+
+    if not use_llm:
+        return {"ok": False, "message": "表达式模式需启用 LLM"}
+    from alphapulse.llm.client import chat, MODEL_REASONING
+
+    slug = _slugify(name)
+    prompt = description
+    last_err = ""
+    for attempt in range(1 + max_retries):
+        raw = chat(prompt, system=EXPR_SYSTEM_PROMPT,
+                   model=MODEL_REASONING, temperature=0.1)
+        payload = _extract_json(raw)
+        if not payload or "expr" not in payload:
+            last_err = "输出不是合法JSON（需含 expr 字段）"
+        else:
+            result = expr_engine.register_expression(
+                slug, payload["expr"],
+                description=payload.get("description", description),
+                params=payload.get("params") or {},
+                cast=payload.get("cast"),
+                source="deepseek_expr", enabled=False)
+            if result["ok"]:
+                return {"ok": True, "name": slug, "expr": payload["expr"],
+                        "message": result["message"] + " 用 validate_signal 验证后再启用。"}
+            last_err = result["message"]
+        prompt = (f"{description}\n\n上次输出的问题：{last_err}\n"
+                  f"请修正后重新只输出JSON代码块。")
+    return {"ok": False, "name": slug, "message": f"重试后仍失败: {last_err}"}

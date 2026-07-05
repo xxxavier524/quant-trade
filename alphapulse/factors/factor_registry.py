@@ -428,7 +428,14 @@ def compute_factor(
         pd.Series: 因子值
     """
     if name not in FACTOR_REGISTRY:
-        raise ValueError(f"未知因子: {name}。可用: {list(FACTOR_REGISTRY.keys())}")
+        # 兜底：表达式注册表（expr_engine，路线图#3）
+        from alphapulse.factors import expr_engine
+        expr_reg = expr_engine.load_expression_registry()
+        if name in expr_reg:
+            return expr_engine.compute_registered(name, data, **params)
+        raise ValueError(
+            f"未知因子: {name}。可用: {list(FACTOR_REGISTRY.keys())}"
+            f" + 表达式因子: {sorted(expr_reg)}")
 
     entry = FACTOR_REGISTRY[name]
     merged_params = {**entry["default_params"], **params}
