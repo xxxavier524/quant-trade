@@ -32,7 +32,7 @@ from alphapulse.factors import (
     dd_sell_signal,
     trendline_break,
 )
-from alphapulse.strategies import needle_washout, brick_three_types, b1_b2_b3_strategy
+from alphapulse.strategies import needle_washout, brick_three_types, b1_b2_b3_strategy, zg_b1_brick
 
 from alphapulse.factors.experimental import (
     northbound_capital_flow,
@@ -377,6 +377,14 @@ FACTOR_REGISTRY = {
         "description": "B1→B2→B3递进战法：B1底部挖掘(7条件AND)→B2确认(阳线放量突破白线)→B3锁定(缩量阳线+主力锁仓)，三阶段递进置信度0.6/0.75/0.9",
         "source": "AlphaPulse-A B1→B2→B3递进战法",
         "default_params": {},
+    },
+    # --- Z哥 B1+砖型图 融合选股（独立策略，zettaranc-perspective 体系） ---
+    "ZG_B1_BRICK": {
+        "module": zg_b1_brick,
+        "type": "selection",
+        "description": "Z哥融合选股：B1买点(b1_formula 6条件) + 砖型图周期早段确认(第1-2红砖，尾段否决) + 纪律卡(只输一根K线止损/S1离场)。独立于现有B1，效果好再合并",
+        "source": "zettaranc-perspective 少妇战法SOP（女娲蒸馏）",
+        "default_params": {"early_max": 2, "late_from": 4, "require_brick_early": True},
     },
     # --- 风控因子（type="risk"） ---
     "DYNAMIC_STOP_LOSS": {
