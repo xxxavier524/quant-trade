@@ -43,6 +43,7 @@ from alphapulse.factors.experimental import (
 )
 from alphapulse.factors import industry_rotation, beta_fundamental, knowledge_points
 from alphapulse.factors import yin_volume_34, four_brick_cycle, weekly_ma_cross
+from alphapulse.factors import chip_distribution
 
 FACTOR_REGISTRY = {
     "N_STRUCT": {
@@ -178,6 +179,30 @@ FACTOR_REGISTRY = {
         "type": "core",
         "description": "筹码集中度：20天振幅<15% + 10天振幅<20天×0.6 + 换手率下降，输出0-1连续值",
         "default_params": {"window": 20, "amplitude_max": 15.0},
+    },
+    # --- 筹码分布因子（CYQ 成本分布重建，路线图#5） ---
+    "CHIP_PROFIT_LOW": {
+        "module": chip_distribution,
+        "type": "selection",
+        "description": "获利盘比例低：CYQ成本分布重建，现价以下筹码占比<15%=底部吸筹完成（B1真底确认）",
+        "source": "InStock CYQ / 路线图#5",
+        "default_params": {"profit_threshold": 0.15, "n_buckets": 200, "max_turnover": 0.5},
+    },
+    "CHIP_SINGLE_PEAK": {
+        "module": chip_distribution,
+        "compute_func": "compute_single_peak",
+        "type": "factor",
+        "description": "筹码单峰密集：中央90%筹码价格带宽/现价<12%=低位单峰锁仓",
+        "source": "InStock CYQ / 路线图#5",
+        "default_params": {"conc_threshold": 0.12, "n_buckets": 200, "max_turnover": 0.5},
+    },
+    "CHIP_DISTRIBUTION": {
+        "module": chip_distribution,
+        "compute_func": "compute_indicator",
+        "type": "indicator",
+        "description": "筹码分布三指标（纯数值）：profit_ratio获利盘/avg_cost平均成本/conc90集中度",
+        "source": "InStock CYQ / 路线图#5",
+        "default_params": {"n_buckets": 200, "max_turnover": 0.5},
     },
     "SYMMETRIC_STRUCTURE": {
         "module": symmetric_structure,
