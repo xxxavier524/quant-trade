@@ -1,24 +1,30 @@
 {
-  "finished_at": "2026-07-05 15:47:36",
+  "finished_at": "2026-07-06 15:34:15",
   "steps": [
     {
       "step": "数据增量更新",
-      "ok": true,
-      "rc": 0,
-      "seconds": 828
+      "ok": false,
+      "rc": 2,
+      "seconds": 33
     },
     {
       "step": "全市场选股",
       "ok": true,
       "rc": 0,
-      "seconds": 221
+      "seconds": 220
     },
     {
       "step": "信号追踪",
       "ok": true,
       "rc": 0,
       "seconds": 2
+    },
+    {
+      "step": "agent决策对账",
+      "ok": true,
+      "rc": 0,
+      "seconds": 0
     }
   ],
-  "ok": true
+  "ok": false
 }
