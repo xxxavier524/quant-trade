@@ -125,8 +125,8 @@ def main() -> int:
     n_conf, w5_conf, m5_conf = _winrate(to_b2["B1_fwd5"])
     _, w5_b2entry, m5_b2entry = _winrate(to_b2["B2_fwd5"])
     # 全 B1 混合期望（ex-ante：无法预知是否会确认，等权持有每个 B1 固定5日）
-    all_b1_fwd5 = pd.concat([iso_b1["B1_fwd5"], to_b2["B1_fwd5"], to_b3["B1_fwd5"]])
-    _, w5_all, m5_all = _winrate(all_b1_fwd5.dropna())
+    # 每条序列恰计一次（to_b2 已含 B3-reached，不能再并 to_b3，否则重复计数）
+    _, w5_all, m5_all = _winrate(seq["B1_fwd5"])
     claim = (
         f"**关键区分（防误读）**：\n\n"
         f"1. 孤立B1（未确认，占{(1-n_b2/n_seq)*100:.0f}%）固定5日净胜率 {w5_iso}%、"
