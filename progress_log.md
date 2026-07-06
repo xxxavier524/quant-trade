@@ -517,3 +517,25 @@ _extract_json四形态鲁棒、名字冲突FACTOR_REGISTRY优先——固化为�
 TypeError，factor_name透传)已开背景任务，未在本会话修(超范围)。全仓297 passed。
 设计spec: docs/superpowers/specs/2026-07-06-chip-distribution-design.md。
 下一队列：#4信号链状态机 / 把conc90<0.3并入B1选股(需用户确认启用) / #6洗盘模板。
+
+## 2026-07-06 路线图#4 信号链状态机 seq_id 贯穿（v4-fusion）
+
+**缺口**：b1_b2_b3_strategy.generate_signals 产出 B1/B2/B3 是独立行(B2只判"过去5日有B1")，
+不记seq_id串链→无法按序列聚合、无法把B2/B3收益归因到源头B1。
+**改造**（strategies/b1_b2_b3_strategy.py，纯后处理不改触发）：assign_seq_ids 因果单次扫描——
+一B1开序列(seq_id=symbol:date)，首个窗内B2继承其seq、首个B3继承B2；按(日期,阶段)键避免
+同日既是某链B2又是新链B1的冲突。三类信号行新增seq_id/parent_stage/seq_root_date(向后兼容)。
+语义与playbook_engine.simulate_b1b2b3严格共源(一B1→首B2→首B3)。
+**序列分析**（scripts/sequence_analysis.py，799股/4万B1序列→reports/sequence_analysis.md）：
+- 漏斗：B1→B2 仅5.9% → B3 0.2%(占B2的3.6%)，B1极permissive、确认极稀。
+- **诚实拆解(防误读)**：①孤立B1(占94%)固定5日净胜率39.2%/净均值-0.82%=负期望(印证信号日无优势)；
+  ②确认序列从B1日起88.8%/+7.2% 但**是事后条件统计**(需持有到确认才兑现,不可ex-ante挑)；
+  ③全B1等权固定5日**混合ex-ante期望42.1%/-0.35%仍偏负**→序列价值不来自固定窗口、需simulate的
+  持有到卖出+stop_pct机器把赢家跑出来；④追买B2确认42.3%/~0=折价严重(印证既有hold_matrix结论)；
+  ⑤B3入场最强(10日53.5%/+2.41%)。
+- **94.7%复核**：该数为交易级(持有到S1/DD卖出)，与固定前向窗口不可直接对齐，B3序列样本86偏小；
+  定性结论成立=确认越深条件胜率单调抬升、优势在确认序列而非孤立信号，但兑现依赖完整战法。
+**测试**：tests/test_signal_chain.py 9用例(满链同seq/孤立B1/超窗/两链不串号/首个B2确认/截断因果/
+向后兼容)。自查修复混合期望重复计数B3序列。全仓306 passed零回归。
+设计spec: docs/superpowers/specs/2026-07-06-signal-chain-seqid-design.md。
+下一队列：把conc90<0.3并入B1选股(需用户确认) / #6洗盘模板 / #7MACD背驰 / #10K线合并。
