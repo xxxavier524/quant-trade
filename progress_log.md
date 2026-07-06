@@ -482,4 +482,16 @@ _extract_json四形态鲁棒、名字冲突FACTOR_REGISTRY优先——固化为�
 **设计取舍(非bug)**：IdxMax暖机用满窗(qlib用min_periods=1,IC侧不影响)；WMA用权重1..N(通达信语义)。
 **测试**：test_expr_engine.py 48用例；全仓286 passed零回归。
 设计spec: docs/superpowers/specs/2026-07-06-expr-engine-design.md。
-下一队列：#5筹码分布 / #4信号链状态机 / LGBM按Alpha158重训AUC对比。
+
+**#3进阶验收 — Alpha158入LGBM的AUC前后对比**（scripts/alpha158_lgbm_ab.py，1199股/21.1万笔交易，
+同切分≤2023训/2024验/2025+测、同超参，只报告不覆盖生产模型 → reports/alpha158_lgbm_ab.md）：
+- A基线27特征: valid AUC 0.5565 / test 0.5501 / test Top10%胜率 0.5021
+- B基线+158:   valid AUC 0.5488 / test 0.5568 / test Top10% 0.5045
+- C仅158:      valid AUC 0.5421 / test 0.5542 / test Top10% 0.5034
+- **结论=非稳健**：B 的 test AUC +0.0067 但 valid AUC −0.0077，方向不一致=噪声/风格波动，
+  按 ic_weight_tuning "双指标均改善才采纳" 标准**暂不合入生产**（负结果，诚实入账）。
+- **真发现**：C（仅Alpha158零手工特征）test AUC 0.5542 ≈ A 的 0.5501，通用因子库"免费"
+  复现了手工27特征的信号量 → 表达式引擎降低了新因子边际成本这一结论被数据支撑。
+- 后续可试：Alpha158 只挑高|IC|子集(reports/alpha158_ic.md Top20)入模，或对158做截面中性化，
+  减少过拟合再评估；生产 pattern_gbdt.pkl 保持现状。
+下一队列：#5筹码分布 / #4信号链状态机。

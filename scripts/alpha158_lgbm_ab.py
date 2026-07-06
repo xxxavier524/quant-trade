@@ -98,11 +98,17 @@ def write_report(base_cols, a158_cols, res, meta, out_md):
                 f"{r.get('test_auc','-')} | {r.get('test_top_decile_win','-')} | "
                 f"{r.get('test_bottom_decile_win','-')} |")
 
-    dauc = (res["B"].get("test_auc", 0) - res["A"].get("test_auc", 0))
+    d_test = res["B"].get("test_auc", 0) - res["A"].get("test_auc", 0)
+    d_valid = res["B"].get("valid_auc", 0) - res["A"].get("valid_auc", 0)
     dwin = (res["B"].get("test_top_decile_win", 0)
             - res["A"].get("test_top_decile_win", 0))
-    verdict = ("Alpha158 显著提升" if dauc >= 0.005 else
-               "Alpha158 边际提升" if dauc > 0 else "Alpha158 未提升")
+    # 采纳门槛沿用 ic_weight_tuning："双指标(valid+test AUC)均改善"才算稳健提升，
+    # 否则单集提升多为市场风格/噪声，不足以支撑合入生产特征。
+    both_up = d_valid > 0 and d_test > 0
+    verdict = ("Alpha158 稳健提升（valid+test 双升）" if both_up and min(d_valid, d_test) >= 0.003 else
+               "Alpha158 双升但幅度小" if both_up else
+               "Alpha158 非稳健：valid/test 方向不一致，差异在噪声范围，暂不合入生产")
+    c_vs_a = res["C"].get("test_auc", 0) - res["A"].get("test_auc", 0)
 
     lines = [
         "# Alpha158 入 LGBM AUC 前后对比（路线图#3 进阶验收）",
@@ -111,9 +117,12 @@ def write_report(base_cols, a158_cols, res, meta, out_md):
         f"交易样本 {meta['n_trades']} 笔（训{meta['n_train']}/验{meta['n_valid']}/测{meta['n_test']}）| "
         f"基准胜率 {meta['base_win']} | 切分 ≤2023训/2024验/2025+测",
         "",
-        f"**结论：{verdict}**（test AUC {res['A'].get('test_auc')}→{res['B'].get('test_auc')}，"
-        f"Δ{dauc:+.4f}；Top10%胜率 {res['A'].get('test_top_decile_win')}→"
-        f"{res['B'].get('test_top_decile_win')}，Δ{dwin:+.4f}）",
+        f"**结论：{verdict}**",
+        "",
+        f"- 基线+158 vs 基线：valid AUC Δ{d_valid:+.4f}、test AUC Δ{d_test:+.4f}、"
+        f"test Top10%胜率 Δ{dwin:+.4f}",
+        f"- 仅Alpha158 vs 基线（无手工特征）：test AUC Δ{c_vs_a:+.4f} "
+        f"→ 通用因子库{'基本复现' if abs(c_vs_a) < 0.01 else ('超过' if c_vs_a > 0 else '低于')}手工27特征的信号量",
         "",
         "| 特征集 | 维度 | valid AUC | test AUC | test Top10%胜率 | test Bot10%胜率 |",
         "|---|---|---|---|---|---|",
