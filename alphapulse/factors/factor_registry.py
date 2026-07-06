@@ -44,7 +44,7 @@ from alphapulse.factors.experimental import (
 from alphapulse.factors import industry_rotation, beta_fundamental, knowledge_points
 from alphapulse.factors import yin_volume_34, four_brick_cycle, weekly_ma_cross
 from alphapulse.factors import chip_distribution
-from alphapulse.factors import washout_template, macd_divergence
+from alphapulse.factors import washout_template, macd_divergence, hurst
 
 FACTOR_REGISTRY = {
     "N_STRUCT": {
@@ -441,6 +441,13 @@ FACTOR_REGISTRY = {
         "description": "MACD面积背驰DD顶背离：价创新高但上涨段红柱面积/前段<divergence_rate→死叉日卖点(chan.py量化)",
         "source": "chan.py divergence_rate / 路线图#7",
         "default_params": {"divergence_rate": 0.9, "fast": 12, "slow": 26, "signal": 9},
+    },
+    "HURST": {
+        "module": hurst,
+        "type": "indicator",
+        "description": "Hurst指数(结构函数法,120窗)：判趋势/均值回归性,战法分流用(低Hurst→B1回归/高Hurst→砖型趋势)",
+        "source": "ai-hedge-fund / 路线图#12",
+        "default_params": {"window": 120, "max_lag": 12},
     },
     # --- 洗盘段量化模板（Sequoia涨停洗盘三段式，路线图#6） ---
     "WASHOUT_SEGMENT": {
