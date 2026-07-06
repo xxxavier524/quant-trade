@@ -539,3 +539,23 @@ TypeError，factor_name透传)已开背景任务，未在本会话修(超范围)
 向后兼容)。自查修复混合期望重复计数B3序列。全仓306 passed零回归。
 设计spec: docs/superpowers/specs/2026-07-06-signal-chain-seqid-design.md。
 下一队列：把conc90<0.3并入B1选股(需用户确认) / #6洗盘模板 / #7MACD背驰 / #10K线合并。
+
+## 2026-07-06 路线图#6 洗盘段模板 + #7 MACD面积背驰（v4-fusion）
+
+**#6 洗盘段量化模板**（factors/washout_template.py，Sequoia涨停洗盘三段式）：
+washout_ok(df,anchor_idx,max_vol_ratio,anchor_price_col)标量(锚后每日vol<ratio×锚量且low>锚价)
++ compute(爆量阳锚→缩量不破锚→首个再确认阳线,向量化因果)。注册WASHOUT_SEGMENT。
+把"缩量阴/3-4阴量线"参数化，统一服务B3锁仓与单针(是yin_volume_34的通用化,不替换)。
+**#7 MACD面积背驰**（factors/macd_divergence.py，chan.py divergence_rate）：
+红柱(hist=2(dif-dea)>0)分段,每段记面积与price_peak;价创新高但area/前段<divergence_rate→
+死叉日DD顶背离(段末死叉日触发,因果)。注册MACD_DIVERGENCE(risk)。是dd_sell_signal的升维补充。
+**网格验证**（scripts/grid_factor_forward.py 通用单因子参数网格×前向净收益vs随机基准,800股）：
+- #6 max_vol_ratio∈{0.4,0.5,0.6,0.75}→reports/grid_washout_segment_max_vol_ratio.md：
+  **标量入场未超基准**(最优0.4:5日44.1% vs基准45.4%)——追买green candle,与B2追买折价同因;
+  网格给最优缩量上限max_vol_ratio=0.4(越严越好,单调),作B3/单针过滤部件用。
+- #7 divergence_rate∈{0.7,0.8,0.9,1.0}→reports/grid_macd_divergence_divergence_rate.md：
+  **卖点有效**——信号后5日净胜率44.7% < 基准45.4%、10日净均值转负(-0.11~-0.17 vs基准+0.28),
+  顶背离后确实走弱;单调:divergence_rate越紧走弱越强。诚实:前向走弱代理非完整持仓卖出模拟。
+**测试**：tests/test_washout_macddiv.py 14用例(锚场景/背驰正负例/死叉日对齐/面积手算/因果/单调)。
+全仓320 passed零回归。设计spec: docs/superpowers/specs/2026-07-06-washout-macddiv-design.md。
+下一队列：#10 K线包含合并预处理 / #8统一信号协议 / 把conc90<0.3+MACD背驰卖点接入战法(需确认)。
