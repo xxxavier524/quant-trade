@@ -44,6 +44,7 @@ from alphapulse.factors.experimental import (
 from alphapulse.factors import industry_rotation, beta_fundamental, knowledge_points
 from alphapulse.factors import yin_volume_34, four_brick_cycle, weekly_ma_cross
 from alphapulse.factors import chip_distribution
+from alphapulse.factors import washout_template, macd_divergence
 
 FACTOR_REGISTRY = {
     "N_STRUCT": {
@@ -433,6 +434,22 @@ FACTOR_REGISTRY = {
         "type": "risk",
         "description": "趋势线跌破：白线(EMA(EMA(C,10),10))与黄线(4MA均值)跌破检测，含假跌破确认，全部shift(1)防未来函数",
         "default_params": {},
+    },
+    "MACD_DIVERGENCE": {
+        "module": macd_divergence,
+        "type": "risk",
+        "description": "MACD面积背驰DD顶背离：价创新高但上涨段红柱面积/前段<divergence_rate→死叉日卖点(chan.py量化)",
+        "source": "chan.py divergence_rate / 路线图#7",
+        "default_params": {"divergence_rate": 0.9, "fast": 12, "slow": 26, "signal": 9},
+    },
+    # --- 洗盘段量化模板（Sequoia涨停洗盘三段式，路线图#6） ---
+    "WASHOUT_SEGMENT": {
+        "module": washout_template,
+        "type": "factor",
+        "description": "洗盘再确认：爆量阳锚→缩量(vol<max_vol_ratio×锚量)不破锚定位→首个再确认阳线，统一服务B3/单针",
+        "source": "Sequoia-X 涨停洗盘 / 路线图#6",
+        "default_params": {"max_vol_ratio": 0.5, "surge_vol_mult": 2.0,
+                           "vol_ma": 5, "min_washout": 1, "max_wait": 10},
     },
 }
 
