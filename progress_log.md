@@ -495,3 +495,25 @@ _extract_json四形态鲁棒、名字冲突FACTOR_REGISTRY优先——固化为�
 - 后续可试：Alpha158 只挑高|IC|子集(reports/alpha158_ic.md Top20)入模，或对158做截面中性化，
   减少过拟合再评估；生产 pattern_gbdt.pkl 保持现状。
 下一队列：#5筹码分布 / #4信号链状态机。
+
+## 2026-07-06 路线图#5 筹码分布因子（CYQ成本分布重建）（v4-fusion）
+
+**动机**：给"底部挖掘"补持仓成本维度（现有CHIP_CONCENTRATION只是振幅代理，非真实成本分布）。
+**算法**（factors/chip_distribution.py，InStock CYQ）：三角分布沉积+换手衰减逐日演化筹码——
+`chips_t=chips_{t-1}*(1-turn_t)+deposit_t*turn_t`，deposit按三角分布(峰在(H+L+C)/3)摊到[low,high]。
+输出profit_ratio(获利盘=现价以下筹码占比)/avg_cost/conc90(中央90%筹码带宽/现价)。
+**向量化**：exp-cumsum闭式(减decaylog[-1]防溢出，公共因子按日归一抵消)，5.9ms/股；
+配逐日递归参考实现_compute_chips_sequential对拍——机器精度1e-15一致。因果由构造保证。
+注册 CHIP_PROFIT_LOW(获利盘<15%)/CHIP_SINGLE_PEAK(conc90<12%)/CHIP_DISTRIBUTION(三指标)。
+**AB验证**（scripts/ab_test_chip.py，799股/7.2万B1事件→reports/ab_chip_b1.md）=**正结果**：
+- 单峰密集(conc90)提纯最强：纯B1净胜率5日44.7% → conc90<0.3 **46.5%**(留样1.38万,10日净均值转正+0.43%)
+  → conc90<0.2 48.2%(留样4699)。**推荐操作点conc90<0.3**(兼顾提升与留样)。
+- 获利盘profit_ratio<0.15→45.5%、<0.10→46.2%(5日净均值翻正+0.11%)，单调有效。
+- 最紧阈值(conc90<0.12样本493/组合过滤)过度过滤致均值转负——报告如实标注甜点区，不夸大。
+- 与Alpha158-LGBM(非稳健)对比：筹码因子是本会话**首个干净正结果**，验证"低位单峰=真底"命题。
+**测试**：tests/test_chip_distribution.py 11用例(向量化==逐日/固定网格截断因果/涨跌方向/单峰density/一字板)。
+**顺带**：新因子conc_threshold暴露test_all_factors_no_error盲区(只调基础compute)→改为按compute_func忠实
+分派+签名过滤参数，首次覆盖compute_func路径。发现既有缺陷(compute_factor对7个knowledge_points因子
+TypeError，factor_name透传)已开背景任务，未在本会话修(超范围)。全仓297 passed。
+设计spec: docs/superpowers/specs/2026-07-06-chip-distribution-design.md。
+下一队列：#4信号链状态机 / 把conc90<0.3并入B1选股(需用户确认启用) / #6洗盘模板。
