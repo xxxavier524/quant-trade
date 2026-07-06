@@ -314,6 +314,70 @@ def test_alpha158_full_compute(df):
     assert not np.isinf(warm.to_numpy()).any(), "存在inf"
 
 
+def test_alpha158_causality(df):
+    """截断因果性：截掉尾部数据，前段每个因子值必须逐点不变（未来函数=致命）。
+
+    这是防止未来数据泄漏最强的回归锚——任何算子若窥探了 t 之后的数据，
+    截断后前段的值就会变化。含 volume=0（停牌样）极端样本。
+    """
+    d = df.copy()
+    d.loc[50, "volume"] = 0.0
+    d.loc[51, "volume"] = 0.0
+    cut = 300
+    full = compute_alpha158(d)
+    part = compute_alpha158(d.iloc[:cut])
+    for col in ALPHA158:
+        a = full[col].iloc[:cut].to_numpy(dtype=float)
+        b = part[col].to_numpy(dtype=float)
+        # NaN 掩码必须一致（截断不应改变有值/无值的位置）
+        na, nb = np.isnan(a), np.isnan(b)
+        assert (na == nb).all(), f"{col}: NaN掩码因截断而变化（结构性未来泄漏）"
+        m = ~na
+        assert np.allclose(a[m], b[m], atol=1e-9, rtol=1e-6), \
+            f"{col}: 截断改变前段值 maxdiff={np.max(np.abs(a[m]-b[m])):.3e}（未来函数）"
+
+
+def test_operator_causality(df):
+    """逐算子截断因果性。"""
+    ops = ["Mean(close,20)", "Std(close,20)", "Max(high,20)", "Min(low,20)",
+           "Mad(close,20)", "Skew(close,30)", "Quantile(close,20,0.7)",
+           "Rank(close,20)", "IdxMax(high,20)", "IdxMin(low,20)",
+           "Count(close>Ref(close,1),10)", "Slope(close,10)", "Rsquare(close,10)",
+           "Resi(close,10)", "Corr(close,volume,20)", "Cov(close,volume,20)",
+           "EMA(close,10)", "WMA(close,10)", "SMA(close,5,2)", "Delta(close,5)",
+           "Cross(EMA(close,5), EMA(close,20))"]
+    cut = 200
+    for op in ops:
+        a = ee.compute(df, op).iloc[:cut].to_numpy(dtype=float)
+        b = ee.compute(df.iloc[:cut], op).to_numpy(dtype=float)
+        m = ~(np.isnan(a) | np.isnan(b))
+        assert np.allclose(a[m], b[m], atol=1e-9, rtol=1e-6), f"{op} 非因果"
+
+
+def test_sandbox_escape_matrix(df):
+    """沙箱逃逸攻击矩阵：属性/魔术方法/内省/内建全部拦截。"""
+    escapes = [
+        "__import__('os').system('echo pwned')",
+        "().__class__.__bases__[0].__subclasses__()",
+        "close.__class__", "close.values", "close.__reduce__()",
+        "getattr(close,'to_csv')('/x')", "close.rolling(5).apply(__import__)",
+        "[].append(1)", "{1:2}[1]", "type(close)", "globals()", "vars()",
+        "close.shift(-1)", "exec('x=1')", "eval('1')", "compile('1','','eval')",
+        "close.map(print)", "open('/etc/passwd')", "Ref(close, -(1))",
+    ]
+    for e in escapes:
+        with pytest.raises(ee.ExprError):
+            ee.compute(df, e)
+
+
+def test_alpha158_no_inf(df):
+    """Alpha158 全部有 1e-12 分母保护，暖机后不应出现 inf。"""
+    d = df.copy()
+    d.loc[50, "volume"] = 0.0  # 零成交量不应产生 inf
+    warm = compute_alpha158(d).iloc[120:]
+    assert not np.isinf(warm.to_numpy()).any()
+
+
 def test_alpha158_spotchecks(df):
     frame = compute_alpha158(df, names=["KMID", "ROC5", "MA20", "RSV10", "RANK20"])
     c = df["close"]

@@ -456,3 +456,30 @@ best_params落盘+patterns同步;auto_retune.py每周日04:00邻域周检(只建
 **UMP**:时间外推0/40失败簇+敏感性6配置全不过 → 否决接入(止损修复已吸收其攻击面),负结果入日记。
 **人格插槽**:config/personas/*.md即插即用(金渐成由外部AI供给)。数据补至7-3(85%),
 recover_stale后台修复除权卡死群。234 tests passed。
+
+## 2026-07-06 路线图#3 因子表达式引擎 + Alpha158 因子库（v4-fusion）
+
+**动机**：新因子成本从"写.py+沙箱exec"降为"一行DSL字符串"，收窄DeepSeek生成幻觉面。
+**引擎**（factors/expr_engine.py）：ast.parse(mode=eval)+节点白名单+递归树遍历求值，
+全程无exec/eval——无沙箱逃逸面。算子表qlib名为主+通达信别名（MA/HHV/LLV/REF/SMA…）：
+时序Ref/Delta、滚动统计17个、回归Slope/Rsquare/Resi（convolve闭式OLS）、双序列Corr/Cov、
+平滑EMA/WMA/SMA(通达信ewm)、逐元素If/Cross/Greater/Less等。参数运行时绑定（j<j_threshold）。
+歧义规避：Max/Min/HHV/LLV固定滚动窗口语义，成对逐元素用Greater/Less。
+**Alpha158**（factors/alpha158.py）：qlib Alpha158DL全套158表达式（KBAR9+价格4+滚动29×5窗口），
+compute_alpha158(df) 0.05s/股。逐条核对qlib原定义（IdxMax用argmax+1的qlib惯例、
+SUMP/RSV/CORD/WVMA分母、Slope/Resi闭式解）。
+**接线**：factor_registry.compute_factor未知因子兜底查expressions.json；
+factor_gen新增generate_expression()——DeepSeek输出JSON表达式而非.py，校验失败回喂重试；
+生成因子enabled=False不自动进选股（沿用安全规约）。
+**IC验证**（scripts/alpha158_ic.py）：797股×500日面板(39万股日/1963交易日)日截面Spearman IC，
+132/158因子|meanIC|≥0.02、94个|ICIR|≥0.3；Top均值回归型(QTLD60/MA60/QTLD20/VMA60)
+IC≈0.067 ICIR≈0.45-0.61，与底部挖掘体系风格一致 → reports/alpha158_ic.md。
+**验收**：知行白线/黄线/洗盘四线/MACD DIF/KDJ-J 表达式对拍现有模块逐点allclose✅；
+Alpha158全量跑通✅；安全拒绝矩阵（import/属性/下标/Ref负数/内省/内建）✅。
+**对抗审查**：Workflow五维审查agent全撞会话额度上限 → 改自跑真实验证：全158因子+21算子
+截断因果性（截尾不改前段值+NaN掩码一致，含volume=0停牌样）零泄漏、19条沙箱逃逸全拦截、
+_extract_json四形态鲁棒、名字冲突FACTOR_REGISTRY优先——固化为回归测试。
+**设计取舍(非bug)**：IdxMax暖机用满窗(qlib用min_periods=1,IC侧不影响)；WMA用权重1..N(通达信语义)。
+**测试**：test_expr_engine.py 48用例；全仓286 passed零回归。
+设计spec: docs/superpowers/specs/2026-07-06-expr-engine-design.md。
+下一队列：#5筹码分布 / #4信号链状态机 / LGBM按Alpha158重训AUC对比。
