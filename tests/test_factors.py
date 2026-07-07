@@ -5,6 +5,7 @@
 
 import pandas as pd
 import numpy as np
+import pytest
 from alphapulse.factors import (
     n_struct,
     vol_red_green,
@@ -198,7 +199,8 @@ def test_all_factors_no_error():
     import inspect
 
     for name, entry in FACTOR_REGISTRY.items():
-        # 按 registry 声明的 compute_func 分派（缺省 compute），忠实反映实际调用路径
+        # 按 registry 声明的 compute_func 分派（缺省 compute），忠实反映实际调用路径；
+        # compute_factor 路径另有参数化测试 test_compute_factor_compute_func 覆盖
         func_name = entry.get("compute_func", "compute")
         func = getattr(entry["module"], func_name, None)
         if not callable(func):
@@ -223,6 +225,54 @@ def test_all_factors_no_error():
             assert result.dtype == bool, f"{name}: 非bool类型: {result.dtype}"
 
 
+# 所有在 registry 中通过 compute_func 精确指向具体函数的因子
+# （7大知识点 + 指标类 BRICK_INDICATOR / ZHIXING_LINES）
+COMPUTE_FUNC_FACTORS = sorted(
+    name for name, entry in FACTOR_REGISTRY.items() if "compute_func" in entry
+)
+
+
+@pytest.mark.parametrize("name", COMPUTE_FUNC_FACTORS)
+def test_compute_factor_compute_func(name):
+    """compute_factor 对所有含 compute_func 的注册因子返回正确的 Series/DataFrame。
+
+    回归测试：这些条目的 compute_func 精确指向 compute_pull_rope(data) 这类
+    只接受 data 的具体函数。compute_factor 必须按目标函数签名过滤参数，
+    不能把 default_params 里仅供基础分派器使用的键（如 factor_name）透传导致
+    TypeError。覆盖7大知识点因子及指标类 BRICK_INDICATOR / ZHIXING_LINES。
+    """
+    data = make_synthetic_data(500)
+    result = compute_factor(name, data)
+
+    assert isinstance(result, (pd.Series, pd.DataFrame)), \
+        f"{name}: 返回类型异常 {type(result)}"
+    assert len(result) == len(data), f"{name}: 长度不匹配"
+    assert result.index.equals(data.index), f"{name}: 索引与输入不一致"
+
+
+def test_compute_factor_filters_unexpected_params():
+    """回归：compute_factor 传入目标函数不接受的多余参数时应静默过滤而非抛错。
+
+    精确复现报告的既有缺陷——factor_name 本是给 knowledge_points.compute()
+    基础分派器用的，透传给只接受 data 的 compute_pull_rope 会抛
+    TypeError: got an unexpected keyword argument 'factor_name'。
+    """
+    data = make_synthetic_data(500)
+
+    # 精确复现报告的失败调用，修复后应正常返回
+    result = compute_factor("PULL_ROPE", data, factor_name="PULL_ROPE")
+    assert isinstance(result, pd.Series)
+    assert len(result) == len(data)
+
+    # 任意未知键同样应被过滤（DataFrame 输出因子）
+    df_result = compute_factor("DISTRIBUTION_PATTERNS", data, bogus_param=999)
+    assert isinstance(df_result, pd.DataFrame)
+    assert len(df_result) == len(data)
+
+    # 过滤不能误删有效参数：ZHIXING_LINES 的 compute_indicator 接受 n1/n2
+    lines = compute_factor("ZHIXING_LINES", data, n1=10, n2=40, unknown_key=1)
+    assert len(lines) == len(data)
+
+
 if __name__ == "__main__":
-    import pytest
     pytest.main([__file__, "-v"])

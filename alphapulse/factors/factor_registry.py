@@ -3,6 +3,8 @@
 通过名称字符串调用因子，统一接口：compute(data, **params) -> pd.Series
 """
 
+import inspect
+
 from alphapulse.factors import (
     n_struct,
     vol_red_green,
@@ -461,11 +463,36 @@ FACTOR_REGISTRY = {
 }
 
 
+def _accepted_params(func, params: dict) -> dict:
+    """按目标函数签名过滤参数，丢弃函数不接受的键。
+
+    registry 的 default_params 可能带有仅供基础分派器使用的键（例如
+    knowledge_points.compute(data, factor_name, **params) 需要的 factor_name），
+    但当 compute_func 精确指向 compute_pull_rope(data) 这类只接受 data 的具体
+    函数时，透传这些多余键会触发 TypeError。此处按签名过滤即可避免。
+
+    函数若声明 **kwargs（VAR_KEYWORD）则原样传递全部参数；无法内省的
+    函数（部分内置/C 实现）同样原样传递，保持向后兼容。
+    """
+    try:
+        sig = inspect.signature(func)
+    except (TypeError, ValueError):
+        return params
+    parameters = sig.parameters.values()
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters):
+        return params
+    accepted = {
+        n for n, p in sig.parameters.items()
+        if p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    }
+    return {k: v for k, v in params.items() if k in accepted}
+
+
 def compute_factor(
     name: str,
     data: "pd.DataFrame",
     **params,
-) -> "pd.Series":
+) -> "pd.Series | pd.DataFrame":
     """通过因子名称调用计算函数。
 
     Args:
@@ -474,7 +501,8 @@ def compute_factor(
         **params: 覆盖默认参数
 
     Returns:
-        pd.Series: 因子值
+        pd.Series | pd.DataFrame: 因子值（多数因子返回 Series，
+        KEY_SUPPORT / DISTRIBUTION_PATTERNS 等返回 DataFrame）
     """
     if name not in FACTOR_REGISTRY:
         # 兜底：表达式注册表（expr_engine，路线图#3）
@@ -491,4 +519,7 @@ def compute_factor(
     # 支持 registry 中指定 compute_func 键来调用非 compute 函数
     func_name = entry.get("compute_func", "compute")
     func = getattr(entry["module"], func_name)
-    return func(data, **merged_params)
+    # 按目标函数签名过滤参数，避免 default_params/调用方传入的多余键
+    # （如 factor_name）透传给不接受它的具体函数而抛 TypeError。
+    call_params = _accepted_params(func, merged_params)
+    return func(data, **call_params)
