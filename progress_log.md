@@ -558,4 +558,29 @@ washout_ok(df,anchor_idx,max_vol_ratio,anchor_price_col)标量(锚后每日vol<r
   顶背离后确实走弱;单调:divergence_rate越紧走弱越强。诚实:前向走弱代理非完整持仓卖出模拟。
 **测试**：tests/test_washout_macddiv.py 14用例(锚场景/背驰正负例/死叉日对齐/面积手算/因果/单调)。
 全仓320 passed零回归。设计spec: docs/superpowers/specs/2026-07-06-washout-macddiv-design.md。
-下一队列：#10 K线包含合并预处理 / #8统一信号协议 / 把conc90<0.3+MACD背驰卖点接入战法(需确认)。
+
+## 2026-07-06 路线图 #10/#8/#12 收官（v4-fusion）— 集成路线图12项全部完成
+
+**#10 K线包含合并预处理**（utils/kline_merge.py，缠论去毛刺）：merge_klines 方向定向
+（向上取高高/向下取低低）逐根因果 + map回原始日历。**AB(800股)正结果**：长下影探底信号
+原始vs合并→信号58196→41724(-28%去毛刺)、5日净胜率43.3%→46.9%(+3.6)、净均值转正。
+去掉的是噪音,形态更稳定。opt-in不改N_STRUCT/单针/砖型默认(避免golden回归)。8用例。
+
+**#8 统一信号协议SignalOpinion**（ranking/signal_opinion.py）：source/signed/confidence +
+aggregate(死区+置信度加权+UMP硬否决)+from_rule_ml。显式化现有隐式统一(composite已IC权重合
+规则+LGBM),补死区。**AB(800股/39万股日)中性结果**：死区聚合Top50 5日胜率50.4% vs线性
+composite基线50.0%(Δ+0.4噪声内),死区0.5更差→现行0-100排序已近最优,不必重构,协议保留供
+未来接LLM/其它源。不纳UMP(已否决)。11用例。
+
+**#12 杂项增强包**：①Hurst分流(factors/hurst.py结构函数法120窗,注册HURST)——标定发现对
+趋势/随机游走分辨弱(有限样本偏差)、只清晰识别均值回归轴;**AB(800股)分流效应全在噪声内**
+(B1低-高+0.3pp,砖型-0.1pp)→不推荐硬分流,诚实记录。②CSRankNorm标签(ml/label_transform.py)
+按日截面排名去beta,测试证下跌市raw正样本率<0.3而CSRankNorm恒≈50%;完整LGBM重训AUC留后续。
+③增量数据/推送:daily_update/recover_stale/smart_downloader/feishu_bot已就绪,push阻塞于用户
+未配FEISHU_WEBHOOK_URL(不重建)。8用例。
+
+**本会话累计完成路线图 #3/#4/#5/#6/#7/#8/#10/#12 共8项**（+既有#1#2#9#11=集成路线图12项全清）。
+全仓347 passed零回归。诚实结论分布：正结果=#5筹码conc90/#7 MACD背驰卖点/#10 K线合并；
+中性/负=#3 Alpha158-LGBM/#6洗盘入场/#8信号协议/#12 Hurst分流(均如实入账未夸大)。
+下一步：把已验证正收益件(conc90<0.3筹码过滤 / K线合并预处理 / MACD背驰卖点)接入战法主干
+(需用户确认,别自动改选股/卖出口径) / Alpha158高|IC|子集入模 / vnpy里程碑回测验证。
