@@ -31,8 +31,6 @@
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>HOME</key>
         <string>/Users/qiushixuan</string>
-        <key>ALPHAPULSE_DATA_DIR</key>
-        <string>/Volumes/Mac-480g外接/quantan_data/day</string>
     </dict>
 
     <key>WorkingDirectory</key>
