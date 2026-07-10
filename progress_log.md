@@ -457,6 +457,133 @@ best_params落盘+patterns同步;auto_retune.py每周日04:00邻域周检(只建
 **人格插槽**:config/personas/*.md即插即用(金渐成由外部AI供给)。数据补至7-3(85%),
 recover_stale后台修复除权卡死群。234 tests passed。
 
+## 2026-07-06 路线图#3 因子表达式引擎 + Alpha158 因子库（v4-fusion）
+
+**动机**：新因子成本从"写.py+沙箱exec"降为"一行DSL字符串"，收窄DeepSeek生成幻觉面。
+**引擎**（factors/expr_engine.py）：ast.parse(mode=eval)+节点白名单+递归树遍历求值，
+全程无exec/eval——无沙箱逃逸面。算子表qlib名为主+通达信别名（MA/HHV/LLV/REF/SMA…）：
+时序Ref/Delta、滚动统计17个、回归Slope/Rsquare/Resi（convolve闭式OLS）、双序列Corr/Cov、
+平滑EMA/WMA/SMA(通达信ewm)、逐元素If/Cross/Greater/Less等。参数运行时绑定（j<j_threshold）。
+歧义规避：Max/Min/HHV/LLV固定滚动窗口语义，成对逐元素用Greater/Less。
+**Alpha158**（factors/alpha158.py）：qlib Alpha158DL全套158表达式（KBAR9+价格4+滚动29×5窗口），
+compute_alpha158(df) 0.05s/股。逐条核对qlib原定义（IdxMax用argmax+1的qlib惯例、
+SUMP/RSV/CORD/WVMA分母、Slope/Resi闭式解）。
+**接线**：factor_registry.compute_factor未知因子兜底查expressions.json；
+factor_gen新增generate_expression()——DeepSeek输出JSON表达式而非.py，校验失败回喂重试；
+生成因子enabled=False不自动进选股（沿用安全规约）。
+**IC验证**（scripts/alpha158_ic.py）：797股×500日面板(39万股日/1963交易日)日截面Spearman IC，
+132/158因子|meanIC|≥0.02、94个|ICIR|≥0.3；Top均值回归型(QTLD60/MA60/QTLD20/VMA60)
+IC≈0.067 ICIR≈0.45-0.61，与底部挖掘体系风格一致 → reports/alpha158_ic.md。
+**验收**：知行白线/黄线/洗盘四线/MACD DIF/KDJ-J 表达式对拍现有模块逐点allclose✅；
+Alpha158全量跑通✅；安全拒绝矩阵（import/属性/下标/Ref负数/内省/内建）✅。
+**对抗审查**：Workflow五维审查agent全撞会话额度上限 → 改自跑真实验证：全158因子+21算子
+截断因果性（截尾不改前段值+NaN掩码一致，含volume=0停牌样）零泄漏、19条沙箱逃逸全拦截、
+_extract_json四形态鲁棒、名字冲突FACTOR_REGISTRY优先——固化为回归测试。
+**设计取舍(非bug)**：IdxMax暖机用满窗(qlib用min_periods=1,IC侧不影响)；WMA用权重1..N(通达信语义)。
+**测试**：test_expr_engine.py 48用例；全仓286 passed零回归。
+设计spec: docs/superpowers/specs/2026-07-06-expr-engine-design.md。
+
+**#3进阶验收 — Alpha158入LGBM的AUC前后对比**（scripts/alpha158_lgbm_ab.py，1199股/21.1万笔交易，
+同切分≤2023训/2024验/2025+测、同超参，只报告不覆盖生产模型 → reports/alpha158_lgbm_ab.md）：
+- A基线27特征: valid AUC 0.5565 / test 0.5501 / test Top10%胜率 0.5021
+- B基线+158:   valid AUC 0.5488 / test 0.5568 / test Top10% 0.5045
+- C仅158:      valid AUC 0.5421 / test 0.5542 / test Top10% 0.5034
+- **结论=非稳健**：B 的 test AUC +0.0067 但 valid AUC −0.0077，方向不一致=噪声/风格波动，
+  按 ic_weight_tuning "双指标均改善才采纳" 标准**暂不合入生产**（负结果，诚实入账）。
+- **真发现**：C（仅Alpha158零手工特征）test AUC 0.5542 ≈ A 的 0.5501，通用因子库"免费"
+  复现了手工27特征的信号量 → 表达式引擎降低了新因子边际成本这一结论被数据支撑。
+- 后续可试：Alpha158 只挑高|IC|子集(reports/alpha158_ic.md Top20)入模，或对158做截面中性化，
+  减少过拟合再评估；生产 pattern_gbdt.pkl 保持现状。
+下一队列：#5筹码分布 / #4信号链状态机。
+
+## 2026-07-06 路线图#5 筹码分布因子（CYQ成本分布重建）（v4-fusion）
+
+**动机**：给"底部挖掘"补持仓成本维度（现有CHIP_CONCENTRATION只是振幅代理，非真实成本分布）。
+**算法**（factors/chip_distribution.py，InStock CYQ）：三角分布沉积+换手衰减逐日演化筹码——
+`chips_t=chips_{t-1}*(1-turn_t)+deposit_t*turn_t`，deposit按三角分布(峰在(H+L+C)/3)摊到[low,high]。
+输出profit_ratio(获利盘=现价以下筹码占比)/avg_cost/conc90(中央90%筹码带宽/现价)。
+**向量化**：exp-cumsum闭式(减decaylog[-1]防溢出，公共因子按日归一抵消)，5.9ms/股；
+配逐日递归参考实现_compute_chips_sequential对拍——机器精度1e-15一致。因果由构造保证。
+注册 CHIP_PROFIT_LOW(获利盘<15%)/CHIP_SINGLE_PEAK(conc90<12%)/CHIP_DISTRIBUTION(三指标)。
+**AB验证**（scripts/ab_test_chip.py，799股/7.2万B1事件→reports/ab_chip_b1.md）=**正结果**：
+- 单峰密集(conc90)提纯最强：纯B1净胜率5日44.7% → conc90<0.3 **46.5%**(留样1.38万,10日净均值转正+0.43%)
+  → conc90<0.2 48.2%(留样4699)。**推荐操作点conc90<0.3**(兼顾提升与留样)。
+- 获利盘profit_ratio<0.15→45.5%、<0.10→46.2%(5日净均值翻正+0.11%)，单调有效。
+- 最紧阈值(conc90<0.12样本493/组合过滤)过度过滤致均值转负——报告如实标注甜点区，不夸大。
+- 与Alpha158-LGBM(非稳健)对比：筹码因子是本会话**首个干净正结果**，验证"低位单峰=真底"命题。
+**测试**：tests/test_chip_distribution.py 11用例(向量化==逐日/固定网格截断因果/涨跌方向/单峰density/一字板)。
+**顺带**：新因子conc_threshold暴露test_all_factors_no_error盲区(只调基础compute)→改为按compute_func忠实
+分派+签名过滤参数，首次覆盖compute_func路径。发现既有缺陷(compute_factor对7个knowledge_points因子
+TypeError，factor_name透传)已开背景任务，未在本会话修(超范围)。全仓297 passed。
+设计spec: docs/superpowers/specs/2026-07-06-chip-distribution-design.md。
+下一队列：#4信号链状态机 / 把conc90<0.3并入B1选股(需用户确认启用) / #6洗盘模板。
+
+## 2026-07-06 路线图#4 信号链状态机 seq_id 贯穿（v4-fusion）
+
+**缺口**：b1_b2_b3_strategy.generate_signals 产出 B1/B2/B3 是独立行(B2只判"过去5日有B1")，
+不记seq_id串链→无法按序列聚合、无法把B2/B3收益归因到源头B1。
+**改造**（strategies/b1_b2_b3_strategy.py，纯后处理不改触发）：assign_seq_ids 因果单次扫描——
+一B1开序列(seq_id=symbol:date)，首个窗内B2继承其seq、首个B3继承B2；按(日期,阶段)键避免
+同日既是某链B2又是新链B1的冲突。三类信号行新增seq_id/parent_stage/seq_root_date(向后兼容)。
+语义与playbook_engine.simulate_b1b2b3严格共源(一B1→首B2→首B3)。
+**序列分析**（scripts/sequence_analysis.py，799股/4万B1序列→reports/sequence_analysis.md）：
+- 漏斗：B1→B2 仅5.9% → B3 0.2%(占B2的3.6%)，B1极permissive、确认极稀。
+- **诚实拆解(防误读)**：①孤立B1(占94%)固定5日净胜率39.2%/净均值-0.82%=负期望(印证信号日无优势)；
+  ②确认序列从B1日起88.8%/+7.2% 但**是事后条件统计**(需持有到确认才兑现,不可ex-ante挑)；
+  ③全B1等权固定5日**混合ex-ante期望42.1%/-0.35%仍偏负**→序列价值不来自固定窗口、需simulate的
+  持有到卖出+stop_pct机器把赢家跑出来；④追买B2确认42.3%/~0=折价严重(印证既有hold_matrix结论)；
+  ⑤B3入场最强(10日53.5%/+2.41%)。
+- **94.7%复核**：该数为交易级(持有到S1/DD卖出)，与固定前向窗口不可直接对齐，B3序列样本86偏小；
+  定性结论成立=确认越深条件胜率单调抬升、优势在确认序列而非孤立信号，但兑现依赖完整战法。
+**测试**：tests/test_signal_chain.py 9用例(满链同seq/孤立B1/超窗/两链不串号/首个B2确认/截断因果/
+向后兼容)。自查修复混合期望重复计数B3序列。全仓306 passed零回归。
+设计spec: docs/superpowers/specs/2026-07-06-signal-chain-seqid-design.md。
+下一队列：把conc90<0.3并入B1选股(需用户确认) / #6洗盘模板 / #7MACD背驰 / #10K线合并。
+
+## 2026-07-06 路线图#6 洗盘段模板 + #7 MACD面积背驰（v4-fusion）
+
+**#6 洗盘段量化模板**（factors/washout_template.py，Sequoia涨停洗盘三段式）：
+washout_ok(df,anchor_idx,max_vol_ratio,anchor_price_col)标量(锚后每日vol<ratio×锚量且low>锚价)
++ compute(爆量阳锚→缩量不破锚→首个再确认阳线,向量化因果)。注册WASHOUT_SEGMENT。
+把"缩量阴/3-4阴量线"参数化，统一服务B3锁仓与单针(是yin_volume_34的通用化,不替换)。
+**#7 MACD面积背驰**（factors/macd_divergence.py，chan.py divergence_rate）：
+红柱(hist=2(dif-dea)>0)分段,每段记面积与price_peak;价创新高但area/前段<divergence_rate→
+死叉日DD顶背离(段末死叉日触发,因果)。注册MACD_DIVERGENCE(risk)。是dd_sell_signal的升维补充。
+**网格验证**（scripts/grid_factor_forward.py 通用单因子参数网格×前向净收益vs随机基准,800股）：
+- #6 max_vol_ratio∈{0.4,0.5,0.6,0.75}→reports/grid_washout_segment_max_vol_ratio.md：
+  **标量入场未超基准**(最优0.4:5日44.1% vs基准45.4%)——追买green candle,与B2追买折价同因;
+  网格给最优缩量上限max_vol_ratio=0.4(越严越好,单调),作B3/单针过滤部件用。
+- #7 divergence_rate∈{0.7,0.8,0.9,1.0}→reports/grid_macd_divergence_divergence_rate.md：
+  **卖点有效**——信号后5日净胜率44.7% < 基准45.4%、10日净均值转负(-0.11~-0.17 vs基准+0.28),
+  顶背离后确实走弱;单调:divergence_rate越紧走弱越强。诚实:前向走弱代理非完整持仓卖出模拟。
+**测试**：tests/test_washout_macddiv.py 14用例(锚场景/背驰正负例/死叉日对齐/面积手算/因果/单调)。
+全仓320 passed零回归。设计spec: docs/superpowers/specs/2026-07-06-washout-macddiv-design.md。
+
+## 2026-07-06 路线图 #10/#8/#12 收官（v4-fusion）— 集成路线图12项全部完成
+
+**#10 K线包含合并预处理**（utils/kline_merge.py，缠论去毛刺）：merge_klines 方向定向
+（向上取高高/向下取低低）逐根因果 + map回原始日历。**AB(800股)正结果**：长下影探底信号
+原始vs合并→信号58196→41724(-28%去毛刺)、5日净胜率43.3%→46.9%(+3.6)、净均值转正。
+去掉的是噪音,形态更稳定。opt-in不改N_STRUCT/单针/砖型默认(避免golden回归)。8用例。
+
+**#8 统一信号协议SignalOpinion**（ranking/signal_opinion.py）：source/signed/confidence +
+aggregate(死区+置信度加权+UMP硬否决)+from_rule_ml。显式化现有隐式统一(composite已IC权重合
+规则+LGBM),补死区。**AB(800股/39万股日)中性结果**：死区聚合Top50 5日胜率50.4% vs线性
+composite基线50.0%(Δ+0.4噪声内),死区0.5更差→现行0-100排序已近最优,不必重构,协议保留供
+未来接LLM/其它源。不纳UMP(已否决)。11用例。
+
+**#12 杂项增强包**：①Hurst分流(factors/hurst.py结构函数法120窗,注册HURST)——标定发现对
+趋势/随机游走分辨弱(有限样本偏差)、只清晰识别均值回归轴;**AB(800股)分流效应全在噪声内**
+(B1低-高+0.3pp,砖型-0.1pp)→不推荐硬分流,诚实记录。②CSRankNorm标签(ml/label_transform.py)
+按日截面排名去beta,测试证下跌市raw正样本率<0.3而CSRankNorm恒≈50%;完整LGBM重训AUC留后续。
+③增量数据/推送:daily_update/recover_stale/smart_downloader/feishu_bot已就绪,push阻塞于用户
+未配FEISHU_WEBHOOK_URL(不重建)。8用例。
+
+**本会话累计完成路线图 #3/#4/#5/#6/#7/#8/#10/#12 共8项**（+既有#1#2#9#11=集成路线图12项全清）。
+全仓347 passed零回归。诚实结论分布：正结果=#5筹码conc90/#7 MACD背驰卖点/#10 K线合并；
+中性/负=#3 Alpha158-LGBM/#6洗盘入场/#8信号协议/#12 Hurst分流(均如实入账未夸大)。
+下一步：把已验证正收益件(conc90<0.3筹码过滤 / K线合并预处理 / MACD背驰卖点)接入战法主干
+(需用户确认,别自动改选股/卖出口径) / Alpha158高|IC|子集入模 / vnpy里程碑回测验证。
 ## 2026-07-10 数据更新可靠性治理（v4-fusion）
 
 **根因链**：07-07体检发现本地主盘停07-03。①配置分裂：daily-update.plist残留

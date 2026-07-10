@@ -195,11 +195,22 @@ def test_all_factors_no_error():
         if entry.get("type") in ("experimental", "indicator", "risk")
     )
 
+    import inspect
+
     for name, entry in FACTOR_REGISTRY.items():
-        # 跳过没有 compute 方法的模块（如部分两阶段模型）
-        if not callable(getattr(entry["module"], "compute", None)):
+        # 按 registry 声明的 compute_func 分派（缺省 compute），忠实反映实际调用路径
+        func_name = entry.get("compute_func", "compute")
+        func = getattr(entry["module"], func_name, None)
+        if not callable(func):
             continue
-        result = entry["module"].compute(data, **entry["default_params"])
+        # default_params 过滤到该函数真实签名（丢弃仅供分派器用的键，如 knowledge_points 的 factor_name）
+        sig = inspect.signature(func)
+        if any(p.kind == p.VAR_KEYWORD for p in sig.parameters.values()):
+            params = entry["default_params"]
+        else:
+            params = {k: v for k, v in entry["default_params"].items()
+                      if k in sig.parameters}
+        result = func(data, **params)
         # 跳过返回 DataFrame 的因子（如 WAVE_IDENTIFIER, FLY_AWAY）
         if isinstance(result, pd.DataFrame):
             continue

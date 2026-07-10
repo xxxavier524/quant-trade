@@ -43,6 +43,8 @@ from alphapulse.factors.experimental import (
 )
 from alphapulse.factors import industry_rotation, beta_fundamental, knowledge_points
 from alphapulse.factors import yin_volume_34, four_brick_cycle, weekly_ma_cross
+from alphapulse.factors import chip_distribution
+from alphapulse.factors import washout_template, macd_divergence, hurst
 
 FACTOR_REGISTRY = {
     "N_STRUCT": {
@@ -178,6 +180,30 @@ FACTOR_REGISTRY = {
         "type": "core",
         "description": "筹码集中度：20天振幅<15% + 10天振幅<20天×0.6 + 换手率下降，输出0-1连续值",
         "default_params": {"window": 20, "amplitude_max": 15.0},
+    },
+    # --- 筹码分布因子（CYQ 成本分布重建，路线图#5） ---
+    "CHIP_PROFIT_LOW": {
+        "module": chip_distribution,
+        "type": "selection",
+        "description": "获利盘比例低：CYQ成本分布重建，现价以下筹码占比<15%=底部吸筹完成（B1真底确认）",
+        "source": "InStock CYQ / 路线图#5",
+        "default_params": {"profit_threshold": 0.15, "n_buckets": 200, "max_turnover": 0.5},
+    },
+    "CHIP_SINGLE_PEAK": {
+        "module": chip_distribution,
+        "compute_func": "compute_single_peak",
+        "type": "factor",
+        "description": "筹码单峰密集：中央90%筹码价格带宽/现价<12%=低位单峰锁仓",
+        "source": "InStock CYQ / 路线图#5",
+        "default_params": {"conc_threshold": 0.12, "n_buckets": 200, "max_turnover": 0.5},
+    },
+    "CHIP_DISTRIBUTION": {
+        "module": chip_distribution,
+        "compute_func": "compute_indicator",
+        "type": "indicator",
+        "description": "筹码分布三指标（纯数值）：profit_ratio获利盘/avg_cost平均成本/conc90集中度",
+        "source": "InStock CYQ / 路线图#5",
+        "default_params": {"n_buckets": 200, "max_turnover": 0.5},
     },
     "SYMMETRIC_STRUCTURE": {
         "module": symmetric_structure,
@@ -409,6 +435,29 @@ FACTOR_REGISTRY = {
         "description": "趋势线跌破：白线(EMA(EMA(C,10),10))与黄线(4MA均值)跌破检测，含假跌破确认，全部shift(1)防未来函数",
         "default_params": {},
     },
+    "MACD_DIVERGENCE": {
+        "module": macd_divergence,
+        "type": "risk",
+        "description": "MACD面积背驰DD顶背离：价创新高但上涨段红柱面积/前段<divergence_rate→死叉日卖点(chan.py量化)",
+        "source": "chan.py divergence_rate / 路线图#7",
+        "default_params": {"divergence_rate": 0.9, "fast": 12, "slow": 26, "signal": 9},
+    },
+    "HURST": {
+        "module": hurst,
+        "type": "indicator",
+        "description": "Hurst指数(结构函数法,120窗)：判趋势/均值回归性,战法分流用(低Hurst→B1回归/高Hurst→砖型趋势)",
+        "source": "ai-hedge-fund / 路线图#12",
+        "default_params": {"window": 120, "max_lag": 12},
+    },
+    # --- 洗盘段量化模板（Sequoia涨停洗盘三段式，路线图#6） ---
+    "WASHOUT_SEGMENT": {
+        "module": washout_template,
+        "type": "factor",
+        "description": "洗盘再确认：爆量阳锚→缩量(vol<max_vol_ratio×锚量)不破锚定位→首个再确认阳线，统一服务B3/单针",
+        "source": "Sequoia-X 涨停洗盘 / 路线图#6",
+        "default_params": {"max_vol_ratio": 0.5, "surge_vol_mult": 2.0,
+                           "vol_ma": 5, "min_washout": 1, "max_wait": 10},
+    },
 }
 
 
@@ -428,7 +477,14 @@ def compute_factor(
         pd.Series: 因子值
     """
     if name not in FACTOR_REGISTRY:
-        raise ValueError(f"未知因子: {name}。可用: {list(FACTOR_REGISTRY.keys())}")
+        # 兜底：表达式注册表（expr_engine，路线图#3）
+        from alphapulse.factors import expr_engine
+        expr_reg = expr_engine.load_expression_registry()
+        if name in expr_reg:
+            return expr_engine.compute_registered(name, data, **params)
+        raise ValueError(
+            f"未知因子: {name}。可用: {list(FACTOR_REGISTRY.keys())}"
+            f" + 表达式因子: {sorted(expr_reg)}")
 
     entry = FACTOR_REGISTRY[name]
     merged_params = {**entry["default_params"], **params}

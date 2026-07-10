@@ -32,7 +32,50 @@ def _empty_result() -> pd.DataFrame:
     return pd.DataFrame(columns=[
         "symbol", "date", "signal", "strategy",
         "signal_type", "confidence", "factor_snapshot",
+        "seq_id", "parent_stage", "seq_root_date",
     ])
+
+
+def assign_seq_ids(
+    b1_sig: "pd.Series", b2_sig: "pd.Series", b3_sig: "pd.Series",
+    symbol: str, b2_window: int = 5, b3_window: int = 3,
+) -> dict:
+    """把 B1/B2/B3 布尔序列串成链路（因果单次线性扫描，只用 ≤t 信息）。
+
+    语义与 playbook_engine.simulate_b1b2b3 一致：一 B1 → 首个窗口内 B2 → 首个窗口内 B3。
+
+    Returns:
+        dict: (date_str, stage) -> {seq_id, parent_stage, seq_root_date}
+              stage ∈ {"B1","B2","B3"}。按 (日期, 阶段) 键，因一日可同时是某链的 B2
+              与新链的 B1（各出一行）。孤立 B1 的 seq 只含自身。
+    """
+    dates = [str(d) for d in b1_sig.index]
+    b1v = b1_sig.fillna(False).to_numpy(dtype=bool)
+    b2v = b2_sig.fillna(False).to_numpy(dtype=bool)
+    b3v = b3_sig.fillna(False).to_numpy(dtype=bool)
+
+    meta: dict[tuple, dict] = {}
+    pending_b1 = None   # (seq_id, root_date, b1_i)
+    pending_b2 = None   # (seq_id, root_date, b2_i)
+    for i, d in enumerate(dates):
+        # B3 归属：最近的、在 b3_window 内、尚未接 B3 的 B2
+        if b3v[i] and pending_b2 is not None and 1 <= i - pending_b2[2] <= b3_window:
+            meta[(d, "B3")] = {"seq_id": pending_b2[0], "parent_stage": "B2",
+                               "seq_root_date": pending_b2[1]}
+            pending_b2 = None
+        # B2 归属：最近的、在 b2_window 内、尚未接 B2 的 B1
+        if b2v[i] and pending_b1 is not None and 1 <= i - pending_b1[2] <= b2_window:
+            meta[(d, "B2")] = {"seq_id": pending_b1[0], "parent_stage": "B1",
+                               "seq_root_date": pending_b1[1]}
+            pending_b2 = (pending_b1[0], pending_b1[1], i)
+            pending_b1 = None
+        # B1 开新序列（新 B1 覆盖旧的未确认 B1 = 取最近）
+        if b1v[i]:
+            seq_id = f"{symbol}:{d}"
+            meta[(d, "B1")] = {"seq_id": seq_id, "parent_stage": None,
+                               "seq_root_date": d}
+            pending_b1 = (seq_id, d, i)
+    return meta
 
 
 def generate_signals(
@@ -172,6 +215,16 @@ def generate_signals(
     vol_ratio = volume / volume.shift(1)
     last_b2_close_filled = close.where(b2_signal).ffill()
 
+    # ---- seq_id 链路贯穿（B2→B1、B3→B2；因果单次扫描，路线图#4）----
+    seq_meta = assign_seq_ids(
+        b1_signal, b2_signal, b3_signal, symbol,
+        b2_window=5, b3_window=3)
+
+    def _seq(dt, stage):
+        m = seq_meta.get((str(dt), stage),
+                         {"seq_id": None, "parent_stage": None, "seq_root_date": None})
+        return m
+
     # 置信度阈值过滤（可通过params覆盖）
     min_conf_b1 = params.get("min_conf_b1", 0.0)
     min_conf_b2 = params.get("min_conf_b2", 0.0)
@@ -185,6 +238,7 @@ def generate_signals(
         conf = 0.8 if with_vol else 0.6
         if conf < min_conf_b1:
             continue
+        s = _seq(dt, "B1")
         results.append({
             "symbol": symbol,
             "date": dt,
@@ -200,6 +254,8 @@ def generate_signals(
                 "no_n_struct": bool(no_n_struct[dt]),
                 "amp_10d_ok": bool(amp_ok[dt]),
             },
+            "seq_id": s["seq_id"], "parent_stage": s["parent_stage"],
+            "seq_root_date": s["seq_root_date"],
         })
 
     # B2 signals
@@ -207,6 +263,7 @@ def generate_signals(
         conf = 0.85 if bool(b2_enhanced.loc[dt]) else 0.75
         if conf < min_conf_b2:
             continue
+        s = _seq(dt, "B2")
         results.append({
             "symbol": symbol,
             "date": dt,
@@ -221,6 +278,8 @@ def generate_signals(
                 "white_line": float(white_line[dt]) if pd.notna(white_line[dt]) else None,
                 "violent_k": bool(b2_enhanced.loc[dt]) if dt in b2_enhanced.index else False,
             },
+            "seq_id": s["seq_id"], "parent_stage": s["parent_stage"],
+            "seq_root_date": s["seq_root_date"],
         })
 
     # B3 signals
@@ -229,6 +288,7 @@ def generate_signals(
         if conf < min_conf_b3:
             continue
         b2c = float(last_b2_close_filled[dt]) if pd.notna(last_b2_close_filled[dt]) else None
+        s = _seq(dt, "B3")
         results.append({
             "symbol": symbol,
             "date": dt,
@@ -244,6 +304,8 @@ def generate_signals(
                 "b2_close_ref": b2c,
                 "locked": True,
             },
+            "seq_id": s["seq_id"], "parent_stage": s["parent_stage"],
+            "seq_root_date": s["seq_root_date"],
         })
 
     if not results:
