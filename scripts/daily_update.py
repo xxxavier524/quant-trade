@@ -9,7 +9,8 @@
 3. 复权一致性：重叠日收盘价偏差 >0.1% 说明发生除权除息（前复权历史被改写），
    触发该股全量重下（每日上限 --refetch-limit 防失控）
 4. 全局截止：--max-minutes（默认45）到点保存进度退出 exit 3，下次运行自动续传
-5. 断点续传：logs/update_progress.json，同日重启从断点继续
+5. 断点续传：logs/update_progress.json，同日同交易日重启从断点继续；
+   覆盖率不达标时清除断点（防一次坏运行锁死当天重试，2026-07-10修正）
 6. 原子写：.tmp + os.replace，杀进程不会留下半截CSV
 7. schema 自愈：旧版 turn 列与新版 turnover 列合并，逐步统一为 turnover
 
@@ -144,19 +145,22 @@ def latest_trading_date(bs) -> str:
     return last
 
 
-def load_progress(today: str) -> int:
+def load_progress(today: str, latest: str) -> int:
     try:
         p = json.loads(PROGRESS_FILE.read_text())
-        if p.get("date") == today:
+        # 断点须同时匹配运行日与最新交易日：晚间 baostock 发布新交易日后，
+        # 下午写的"已完成"断点自动失效，22:00 重试得以拉取当日K线
+        if p.get("date") == today and p.get("latest") == latest:
             return int(p.get("done_index", 0))
     except Exception:
         pass
     return 0
 
 
-def save_progress(today: str, idx: int, stats: dict) -> None:
+def save_progress(today: str, idx: int, stats: dict, latest: str) -> None:
     LOGS_DIR.mkdir(exist_ok=True)
-    PROGRESS_FILE.write_text(json.dumps({"date": today, "done_index": idx, **stats}))
+    PROGRESS_FILE.write_text(json.dumps(
+        {"date": today, "done_index": idx, "latest": latest, **stats}))
 
 
 def all_a_share_codes() -> list[str]:
@@ -193,7 +197,7 @@ def main() -> int:
     print(f"[{datetime.now():%H:%M:%S}] 最新交易日: {latest}，开始增量更新")
 
     symbols = sorted(f.stem for f in data_path.glob("*.csv"))
-    start_idx = load_progress(today_str)
+    start_idx = load_progress(today_str, latest)
     if start_idx:
         print(f"  从断点续传: {start_idx}/{len(symbols)}")
 
@@ -205,7 +209,7 @@ def main() -> int:
     for i in range(start_idx, len(symbols)):
         if time.monotonic() > deadline:
             timed_out = True
-            save_progress(today_str, i, stats)
+            save_progress(today_str, i, stats, latest)
             break
         # baostock 连接中途断开时所有请求会快速失败；先重连一次，再失败则保存进度退出
         if consecutive_failures >= 20:
@@ -221,7 +225,7 @@ def main() -> int:
                 if lg.error_code == "0":
                     consecutive_failures = 0
                     continue
-            save_progress(today_str, i, stats)
+            save_progress(today_str, i, stats, latest)
             bs.logout()
             # baostock 断连但 pytdx 可能已覆盖主力：覆盖率达标则不算失败
             cov = _coverage(data_path, latest)
@@ -257,6 +261,10 @@ def main() -> int:
                         stats["tdx_fallback"] = stats.get("tdx_fallback", 0) + 1
                 except Exception:
                     pass
+            # 只摄入已确认交易日（≤latest）的K线：盘中运行时 pytdx 返回当日
+            # 形成中的半截K线，一旦写入且 last_date>=latest 会被永远跳过不再修正
+            if not new_df.empty:
+                new_df = new_df[new_df["date"] <= latest]
             if new_df.empty:
                 stats["failed"] += 1
                 consecutive_failures += 1
@@ -306,7 +314,7 @@ def main() -> int:
                 log_failure(f"{sym}: {e}")
 
         if (stats["updated"] + stats["failed"]) % 200 == 0:
-            save_progress(today_str, i + 1, stats)
+            save_progress(today_str, i + 1, stats, latest)
             print(f"  进度 {i+1}/{len(symbols)}: {stats}")
         time.sleep(0.12)
 
@@ -338,14 +346,20 @@ def main() -> int:
                f"失败 {stats['failed']}，TDX备援 {stats.get('tdx_fallback', 0)}")
     print(f"[{datetime.now():%H:%M:%S}] {summary}")
 
-    save_progress(today_str, len(symbols), stats)
-    if timed_out and coverage < 0.75:
-        alert(summary)
-        return 3
-    # 覆盖率达标即视为健康（除权卡死股交由 recover_stale 专项恢复，不算每日更新失败）
+    # 断点语义（2026-07-10修正）：只有"跑完且覆盖率达标"才写满 done_index。
+    # 此前无条件写满 → 一次坏运行(覆盖率0%)锁死当天所有重试（07-07/07-09两次复现）
+    if timed_out:
+        # 循环内已 save_progress(done_index=i)，保留供同日续传
+        if coverage < 0.75:
+            alert(summary)
+            return 3
+        return 0
     if coverage < 0.75:
+        PROGRESS_FILE.unlink(missing_ok=True)  # 清断点：当天重试可全量重扫
         alert(f"覆盖率不足 {coverage*100:.0f}%（<75%）: {summary}")
         return 1
+    # 覆盖率达标即视为健康（除权卡死股交由 recover_stale 专项恢复，不算每日更新失败）
+    save_progress(today_str, len(symbols), stats, latest)
     return 0
 
 
@@ -354,7 +368,7 @@ def _coverage(data_path: Path, latest: str) -> float:
     files = list(data_path.glob("*.csv"))
     if not files:
         return 0.0
-    n_latest = sum(1 for f in files if read_csv_last_date(f) == latest)
+    n_latest = sum(1 for f in files if (read_csv_last_date(f) or "") >= latest)
     return n_latest / len(files)
 
 
