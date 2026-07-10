@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.alphapulse.update-retry</string>
+
+    <!-- 22:00 晚间数据重试（可靠性③）：15:30收盘高峰baostock严重限流、pytdx当日K线未出；
+         晚间两源均稳定。与断点语义②配合：下午失败→晚间全量自愈；下午成功→晚间补当日K线。
+         只跑数据更新，不重跑选股（不改变15:30信号产出）。 -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/qiushixuan/cc/quantan trade/.venv/bin/python</string>
+        <string>/Users/qiushixuan/cc/quantan trade/scripts/run_with_timeout.py</string>
+        <string>3000</string>
+        <string>/Users/qiushixuan/cc/quantan trade/.venv/bin/python</string>
+        <string>/Users/qiushixuan/cc/quantan trade/scripts/daily_update.py</string>
+        <string>--max-minutes</string>
+        <string>40</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>22</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/qiushixuan</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/qiushixuan/cc/quantan trade</string>
+
+    <key>StandardOutPath</key>
+    <string>/Users/qiushixuan/cc/quantan trade/logs/update_retry_stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/qiushixuan/cc/quantan trade/logs/update_retry_stderr.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>KeepAlive</key>
+    <false/>
+</dict>
+</plist>
