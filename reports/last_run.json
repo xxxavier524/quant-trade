@@ -1,17 +1,17 @@
 {
-  "finished_at": "2026-07-06 15:34:15",
+  "finished_at": "2026-07-09 16:04:40",
   "steps": [
     {
       "step": "数据增量更新",
       "ok": false,
-      "rc": 2,
-      "seconds": 33
+      "rc": 1,
+      "seconds": 1812
     },
     {
       "step": "全市场选股",
       "ok": true,
       "rc": 0,
-      "seconds": 220
+      "seconds": 261
     },
     {
       "step": "信号追踪",
