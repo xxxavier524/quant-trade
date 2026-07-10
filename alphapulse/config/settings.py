@@ -4,12 +4,18 @@ import os
 
 # === 路径 ===
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# 2026-07-04 迁移：外接盘频繁掉线致流水线失败，日线主存储迁回内置盘（523MB）；
-# 外接盘副本转冷备。临时切换用环境变量 ALPHAPULSE_DATA_DIR 覆盖。
+# 2026-07-10 用户决定：日线主存储放回外接盘；内置盘 data/day 仅为迁移期旧副本，勿再读写。
+# 临时切换用环境变量 ALPHAPULSE_DATA_DIR 覆盖。
 DATA_DIR = os.environ.get(
     "ALPHAPULSE_DATA_DIR",
-    os.path.join(PROJECT_ROOT, "data", "day"),
+    "/Volumes/Mac-480g外接/quantan_data/day",
 )
+# 外接盘有掉线史（2026-07-04 曾因此迁盘）。卷未挂载时任何 makedirs 都会在内置盘生成
+# 同名假目录、后续数据静默写错位置，故缺盘必须在 import 时快速失败。
+if not os.path.isdir(DATA_DIR):
+    raise RuntimeError(
+        f"数据目录不可用: {DATA_DIR} —— 外接盘未挂载？接盘后重试，或设 ALPHAPULSE_DATA_DIR 临时切换"
+    )
 BACKTEST_RESULTS_DIR = os.path.join(PROJECT_ROOT, "backtest_results")
 REPORTS_DIR = os.path.join(PROJECT_ROOT, "reports")
 
