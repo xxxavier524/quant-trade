@@ -365,7 +365,7 @@ def nightly_review_text(new_reviews: list | None = None, new_outcomes: dict | No
         for rv in new_reviews:
             lines.append(f"{rv['symbol']} {rv['name']} +{rv['outcome_pct']}%"
                          f"(第{rv['outcome_day']}日) [{rv['family'] or '综合评分'}]")
-            lines.append(f"  复盘: {rv['review'][:120]}")
+            lines.append(f"  复盘: {rv['review']}")
     if new_outcomes and new_outcomes.get("stopped_drop"):
         lines.append(f"🛑 今日大跌止踪 {new_outcomes['stopped_drop']} 只（不再跟踪）")
     return "\n".join(lines)

@@ -137,7 +137,8 @@ def main() -> int:
     logger.info(f"近{args.hours}h 快讯 {len(news)} 条（去重后）")
 
     body = None if args.no_llm else llm_brief(news, date)
-    if body is None:
+    # LLM 返回空串/几乎空（内容过滤、响应异常）同样视为失败——2026-07-06 曾推出55字空壳早报
+    if not body or len(body.strip()) < 50:
         body = rule_brief(news)
 
     md = (f"# 每日早报 {date}\n\n"
@@ -153,7 +154,8 @@ def main() -> int:
         from alphapulse.config.settings import FEISHU_WEBHOOK_URL
         if FEISHU_WEBHOOK_URL:
             from alphapulse.notify.feishu_bot import send_feishu
-            send_feishu(FEISHU_WEBHOOK_URL, f"📰 早报 {date}\n" + body[:1800])
+            # 完整推送：send_feishu 超长自动分段，不再本地截断（旧 [:1800] 每天砍掉尾部数百字）
+            send_feishu(FEISHU_WEBHOOK_URL, f"📰 早报 {date}\n" + body)
             logger.info("飞书已推送")
     except Exception as e:
         logger.warning(f"飞书推送失败: {e}")
