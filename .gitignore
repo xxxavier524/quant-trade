@@ -36,5 +36,17 @@ Thumbs.db
 # Logs
 logs/
 
-# Reports
+# Reports — 时间戳运行产物不进git（代码只按glob读最新，历史副本纯冗余）
 reports/daily_report_*.md
+reports/factor_frame_*.csv
+reports/screen_*.csv
+reports/sectors_*.csv
+reports/morning_brief_*.md
+reports/nightly_review_*.md
+reports/last_run.json
+reports/friday_picks_*.csv
+reports/friday_screen_*.json
+
+# 备份副本不进git（git历史本身就是备份）
+*.bak
+*.bak-*

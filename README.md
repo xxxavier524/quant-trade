@@ -68,16 +68,17 @@ pip install -r requirements.txt  # 首次
 │   ├── strategies/                  # 策略模块 (9个)
 │   │   ├── two_stage_selection.py   # 两阶段AI选股
 │   │   └── ...
-│   ├── adapters/                    # 外部集成 (4个)
 │   ├── pipeline/                    # 6-Agent研究管线
-│   ├── strategy/                    # N型精确识别
+│   ├── ranking/                     # 综合评分与排序
+│   ├── tracking/                    # 信号追踪与成功率闭环
+│   ├── agent_team/                  # v4 五角色Agent团队
 │   ├── utils/                       # 回测/滑点/费率
 │   └── config/                      # settings.py
-├── scripts/                         # 可执行脚本 (14个)
+├── scripts/                         # 可执行脚本
 ├── tests/                           # 单元测试
-├── reports/                         # 分析报告 (19份)
+├── reports/                         # 分析报告
 ├── backtest_results/                # 回测结果
-├── data/day/                        # 本地CSV缓存
+├── data/day/                        # 迁移期旧副本（主数据在外接盘，经settings.DATA_DIR）
 ├── cases/                           # 46只案例股
 ├── .claude/skills/                  # 论文研究Skills (4个)
 └── papers/                          # 论文工作区
