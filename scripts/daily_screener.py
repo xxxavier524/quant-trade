@@ -196,16 +196,34 @@ def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
     logger.info(f"Top{top_n} → {out_csv}")
     logger.info(f"耗时 {(time.monotonic()-t0)/60:.1f} 分钟")
 
-    # 飞书推送（配置了webhook才发）
+    # 飞书推送（配置了webhook才发）：按两大战法分列，含板块/概念（用户需求 2026-07-10）
     if FEISHU_WEBHOOK_URL:
         try:
             from alphapulse.notify.feishu_bot import send_feishu
-            head = top.head(10)
-            text = f"📊 选股 {target_date} 大盘{macro_score}[{macro_level}]\n" + "\n".join(
-                f"{r['rank']}. {r['symbol']}{r['name']} {r['score']:.0f}分"
-                + ("⭐" if r["strict_signal"] else "")
-                for _, r in head.iterrows())
-            send_feishu(FEISHU_WEBHOOK_URL, text)
+            from alphapulse.tracking.signal_tracker import family_of, _clean
+
+            def _line(r):
+                name = _clean(r.get("name"))
+                concepts = "/".join(_clean(r.get("concepts")).split("/")[:2])
+                return (f"{r['symbol']}{(' ' + name) if name else ''} · {r['score']:.0f}分"
+                        f" · {_clean(r.get('sector')) or '未知板块'}"
+                        + (f" · {concepts}" if concepts else "")
+                        + f" · {r['strategies']}")
+
+            fam_col = top["strategies"].map(family_of) if not top.empty else None
+            sections = [f"📊 选股 {target_date} 大盘{macro_score}[{macro_level}]"]
+            for fam, icon in [("基本面法", "🎯"), ("砖型图法", "🧱")]:
+                sub = top[fam_col.str.contains(fam, na=False)] if fam_col is not None else top.iloc[0:0]
+                sections.append(f"{icon}【{fam}】" if not sub.empty else f"{icon}【{fam}】无信号")
+                for _, r in sub.head(5).iterrows():
+                    both = "+" in fam_col.loc[r.name]
+                    sections.append(("🔗" if both else "· ") + _line(r)
+                                    + ("（双法共振）" if both else ""))
+            plain = top[fam_col == ""] if fam_col is not None else top.iloc[0:0]
+            if not plain.empty:
+                sections.append("📈【综合评分Top5】(无严格信号)")
+                sections += ["· " + _line(r) for _, r in plain.head(5).iterrows()]
+            send_feishu(FEISHU_WEBHOOK_URL, "\n".join(sections))
         except Exception as e:
             logger.warning(f"飞书推送失败: {e}")
     return top

@@ -6,12 +6,11 @@
     <key>Label</key>
     <string>com.alphapulse.daily-auto</string>
 
+    <!-- launchd 不做 shell 展开，$(date) 只会按字面量传入——脚本自取当日，无需日期参数 -->
     <key>ProgramArguments</key>
     <array>
         <string>/Users/qiushixuan/cc/quantan trade/.venv/bin/python</string>
         <string>/Users/qiushixuan/cc/quantan trade/scripts/daily_auto_run.py</string>
-        <string>--date</string>
-        <string>$(date +%Y-%m-%d)</string>
     </array>
 
     <key>StartCalendarInterval</key>
