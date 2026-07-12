@@ -182,6 +182,8 @@ def run(date: str | None, top_n: int, data_dir: Path,
                 tags.append("知行超短")
             if r.get("sig_needle"):
                 tags.append("单针下三十")
+            if r.get("sig_brick3"):
+                tags.append("砖型图")
             # 周线金叉是连续因子非严格信号，只进 top_factors 贡献解释，不混入战法标签
             if not tags:
                 tags.append("综合评分")
@@ -212,7 +214,8 @@ def run(date: str | None, top_n: int, data_dir: Path,
     for _, r in top.head(20).iterrows():
         sigs = [s for s, c in [("B1", "sig_b1"), ("量能B1", "sig_volume_b1"),
                                ("知行超短", "sig_zhixing"),
-                               ("单针下三十", "sig_needle")] if r.get(c)]
+                               ("单针下三十", "sig_needle"),
+                               ("砖型图", "sig_brick3")] if r.get(c)]
         md.append(f"| {r['rank']} | {r['symbol']} | {r['name']} | {r['score']:.1f} "
                   f"| {'+'.join(sigs) or '—'} | {r.get('sector', '')} | {r.get('close', '')} "
                   f"| {r.get('pct_change', '')} | {r['top_factors']} |")

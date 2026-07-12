@@ -70,6 +70,41 @@ def load_weights(strategy: str = "B1_SCORE") -> dict[str, float]:
     return weights
 
 
+# BRICK_THREE_TYPES 生产参数（config/best_params.json 网格结论回流，2026-07-11 接入）
+_BRICK3_PARAM_KEYS = {
+    "vol_mult_n_jump", "vol_mult_breakout", "bull_bear_tolerance",
+    "consol_lookback", "consol_max_amplitude", "require_consolidation",
+    "continuation_lookback", "pullback_days", "vol_expand_mult",
+    "pullback_depth_max",
+}
+_brick3_params_cache: dict | None = None
+
+
+def _brick3_params() -> dict:
+    global _brick3_params_cache
+    if _brick3_params_cache is None:
+        try:
+            bp = json.loads((PROJECT_ROOT / "config" / "best_params.json").read_text())
+            raw = bp.get("BRICK_THREE_TYPES", {})
+            _brick3_params_cache = {k: v for k, v in raw.items()
+                                    if k in _BRICK3_PARAM_KEYS}
+        except Exception:
+            _brick3_params_cache = {}
+    return _brick3_params_cache
+
+
+def _brick3_last_signal(data: pd.DataFrame) -> pd.Series:
+    """砖型图三型策略的当日信号（尾窗260行控耗时；接口对齐其余严格信号）。"""
+    from alphapulse.strategies import brick_three_types
+    tail = data.tail(260)
+    sig = brick_three_types.generate_signals(tail, **_brick3_params())
+    last_date = tail["date"].iloc[-1] if "date" in tail.columns else tail.index[-1]
+    # 非空信号帧以 date 为索引（空帧才有 date 列）
+    hit = (not sig.empty
+           and bool(sig.loc[sig.index == last_date, "signal"].eq(1).any()))
+    return pd.Series([hit])
+
+
 def build_stock_row(symbol: str, name: str, data: pd.DataFrame) -> dict | None:
     """单只股票：子分数 + 严格信号徽章 + 快照字段。"""
     subs = compute_sub_scores(data)
@@ -89,7 +124,8 @@ def build_stock_row(symbol: str, name: str, data: pd.DataFrame) -> dict | None:
     for col, fn in [("sig_b1", lambda d: b1_formula.compute(d)),
                     ("sig_volume_b1", lambda d: volume_b1.compute(d)),
                     ("sig_zhixing", lambda d: zhixing_trend.compute_ultra(d)),
-                    ("sig_needle", lambda d: needle.compute(d))]:
+                    ("sig_needle", lambda d: needle.compute(d)),
+                    ("sig_brick3", _brick3_last_signal)]:
         try:
             row[col] = bool(fn(data).iloc[-1])
         except Exception:
@@ -148,7 +184,8 @@ def rank_all(factor_df: pd.DataFrame, top_n: int = 50,
     detail_cols = [c for c in factor_df.columns
                    if c not in ranked.columns and c != "symbol"]
     merged = ranked.merge(factor_df[["symbol"] + detail_cols], on="symbol", how="left")
-    badge_cols = [c for c in ["sig_b1", "sig_volume_b1", "sig_zhixing", "sig_needle"]
+    badge_cols = [c for c in ["sig_b1", "sig_volume_b1", "sig_zhixing",
+                              "sig_needle", "sig_brick3"]
                   if c in merged.columns]
     merged["strict_signal"] = merged[badge_cols].any(axis=1)
     merged = merged.sort_values(["strict_signal", "score"],

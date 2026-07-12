@@ -128,3 +128,19 @@ def test_nightly_review_text(tmp_db):
     reviews = tk.distill_success(use_llm=False)
     text = tk.nightly_review_text(new_reviews=reviews, new_outcomes=outcomes)
     assert "夜间复盘" in text and "基本面法" in text and "脱离成本区" in text
+
+
+def test_family_of_brick3():
+    """砖型图(BRICK_THREE_TYPES严格信号)归砖型图法；与B1并发=双法共振。"""
+    assert tk.family_of("砖型图") == "砖型图法"
+    assert tk.family_of("知行超短+砖型图") == "砖型图法"
+    assert tk.family_of("B1+砖型图") == "基本面法+砖型图法"
+
+
+def test_brick3_badge_in_stock_row():
+    """composite 第5严格信号 sig_brick3 存在且为 bool。"""
+    from tests.test_factors import make_synthetic_data
+    from alphapulse.ranking.composite import build_stock_row
+    row = build_stock_row("000001", "测试", make_synthetic_data(500))
+    assert row is not None
+    assert isinstance(row.get("sig_brick3"), bool)
