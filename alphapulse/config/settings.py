@@ -16,6 +16,11 @@ if not os.path.isdir(DATA_DIR):
     raise RuntimeError(
         f"数据目录不可用: {DATA_DIR} —— 外接盘未挂载？接盘后重试，或设 ALPHAPULSE_DATA_DIR 临时切换"
     )
+# K线包含合并预处理：仅知行超短信号用合并后K线生成（生产AB 2026-07-12：
+# 成功率+4.4pp、z=6.79、平均5日收益+0.72%→+1.40%，见 reports/ab_kline_merge_prod.md）。
+# 砖型图AB未过门槛(Δ+1.5pp,z=1.76)不启用。改 False 即回退原始K线。
+KLINE_MERGE_ZHIXING = True
+
 BACKTEST_RESULTS_DIR = os.path.join(PROJECT_ROOT, "backtest_results")
 REPORTS_DIR = os.path.join(PROJECT_ROOT, "reports")
 

@@ -93,6 +93,21 @@ def _brick3_params() -> dict:
     return _brick3_params_cache
 
 
+def _zhixing_signal(data: pd.DataFrame) -> pd.Series:
+    """知行超短信号——按配置在缠论合并后的K线上生成（AB验证+4.4pp,z=6.79）。
+
+    合并只影响信号生成；最后一根合并K线必然吸收最后一个原始交易日，
+    末行信号即当日信号，因果不变。
+    """
+    from alphapulse.config.settings import KLINE_MERGE_ZHIXING
+    if KLINE_MERGE_ZHIXING:
+        from alphapulse.utils.kline_merge import merge_klines
+        merged, _ = merge_klines(data)
+        if len(merged) >= 120:
+            return zhixing_trend.compute_ultra(merged)
+    return zhixing_trend.compute_ultra(data)
+
+
 def _brick3_last_signal(data: pd.DataFrame) -> pd.Series:
     """砖型图三型策略的当日信号（尾窗260行控耗时；接口对齐其余严格信号）。"""
     from alphapulse.strategies import brick_three_types
@@ -124,7 +139,7 @@ def build_stock_row(symbol: str, name: str, data: pd.DataFrame) -> dict | None:
     # 一个信号出错不拖累其余，且计数供扫描后汇报
     for col, fn in [("sig_b1", lambda d: b1_formula.compute(d)),
                     ("sig_volume_b1", lambda d: volume_b1.compute(d)),
-                    ("sig_zhixing", lambda d: zhixing_trend.compute_ultra(d)),
+                    ("sig_zhixing", _zhixing_signal),
                     ("sig_needle", lambda d: needle.compute(d)),
                     ("sig_brick3", _brick3_last_signal)]:
         try:

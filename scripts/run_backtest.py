@@ -413,6 +413,9 @@ def main():
     parser.add_argument("--capital", type=float, default=INITIAL_CAPITAL)
     parser.add_argument("--mode", default="standard", help="standard or short")
     parser.add_argument("--output", default=None)
+    parser.add_argument("--include-delisted", action="store_true",
+                        help="加载退市股(数据盘 delisted/ 目录)修正幸存者偏差；"
+                             "退市股不受 --sample 抽样影响，全量并入")
     args = parser.parse_args()
 
     # v3.0: Short-term backtest mode（修复：原版引用未定义变量直接NameError）
@@ -474,6 +477,24 @@ def main():
     if args.symbols:
         syms = set(args.symbols.split(","))
         stocks = {k: v for k, v in stocks.items() if k in syms}
+
+    if args.include_delisted:
+        delisted_dir = Path(args.data_dir).parent / "delisted"
+        delisted = load_stocks(str(delisted_dir), min_days=200)
+        # 按真实市场占比并入：现存股被 --sample 抽样时，退市股按同比例抽样，
+        # 否则退市股在universe里的权重会被放大（239全量 vs 300现存 = 44%，
+        # 真实占比仅 ~4.4%，会把偏差高估一个数量级）
+        if args.sample:
+            import random
+            n_alive_all = len(list(Path(args.data_dir).glob("*.csv")))
+            n_del = max(1, round(len(delisted) * len(stocks) / max(n_alive_all, 1)))
+            random.seed(43)
+            keys = random.sample(list(delisted.keys()), min(n_del, len(delisted)))
+            delisted = {k: delisted[k] for k in keys}
+        n_before = len(stocks)
+        for k, v in delisted.items():
+            stocks.setdefault(k, v)
+        print(f"[INFO] 退市股并入: +{len(stocks) - n_before} 只（{delisted_dir}，按占比抽样）")
 
     print(f"[INFO] 可用股票: {len(stocks)} 只")
     if len(stocks) == 0:
