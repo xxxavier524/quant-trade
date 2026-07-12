@@ -607,3 +607,11 @@ update-retry launchd(只跑数据不重跑选股)，与②配合：下午失败�
 - **C7**：FactorWeighter空权重拒绝覆盖（防加载失败清空B1_SCORE)；筹码conc90/获利盘+MACD背驰以信息列入帧（推送标⚠️背驰），权重待IC积累；README策略地位表；CLAUDE.md回测框架描述改实情。
 
 **遗留（методология，需专项）**：网格搜索walk-forward化（B1_B2_B3 hit_rate=1.0是样本内过拟合信号）；退市股universe（幸存者偏差）；vnpy_strategies接线或删除；K线合并预处理接入生产前需专项AB。
+
+## 2026-07-12 遗留四项收官 D1-D4（v4-fusion）
+
+- **D1 walk-forward**：`walk_forward.py`+`run_walk_forward.py`（锚定扩张+6月滚动8验证窗，口径=实盘同源5日+5%，robust=0.5中位+0.5最差，链式流程回测无偏估计）。B1_B2_B3 稳健参数 j23/pct7/vol1.5/conf0.7（链式OOS中位24.0%/最差17.7%）；BRICK vol_nj1.3/vol_bo1.5/consol5/amp15（26.2%/20.6%）→ best_params.json（带_source，旧参存provenance）。旧网格 hit_rate=1.0 确认为"案例股覆盖率"型过拟合（评分里无前向收益）。
+- **D2 退市股**：fetch_delisted.py 239/239 零失败→外接盘 delisted/（与生产隔离）；run_backtest --include-delisted 按真实占比抽样并入（防权重放大10倍高估偏差）。量化：真实占比下年化Δ≈0、胜率-1.1pp、回撤-3.3pp（集中持仓策略偏差有限）；占比失真组(-14.7pp)为上限示意。**附带重磅**：诚实引擎下 B1 v1 年化-12.4%，README旧+9.31%作废标注。
+- **D3 vnpy**：vnpy_strategies/ 删除（零引用，git可回溯），CLAUDE.md 阶段五/六改自研引擎+walk-forward语义。
+- **D4 K线合并生产AB**（989股×2024-2025，前向收益均在原始价评价）：知行超短 +4.4pp/z=6.79/平均5日收0.72%→1.40% → 接入（settings.KLINE_MERGE_ZHIXING）；砖型图 +1.5pp/z=1.76 未过门槛不接。
+- **顺带修**：策略信号帧索引=输入行标签（非date）——C6 的 sig_brick3 曾因此永远False，已修（500股日抽查命中2次≈0.4%/日）。
