@@ -98,10 +98,11 @@ def _brick3_last_signal(data: pd.DataFrame) -> pd.Series:
     from alphapulse.strategies import brick_three_types
     tail = data.tail(260)
     sig = brick_three_types.generate_signals(tail, **_brick3_params())
-    last_date = tail["date"].iloc[-1] if "date" in tail.columns else tail.index[-1]
-    # 非空信号帧以 date 为索引（空帧才有 date 列）
+    # 信号帧的索引 = 输入帧的行标签（RangeIndex输入就是行号，date索引输入就是日期）
+    # ——不能拿 date 字符串比，必须用末行标签对齐
+    last_label = tail.index[-1]
     hit = (not sig.empty
-           and bool(sig.loc[sig.index == last_date, "signal"].eq(1).any()))
+           and bool(sig.loc[sig.index == last_label, "signal"].eq(1).any()))
     return pd.Series([hit])
 
 
