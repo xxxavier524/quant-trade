@@ -40,29 +40,42 @@ def compute(
     early_max: int = 2,
     late_from: int = 4,
     require_brick_early: bool = True,
+    positions: list[int] | None = None,
+    require_dif_positive: bool = False,
     **b1_params,
 ) -> pd.Series:
-    """布尔信号序列：B1 买点 AND 砖型图周期早段（可关）AND 非尾段。
+    """布尔信号序列：B1 买点 AND 砖型图周期约束 AND（可选）MACD 多头区间。
 
     Args:
         data: 日线 OHLCV（可含 market_cap / pct_change / amplitude，交由 b1_formula 使用）
         early_max: 砖型图「早段」的红砖上限（默认第1~2块红砖）
         late_from: 砖型图「尾段」起始红砖数（默认第4块，尾段一律否决）
         require_brick_early: True=必须处于早段；False=只否决尾段（更宽松）
+        positions: 精确指定放行的红砖位置列表（如 [2]=仅第2砖）。
+            提供时覆盖 early_max/require_brick_early。
+            依据 11 号回测报告：第2砖是唯一正增益砖位。
+        require_dif_positive: True=叠加 MACD 零轴多头门（DIF>0 才放行）。
+            依据体系「砖型图×MACD共振：空头区间再漂亮的红砖都是诱多」。
         **b1_params: 透传给 b1_formula.compute（j_threshold / m1..m4 等）
 
     Returns:
         pd.Series[bool]
     """
     b1 = b1_formula.compute(data, **b1_params)
-
-    early = four_brick_cycle.compute(data, early_max=early_max)   # 第1~early_max红砖
     late = four_brick_cycle.compute_late(data, late_from=late_from)  # 第late_from砖起
 
-    if require_brick_early:
+    if positions is not None:
+        pos = four_brick_cycle.compute_brick_position(data)
+        sig = b1 & pos.isin(list(positions)) & ~late
+    elif require_brick_early:
+        early = four_brick_cycle.compute(data, early_max=early_max)  # 第1~early_max红砖
         sig = b1 & early & ~late
     else:
         sig = b1 & ~late
+
+    if require_dif_positive:
+        from alphapulse.factors.macd_enhanced import compute_zero_axis
+        sig = sig & compute_zero_axis(data)
 
     return sig.reindex(data.index, fill_value=False).fillna(False).astype(bool)
 
@@ -73,6 +86,8 @@ def generate_signals(
     early_max: int = 2,
     late_from: int = 4,
     require_brick_early: bool = True,
+    positions: list[int] | None = None,
+    require_dif_positive: bool = False,
     **b1_params,
 ) -> pd.DataFrame:
     """生成 Z哥融合策略信号（含纪律卡）。
@@ -91,7 +106,9 @@ def generate_signals(
 
     sig = compute(
         data, early_max=early_max, late_from=late_from,
-        require_brick_early=require_brick_early, **b1_params,
+        require_brick_early=require_brick_early,
+        positions=positions, require_dif_positive=require_dif_positive,
+        **b1_params,
     )
     if not sig.any():
         return pd.DataFrame(columns=_OUT_COLS)

@@ -157,13 +157,20 @@ def _zg_pos2_only(data, symbol="", **params):
     return gs[gs["brick_position"] == 2] if len(gs) else gs
 
 
+def _zg_v2(data, symbol="", **params):
+    """v2：仅第2砖 ∧ MACD多头区间（砖型图×MACD共振，registry=ZG_B1_BRICK_V2）。"""
+    return zg_b1_brick.generate_signals(
+        data, symbol=symbol, positions=[2], require_dif_positive=True, **params)
+
+
 def portfolio_backtest(stocks, start, end) -> dict:
     from run_backtest import BacktestEngine
 
     results = {}
     for name, fn in [("B1_FORMULA", b1_signals),
                      ("ZG_B1_BRICK", zg_b1_brick.generate_signals),
-                     ("ZG仅第2砖", _zg_pos2_only)]:
+                     ("ZG仅第2砖", _zg_pos2_only),
+                     ("ZG_v2(2砖∧DIF>0)", _zg_v2)]:
         logger.info(f"组合级回测: {name}")
         engine = BacktestEngine()
         r = engine.run(stocks, fn, start, end)

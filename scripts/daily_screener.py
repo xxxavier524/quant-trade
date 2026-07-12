@@ -58,9 +58,22 @@ def load_names() -> dict[str, str]:
     return names
 
 
-def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
+def run(date: str | None, top_n: int, data_dir: Path, use_gates: bool = True) -> pd.DataFrame:
     t0 = time.monotonic()
     names = load_names()
+
+    # ── 硬闸门（择时是门不是分：上证MACD零轴 + 大盘S1，数据缺失fail-open）──
+    if use_gates:
+        try:
+            from alphapulse.market.hard_gates import evaluate_gates
+            gates_ok, gate_msgs = evaluate_gates(date or "9999-12-31")
+            for m in gate_msgs:
+                logger.info(f"  闸门 | {m}")
+            if not gates_ok:
+                logger.warning("硬闸门关闭：今日不开新仓（评分链跳过）。加 --no-gate 可强制出票。")
+                return pd.DataFrame()
+        except Exception as e:
+            logger.warning(f"硬闸门评估异常（放行）: {e}")
 
     # ── 大盘诊断（量能+N型+知行BS，真实指数 data/index/）──
     macro_level, macro_score, macro_advice = "震荡", 50.0, ""
@@ -216,12 +229,14 @@ def main():
     ap.add_argument("--date", help="回放历史日 YYYY-MM-DD（默认最新交易日）")
     ap.add_argument("--top", type=int, default=50)
     ap.add_argument("--data-dir", default=DATA_DIR)
+    ap.add_argument("--no-gate", action="store_true",
+                    help="关闭硬闸门（上证MACD零轴+大盘S1），强制出票")
     args = ap.parse_args()
 
     data_dir = Path(args.data_dir)
     if not data_dir.exists():
         sys.exit(f"数据目录不存在: {data_dir}（外接硬盘未挂载？）")
-    top = run(args.date, args.top, data_dir)
+    top = run(args.date, args.top, data_dir, use_gates=not args.no_gate)
     if not top.empty:
         cols = ["rank", "symbol", "name", "score", "strict_signal", "top_factors"]
         print(top[cols].head(20).to_string(index=False))

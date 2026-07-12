@@ -43,6 +43,15 @@ from alphapulse.factors.experimental import (
 )
 from alphapulse.factors import industry_rotation, beta_fundamental, knowledge_points
 from alphapulse.factors import yin_volume_34, four_brick_cycle, weekly_ma_cross
+from alphapulse.factors import (
+    bbi,
+    sell_score_v14,
+    macd_enhanced,
+    turnover_signals,
+    weekly_long_bull,
+    b1_entry_filters,
+    zuchongzhi_target,
+)
 
 FACTOR_REGISTRY = {
     "N_STRUCT": {
@@ -378,6 +387,116 @@ FACTOR_REGISTRY = {
         "source": "AlphaPulse-A B1→B2→B3递进战法",
         "default_params": {},
     },
+    # --- P0因子包（网上语料缺口分析 docs/research_journal/12_*，2026-07-11） ---
+    "BBI_INDICATOR": {
+        "module": bbi,
+        "type": "indicator",
+        "description": "BBI多空指标=(MA3+MA6+MA12+MA24)/4，少妇战法止盈/离场基础",
+        "source": "少妇战法SOP第5/6步",
+        "default_params": {},
+    },
+    "LUZHU_TAKE_PROFIT": {
+        "module": bbi,
+        "compute_func": "compute_luzhu",
+        "type": "risk",
+        "description": "卤煮止盈：站上BBI后连续2根中/大阳线(≥4%)→减半信号",
+        "source": "少妇战法SOP第5步",
+        "default_params": {"mid_yang_pct": 4.0, "n_yang": 2},
+    },
+    "BBI_BREAK_EXIT": {
+        "module": bbi,
+        "compute_func": "compute_bbi_break",
+        "type": "risk",
+        "description": "BBI两日破位：收盘连续2日<BBI→清仓信号",
+        "source": "少妇战法SOP第6步",
+        "default_params": {"n_days": 2},
+    },
+    "SELL_SCORE_V14": {
+        "module": sell_score_v14,
+        "type": "risk",
+        "description": "防卖飞V1.4持仓评分(0-5)：收盘涨/BBI没破/非放量阴/趋势向上/J非死叉。4-5持有,3减半,<3离场。只用于持仓不用于开新仓",
+        "source": "sell-discipline 3.10",
+        "default_params": {"fangliang_mult": 1.2},
+    },
+    "MACD_VETO": {
+        "module": macd_enhanced,
+        "compute_func": "compute_veto",
+        "type": "risk",
+        "description": "MACD一票否决：DIF<0且近10日无周线底背离→禁止买入",
+        "source": "indicators 3.12 MACD指标之王",
+        "default_params": {"div_lookback": 10},
+    },
+    "MACD_ZERO_AXIS": {
+        "module": macd_enhanced,
+        "compute_func": "compute_zero_axis",
+        "type": "factor",
+        "description": "MACD零轴多空：DIF>0多头区间（择时/共振门用）",
+        "source": "indicators 3.12",
+        "default_params": {},
+    },
+    "MACD_TOP_DIVERGENCE": {
+        "module": macd_enhanced,
+        "compute_func": "compute_top_divergence",
+        "type": "risk",
+        "description": "MACD顶背离(日线)：价创60日新高DIF未新高→趋势衰竭警示(S2依据)",
+        "source": "indicators 3.12",
+        "default_params": {"window": 60},
+    },
+    "MACD_FAKE_GOLD_CROSS": {
+        "module": macd_enhanced,
+        "compute_func": "compute_fake_gold_cross",
+        "type": "risk",
+        "description": "金叉空：欲金叉未成DIF拐头向下=最恶毒的诱多（见金叉多等一天）",
+        "source": "indicators 3.12",
+        "default_params": {"approach_days": 3, "gap_eps": 0.15},
+    },
+    "B1_TURNOVER_PATCH": {
+        "module": turnover_signals,
+        "compute_func": "compute_b1_turnover_patch",
+        "type": "factor",
+        "description": "B1补丁2：前三根中大阳线累计换手<38%→通过（筹码未发散）",
+        "source": "trading-core 3.3 B1双补丁(2026-03-15)",
+        "default_params": {"max_cum_turnover": 38.0, "yang_pct": 4.0, "lookback": 60},
+    },
+    "HIGH_TURNOVER_EXIT": {
+        "module": turnover_signals,
+        "compute_func": "compute_high_turnover_exit",
+        "type": "risk",
+        "description": "高位换手出货：4根K线累计换手≥160%→退出信号",
+        "source": "indicators 3.9 麒麟会退出信号",
+        "default_params": {"window": 4, "threshold": 160.0},
+    },
+    "WEEKLY_LONG_BULL": {
+        "module": weekly_long_bull,
+        "type": "factor",
+        "description": "B1补丁1：周线55/144/233多头排列且55/144向上（大级别粗筛）",
+        "source": "trading-core 3.3 B1双补丁(2026-02-20)",
+        "default_params": {"m1": 55, "m2": 144, "m3": 233, "require_rising": True},
+    },
+    "YELLOW_DISTANCE_OK": {
+        "module": b1_entry_filters,
+        "compute_func": "compute_yellow_distance_ok",
+        "type": "factor",
+        "description": "B1入场三问#1：收盘距黄线≤8%（止损可控）→True可做",
+        "source": "trading-core 3.0a",
+        "default_params": {"max_dist": 0.08},
+    },
+    "LIFT_WAVE_AVOID": {
+        "module": b1_entry_filters,
+        "compute_func": "compute_lift_wave_avoid",
+        "type": "risk",
+        "description": "拉升波回避：近10日涨幅≥15%=拉升波中，此时B1回避(高位余震)",
+        "source": "三波理论/indicators高位白线首B1",
+        "default_params": {"lift_min_return": 0.15, "lift_window": 10},
+    },
+    "ZUCHONGZHI_TARGET": {
+        "module": zuchongzhi_target,
+        "compute_func": "compute_target",
+        "type": "indicator",
+        "description": "祖冲之目标价=2a-b(a=60日高点,b=60日低点)，到价触发卤煮",
+        "source": "advanced-patterns 坑里起好货",
+        "default_params": {"lookback": 60},
+    },
     # --- Z哥 B1+砖型图 融合选股（独立策略，zettaranc-perspective 体系） ---
     "ZG_B1_BRICK": {
         "module": zg_b1_brick,
@@ -385,6 +504,13 @@ FACTOR_REGISTRY = {
         "description": "Z哥融合选股：B1买点(b1_formula 6条件) + 砖型图周期早段确认(第1-2红砖，尾段否决) + 纪律卡(只输一根K线止损/S1离场)。独立于现有B1，效果好再合并",
         "source": "zettaranc-perspective 少妇战法SOP（女娲蒸馏）",
         "default_params": {"early_max": 2, "late_from": 4, "require_brick_early": True},
+    },
+    "ZG_B1_BRICK_V2": {
+        "module": zg_b1_brick,
+        "type": "selection",
+        "description": "Z哥融合选股v2：B1 ∧ 仅第2砖 ∧ MACD多头区间(DIF>0)。依据11号回测报告(第2砖唯一正增益)+砖型图×MACD共振规则",
+        "source": "docs/research_journal/11_* + indicators 3.12共振",
+        "default_params": {"positions": [2], "require_dif_positive": True, "late_from": 4},
     },
     # --- 风控因子（type="risk"） ---
     "DYNAMIC_STOP_LOSS": {
