@@ -137,6 +137,21 @@ def build_stock_row(symbol: str, name: str, data: pd.DataFrame) -> dict | None:
         row["pattern_state"] = STATE_CN[int(pattern_state_series(data)[-1])]
     except Exception:
         row["pattern_state"] = ""
+    # 正收益组件接入（2026-07-11，AB验证结论见 reports/ab_chip_b1.md 等）：
+    # 筹码分布/MACD背驰先以信息列入帧——供IC调优积累历史与推送风险提示，
+    # 不直接参与打分（权重待IC产生，避免无据拍脑袋定权重）
+    try:
+        from alphapulse.factors.chip_distribution import compute_chips
+        chips = compute_chips(data.tail(250))
+        row["chip_profit_ratio"] = round(float(chips["profit_ratio"].iloc[-1]), 4)
+        row["chip_conc90"] = round(float(chips["conc90"].iloc[-1]), 4)
+    except Exception:
+        pass
+    try:
+        from alphapulse.factors.macd_divergence import compute as _macd_div
+        row["macd_div_sell"] = bool(_macd_div(data.tail(300)).iloc[-1])
+    except Exception:
+        row["macd_div_sell"] = False
     row["close"] = round(float(data["close"].iloc[-1]), 2)
     prev = float(data["close"].iloc[-2]) if len(data) > 1 else None
     row["pct_change"] = round((row["close"] / prev - 1) * 100, 2) if prev else 0.0

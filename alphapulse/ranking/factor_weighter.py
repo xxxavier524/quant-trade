@@ -107,6 +107,11 @@ class FactorWeighter:
     def save(self) -> None:
         """Persist weights and IC history to JSON."""
         path = Path(self.config_path)
+        # 防清空：_load 失败时 self.weights 为空，直接落盘会把 IC 调优出的生产权重
+        # （如 B1_SCORE）整体覆盖没——空权重 + 目标文件非空 = 拒绝保存
+        if not self.weights and path.exists() and path.stat().st_size > 10:
+            logger.warning("weights 为空且 %s 非空——疑似加载失败，拒绝覆盖保存", path)
+            return
         path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "weights": self.weights,

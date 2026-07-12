@@ -237,7 +237,8 @@ def run(date: str | None, top_n: int, data_dir: Path,
                 return (f"{r['symbol']}{(' ' + name) if name else ''} · {r['score']:.0f}分"
                         f" · {_clean(r.get('sector')) or '未知板块'}"
                         + (f" · {concepts}" if concepts else "")
-                        + f" · {r['strategies']}")
+                        + f" · {r['strategies']}"
+                        + (" ⚠️背驰" if r.get("macd_div_sell") else ""))
 
             fam_col = top["strategies"].map(family_of) if not top.empty else None
             label = f"·{push_label}" if push_label else ""

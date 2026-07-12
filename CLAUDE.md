@@ -5,7 +5,7 @@
 ## 核心约束（全局）
 
 - Python 3.10+，向量化优先（pandas/numpy），禁止逐行循环
-- 回测框架仅 VeighNa (vnpy)，不接受 backtrader
+- 回测主引擎为自研日线引擎 `scripts/run_backtest.py`（次日开盘成交/涨停跳过/滑点费率仓位内建）；`vnpy_strategies/` 为 VeighNa 封装备用未接线，不接受 backtrader
 - 数据源：通达信 `.day` → CSV，主存储于外接盘 `/Volumes/Mac-480g外接/quantan_data/day`（经 `settings.DATA_DIR` 读取，勿硬编码；内置盘 `data/day/` 为迁移期旧副本勿用）
 - 命名空间：`alphapulse.factors`、`alphapulse.strategies`
 - 滑点买0.1%卖0.2%、手续费万2.5最低5元、单票≤20%最多5只

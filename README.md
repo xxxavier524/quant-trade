@@ -140,6 +140,16 @@ pip install -r requirements.txt  # 首次
 
 ## 四、策略体系
 
+> **实现地位速查（2026-07-11 梳理）**——同名战法存在多套实现，以此表为准：
+>
+> | 战法家族 | 生产实现（15:30/22:00 选股链） | 研究/回测实现 | 已归档 |
+> |---|---|---|---|
+> | 基本面法 | `factors/b1_formula`+`volume_b1`+`strategies/needle`（严格信号） | `b1_b2_b3_strategy`(递进版)、`b1_formula_strategy`(回测用)、`b1_enhanced`/`b1_super` | `strategies/b1.py`(v1) |
+> | 砖型图法 | `factors/zhixing_trend.compute_ultra`+`strategies/brick_three_types`（严格信号，2026-07-11 接入） | `brick_ultra_strategy`(回测用) | `strategies/brick.py`(v1) |
+> | 辅助 | `chip_distribution`/`macd_divergence` 信息列 | `needle_washout`、`two_stage`、`playbook_engine`、`ump_referee` | — |
+>
+> 生产链战法归属由 `config/strategy_families.json` 定义；成功率按家族分列见每晚复盘推送。
+
 ### 4.1 B1_FORMULA (主力策略) ★★★★★
 
 **来源**: 通达信B1选股公式
