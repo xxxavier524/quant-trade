@@ -1,91 +1,91 @@
 #!/usr/bin/env python3
-"""Nightly automated run: 00:00-07:00 backtest + optimization + factor update."""
-import sys, time, logging
+"""Nightly automated run (02:00): 真实信号复盘 + 因子权重更新。
+
+2026-07-11 重写：此前夜场报告基于 mock_signals 占位假数据（硬编码20只/买价10元/
+固定2026-05-01），"参数优化"的评估函数是参数求和——两者输出均无意义却每天推飞书。
+现改为：
+1. 复盘 = signal_tracker 真实追踪库（选股 Top50 的 5日/+5% 成功率，按战法分列）
+2. 假参数优化下线（run_param_sweep 需要真实回测评估函数才有意义，待接
+   scripts/run_backtest.py 的组合级评估后再启用）
+3. 因子权重 IC 更新保留（FactorWeighter，无 IC 历史时不写权重）
+"""
+import sys
+import time
+import logging
 from pathlib import Path
 from datetime import datetime
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
-import pandas as pd
-from alphapulse.backtest.short_term_bt import run_short_backtest, init_db
-from alphapulse.backtest.bt_storage import query_strategy_stats
-from alphapulse.ml.auto_research import AutoResearch
+
 from alphapulse.ranking.factor_weighter import FactorWeighter
 from alphapulse.notify.feishu_bot import send_feishu
-from alphapulse.config.settings import FEISHU_WEBHOOK_URL, AUTO_RESEARCH_START_HOUR, AUTO_RESEARCH_END_HOUR, DATA_DIR
+from alphapulse.config.settings import FEISHU_WEBHOOK_URL, DATA_DIR
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("nightly_runner")
-DATA_DIR = Path(DATA_DIR) if DATA_DIR else Path(__file__).resolve().parent.parent / "data" / "day"
+DATA_DIR = Path(DATA_DIR)
 
-def validate_data():
+
+def validate_data() -> bool:
     files = list(DATA_DIR.glob("*.csv"))
     logger.info(f"Data check: {len(files)} CSV files")
-    if len(files) < 4000: logger.warning(f"Low file count: {len(files)}, expected ~5229")
+    if len(files) < 4000:
+        logger.warning(f"Low file count: {len(files)}, expected ~5229")
     return len(files) >= 4000
 
-def run_nightly_backtest():
-    logger.info("=== Nightly Backtest ===")
-    init_db()
-    stock_data = {}
-    for f in list(DATA_DIR.glob("*.csv"))[:100]:
-        # TODO: Increase to full universe (5229 stocks) once performance validates
-        # Currently limited to 100 for development speed
-        sym = f.stem
-        df = pd.read_csv(f, parse_dates=["date"])
-        if len(df) >= 60: stock_data[sym] = df.tail(120)
-    # TODO: Replace mock signals with real strategy output from daily_screener
-    # Currently using placeholder data for demo purposes
-    mock_signals = pd.DataFrame([{"symbol":s,"name":"","strategy":"B1B2","date":"2026-05-01",
-        "signal_type":"B1","buy_price":10.0,"sector":"","macro_level":"震荡偏多","score":75,"grade":"A"}
-        for s in list(stock_data.keys())[:20]])
-    stats = run_short_backtest(mock_signals, stock_data, max_hold_days=20)
-    logger.info(f"Backtest: {stats}")
-    return stats
-
-def run_nightly_optimization():
-    logger.info("=== Auto-Research ===")
-    ar = AutoResearch()
-    for task in ar.get_optimization_tasks():
-        strategy = task["strategy"]
-        logger.info(f"Optimizing {strategy}...")
-        # TODO: Replace with real backtest evaluation running actual strategies
-        # Currently returns arbitrary score based on parameter sum
-        def make_eval(s):
-            def eval_fn(params):
-                return sum(v for v in params.values() if isinstance(v,(int,float))) / 100
-            return eval_fn
-        result = ar.run_param_sweep(strategy, task["param_grid"], make_eval(strategy), 0.3)
-        logger.info(f"{strategy}: improved={result['improved']}, best={result['best_params']}")
 
 def run_factor_update():
     logger.info("=== Factor Weight Update ===")
     fw = FactorWeighter()
-    for strategy in ["B1B2","BRICK","NEEDLE"]:
+    for strategy in ["B1B2", "BRICK", "NEEDLE"]:
         weights = fw.compute_weights(strategy, half_life=30)
         logger.info(f"{strategy} weights: {weights}")
     fw.save()
 
-def send_nightly_summary(stats):
-    if not FEISHU_WEBHOOK_URL: return
-    msg = f"🔬 夜场优化报告 ({datetime.now().strftime('%Y-%m-%d')})\n"
-    for s, v in stats.items():
-        msg += f"{s}: 胜率 {v.get('win_rate','N/A')}% 平均收益 {v.get('avg_return','N/A')}%\n"
-    send_feishu(FEISHU_WEBHOOK_URL, msg)
+
+def build_nightly_summary() -> str:
+    """夜场报告 = 追踪库真实成功率（与15:30复盘同源，凌晨视角再确认一次）。"""
+    from alphapulse.tracking import signal_tracker as tk
+    stats = tk.success_stats(window_days=30)
+    lines = [f"🔬 夜场报告 ({datetime.now():%Y-%m-%d}) — 真实追踪数据",
+             f"近30日选股成功率（{tk.HORIZON_DAYS}日内+{tk.SUCCESS_PCT:.0f}%脱离成本区）:"]
+    for fam, s in stats.items():
+        if s["resolved"] == 0 and s["tracking"] == 0:
+            continue
+        rate = f"{s['rate']}%" if s["rate"] is not None else "—"
+        lines.append(f"· {fam}: {s['success']}/{s['resolved']}={rate}"
+                     f" | 跟踪中{s['tracking']} 止踪{s['stopped']}")
+    rep = tk.weekly_report()
+    if not rep.empty:
+        lines.append(f"近一周信号 {len(rep)} 条，连涨≥2天 {int((rep['streak'] >= 2).sum())} 条")
+    return "\n".join(lines)
+
 
 def main():
     logger.info("=== Nightly Runner Starting ===")
     start = time.monotonic()
-    if not validate_data(): logger.warning("Data validation failed")
-    stats = {}
-    try: stats = run_nightly_backtest()
-    except Exception as e: logger.error(f"Backtest failed: {e}")
-    now_hour = datetime.now().hour + datetime.now().minute/60
-    if AUTO_RESEARCH_START_HOUR <= now_hour <= AUTO_RESEARCH_END_HOUR:
-        try: run_nightly_optimization()
-        except Exception as e: logger.error(f"Optimization failed: {e}")
-    try: run_factor_update()
-    except Exception as e: logger.error(f"Factor update failed: {e}")
-    logger.info(f"Done in {(time.monotonic()-start)/60:.0f}min")
-    send_nightly_summary(stats)
+    if not validate_data():
+        logger.warning("Data validation failed")
+
+    summary = ""
+    try:
+        summary = build_nightly_summary()
+        logger.info(summary)
+    except Exception as e:
+        logger.error(f"复盘统计失败: {e}")
+
+    # 参数优化：假评估函数(参数求和)已下线；待接真实回测评估后恢复
+    logger.info("=== Auto-Research: 已停用（等待真实回测评估函数接入） ===")
+
+    try:
+        run_factor_update()
+    except Exception as e:
+        logger.error(f"Factor update failed: {e}")
+
+    logger.info(f"Done in {(time.monotonic() - start) / 60:.0f}min")
+    if summary and FEISHU_WEBHOOK_URL:
+        send_feishu(FEISHU_WEBHOOK_URL, summary)
+
 
 if __name__ == "__main__":
     main()
