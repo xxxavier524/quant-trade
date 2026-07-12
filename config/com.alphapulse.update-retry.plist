@@ -6,11 +6,9 @@
     <key>Label</key>
     <string>com.alphapulse.update-retry</string>
 
-    <!-- 19:00 晚间流水线（2026-07-12 用户要求由22:00提前）：15:30 时 baostock 未发布
-         当日K线，下午选股永远基于 T-1；晚间数据齐后重跑选股+追踪，推送"晚间版"。
-         风险提示：baostock 当日K线发布约在 18:00-19:00，19:00 整偶有未出——届时
-         断点语义会让本次快速空转（latest=T-1 全部已最新），晚间版≈下午版重播；
-         若观察到经常踩空可回调 19:30/20:00。 -->
+    <!-- 20:30 晚间流水线（2026-07-12 用户定，由22:00→19:00→20:30）：15:30 时 baostock
+         未发布当日K线，下午选股永远基于 T-1；晚间数据齐后重跑选股+追踪，推送"晚间版"
+         = 基于当日收盘的正式选股。20:30 在 K 线发布窗口（约18:00-19:00）之后，余量充足。 -->
     <key>ProgramArguments</key>
     <array>
         <string>/Users/qiushixuan/cc/quantan trade/.venv/bin/python</string>
@@ -27,9 +25,9 @@
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
-        <integer>19</integer>
+        <integer>20</integer>
         <key>Minute</key>
-        <integer>0</integer>
+        <integer>30</integer>
     </dict>
 
     <key>EnvironmentVariables</key>
