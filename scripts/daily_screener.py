@@ -59,7 +59,8 @@ def load_names() -> dict[str, str]:
     return names
 
 
-def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
+def run(date: str | None, top_n: int, data_dir: Path,
+        push_label: str = "") -> pd.DataFrame:
     t0 = time.monotonic()
     names = load_names()
 
@@ -236,7 +237,8 @@ def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
                         + f" · {r['strategies']}")
 
             fam_col = top["strategies"].map(family_of) if not top.empty else None
-            sections = [f"📊 选股 {target_date} 大盘{macro_score}[{macro_level}]"]
+            label = f"·{push_label}" if push_label else ""
+            sections = [f"📊 选股 {target_date}{label} 大盘{macro_score}[{macro_level}]"]
             for fam, icon in [("基本面法", "🎯"), ("砖型图法", "🧱")]:
                 sub = top[fam_col.str.contains(fam, na=False)] if fam_col is not None else top.iloc[0:0]
                 sections.append(f"{icon}【{fam}】" if not sub.empty else f"{icon}【{fam}】无信号")
@@ -259,12 +261,13 @@ def main():
     ap.add_argument("--date", help="回放历史日 YYYY-MM-DD（默认最新交易日）")
     ap.add_argument("--top", type=int, default=50)
     ap.add_argument("--data-dir", default=DATA_DIR)
+    ap.add_argument("--push-label", default="", help="飞书推送标题附注（如 晚间版）")
     args = ap.parse_args()
 
     data_dir = Path(args.data_dir)
     if not data_dir.exists():
         sys.exit(f"数据目录不存在: {data_dir}（外接硬盘未挂载？）")
-    top = run(args.date, args.top, data_dir)
+    top = run(args.date, args.top, data_dir, push_label=args.push_label)
     if not top.empty:
         cols = ["rank", "symbol", "name", "score", "strict_signal", "top_factors"]
         print(top[cols].head(20).to_string(index=False))

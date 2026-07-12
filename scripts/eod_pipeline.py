@@ -40,7 +40,15 @@ def main() -> int:
     ap.add_argument("--max-update-min", type=int, default=30)
     ap.add_argument("--top", type=int, default=50)
     ap.add_argument("--skip-update", action="store_true", help="只重跑选股（调试用）")
+    ap.add_argument("--push-label", default="", help="推送标题附注（22:00晚间版传'晚间版'）")
+    ap.add_argument("--force-weekend", action="store_true", help="周末也强制运行")
     args = ap.parse_args()
+
+    # 周末守卫：launchd 每天触发，周六日无行情，照跑只会把周五内容重复推送
+    # （节假日暂未覆盖：数据更新会因无新K线快速空转，选股结果同前一交易日）
+    if not args.force_weekend and datetime.now().weekday() >= 5:
+        print("周末非交易日，跳过流水线（--force-weekend 可强制）")
+        return 0
 
     steps = []
     if not args.skip_update:
@@ -48,12 +56,14 @@ def main() -> int:
                               ["scripts/daily_update.py", "--max-minutes", str(args.max_update_min)],
                               timeout=(args.max_update_min + 10) * 60))
     # 选股：即使更新失败也跑（用已有数据），陈旧告警在脚本内
-    steps.append(run_step("全市场选股",
-                          ["scripts/daily_screener.py", "--top", str(args.top)],
-                          timeout=900))
+    screener_args = ["scripts/daily_screener.py", "--top", str(args.top)]
+    if args.push_label:
+        screener_args += ["--push-label", args.push_label]
+    steps.append(run_step("全市场选股", screener_args, timeout=900))
     # 信号追踪：录入今日Top + 回填历史表现（非关键，失败不影响）
+    # 600s：含最多5次DeepSeek成功复盘 + 飞书频控重试(最长3×24s)，300s可能被掐
     steps.append(run_step("信号追踪",
-                          ["scripts/track_signals.py"], timeout=300))
+                          ["scripts/track_signals.py"], timeout=600))
     # agent决策对账：决策日志 vs 实际行情，各角色命中率（非关键）
     steps.append(run_step("agent决策对账",
                           ["scripts/review_agent_decisions.py"], timeout=300))
