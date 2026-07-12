@@ -59,7 +59,8 @@ def test_rank_stocks_basic():
 
     assert len(result) == 4
     assert list(result.columns) == [
-        "symbol", "name", "score", "rank", "top_factors", "sector", "reason"
+        "symbol", "name", "score", "raw_score", "rank", "top_factors",
+        "sector", "reason"
     ]
     # ranks should be 1..4
     assert result["rank"].tolist() == [1, 2, 3, 4]
@@ -97,5 +98,6 @@ def test_rank_stocks_empty_weights():
     result = rank_stocks(df, {}, top_pct=1.0)
     assert result.empty
     assert list(result.columns) == [
-        "symbol", "name", "score", "rank", "top_factors", "sector", "reason"
+        "symbol", "name", "score", "raw_score", "rank", "top_factors",
+        "sector", "reason"
     ]

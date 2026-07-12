@@ -28,7 +28,8 @@ sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 from alphapulse.config.settings import DATA_DIR, FEISHU_WEBHOOK_URL  # noqa: E402
 from alphapulse.market.market_score import compute_market_score  # noqa: E402
 from alphapulse.market.sector_score import rank_sectors, symbol_sector_map  # noqa: E402
-from alphapulse.ranking.composite import build_stock_row, rank_all  # noqa: E402
+from alphapulse.ranking.composite import (  # noqa: E402
+    build_stock_row, rank_all, reset_signal_errors, report_signal_errors)
 from replay_screen import load_stock  # noqa: E402  复用市值反推/列自愈逻辑
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -91,13 +92,31 @@ def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
             f"⚠️ 仅 {coverage*100:.0f}% 股票更新到 {target_date}，数据可能陈旧，"
             f"请先运行 scripts/daily_update.py")
 
-    stock_frames = {s: d for s, d in all_frames.items()
-                    if d.iloc[-1]["date"] == target_date}
+    # 数据比目标日新的截断回目标日（更新到一半时众数落在旧日，直接剔除会把
+    # 最新的那批股票整批扔出选股池）；比目标日旧的确实缺数据，只能剔除
+    stock_frames: dict[str, pd.DataFrame] = {}
+    n_truncated = n_stale = 0
+    for s, d in all_frames.items():
+        last = d.iloc[-1]["date"]
+        if last == target_date:
+            stock_frames[s] = d
+        elif last > target_date:
+            dd = d[d["date"] <= target_date]
+            if len(dd) >= 120 and dd.iloc[-1]["date"] == target_date:
+                stock_frames[s] = dd.reset_index(drop=True)
+                n_truncated += 1
+        else:
+            n_stale += 1
+    if n_truncated or n_stale:
+        logger.info(f"对齐 {target_date}: 截断 {n_truncated} 只(数据更新), "
+                    f"剔除 {n_stale} 只(数据陈旧)")
+    reset_signal_errors()
     rows = []
     for sym, df in stock_frames.items():
         row = build_stock_row(sym, names.get(sym, ""), df)
         if row:
             rows.append(row)
+    report_signal_errors(logger)
 
     # ── 板块评分排名 ──
     sector_df = pd.DataFrame()
@@ -116,6 +135,12 @@ def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
     logger.info(f"有效股票 {len(factor_df)} 只 @ {target_date}")
     if factor_df.empty:
         return factor_df
+    # 市值覆盖告警：market_cap 缺失时 B1 公式的"市值>10亿"条件静默放行
+    if "float_mv_yi" in factor_df.columns:
+        mv_missing = factor_df["float_mv_yi"].isna().mean()
+        if mv_missing > 0.2:
+            logger.warning(f"⚠️ {mv_missing*100:.0f}% 股票缺市值数据，"
+                           f"B1市值门槛对这些票不生效（检查 data/meta/share_capital.csv）")
 
     # ── 板块/概念标注并入因子帧（供 GUI 交互重排复用，无需重算全市场）──
     sec_map, cmap = {}, {}
@@ -156,8 +181,7 @@ def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
                 tags.append("知行超短")
             if r.get("sig_needle"):
                 tags.append("单针下三十")
-            if float(r.get("weekly_cross", 0) or 0) >= 1.0:
-                tags.append("周线金叉")
+            # 周线金叉是连续因子非严格信号，只进 top_factors 贡献解释，不混入战法标签
             if not tags:
                 tags.append("综合评分")
             return "+".join(tags)
@@ -186,7 +210,8 @@ def run(date: str | None, top_n: int, data_dir: Path) -> pd.DataFrame:
            "|---|---|---|---|---|---|---|---|---|"]
     for _, r in top.head(20).iterrows():
         sigs = [s for s, c in [("B1", "sig_b1"), ("量能B1", "sig_volume_b1"),
-                               ("知行超短", "sig_zhixing")] if r.get(c)]
+                               ("知行超短", "sig_zhixing"),
+                               ("单针下三十", "sig_needle")] if r.get(c)]
         md.append(f"| {r['rank']} | {r['symbol']} | {r['name']} | {r['score']:.1f} "
                   f"| {'+'.join(sigs) or '—'} | {r.get('sector', '')} | {r.get('close', '')} "
                   f"| {r.get('pct_change', '')} | {r['top_factors']} |")

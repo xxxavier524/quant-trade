@@ -7,6 +7,8 @@
 """
 
 import json
+import logging
+from collections import Counter
 from pathlib import Path
 
 import pandas as pd
@@ -16,8 +18,24 @@ from alphapulse.strategies import needle
 from alphapulse.ranking.stock_ranker import rank_stocks
 from alphapulse.ranking.sub_scores import compute_sub_scores
 
+logger = logging.getLogger(__name__)
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 WEIGHTS_FILE = PROJECT_ROOT / "config" / "factor_weights.json"
+
+# 严格信号计算异常计数（按信号名），供批量扫描后汇报——异常静默清零会让个股
+# 永远拿不到⭐而无人察觉
+SIGNAL_ERRORS: Counter = Counter()
+
+
+def reset_signal_errors() -> None:
+    SIGNAL_ERRORS.clear()
+
+
+def report_signal_errors(log=logger) -> None:
+    if SIGNAL_ERRORS:
+        log.warning("严格信号计算异常: " + ", ".join(
+            f"{k}×{v}" for k, v in SIGNAL_ERRORS.most_common()))
 
 # 种子权重（Phase 3 信号验证产出 IC 后由 FactorWeighter 自动调优）
 DEFAULT_WEIGHTS = {
@@ -66,15 +84,17 @@ def build_stock_row(symbol: str, name: str, data: pd.DataFrame) -> dict | None:
             row["ml_score"] = ml
     except Exception:
         pass
-    # 严格信号徽章（原始通达信公式，全条件AND）
-    try:
-        row["sig_b1"] = bool(b1_formula.compute(data).iloc[-1])
-        row["sig_volume_b1"] = bool(volume_b1.compute(data).iloc[-1])
-        row["sig_zhixing"] = bool(zhixing_trend.compute_ultra(data).iloc[-1])
-        row["sig_needle"] = bool(needle.compute(data).iloc[-1])
-    except Exception:
-        row["sig_b1"] = row["sig_volume_b1"] = row["sig_zhixing"] = False
-        row["sig_needle"] = False
+    # 严格信号徽章（原始通达信公式，全条件AND）——逐个隔离异常：
+    # 一个信号出错不拖累其余，且计数供扫描后汇报
+    for col, fn in [("sig_b1", lambda d: b1_formula.compute(d)),
+                    ("sig_volume_b1", lambda d: volume_b1.compute(d)),
+                    ("sig_zhixing", lambda d: zhixing_trend.compute_ultra(d)),
+                    ("sig_needle", lambda d: needle.compute(d))]:
+        try:
+            row[col] = bool(fn(data).iloc[-1])
+        except Exception:
+            row[col] = False
+            SIGNAL_ERRORS[col] += 1
     # 战法序列状态（回测证明 B2确认 才是优势所在，B1候B2=等确认——直接展示给用户）
     try:
         from alphapulse.agent_team.patterns import pattern_state_series, STATE_CN

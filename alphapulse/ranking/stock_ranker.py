@@ -68,21 +68,6 @@ def _build_reason(top_factors: str, macro_note: str, sector_note: str) -> str:
     return " | ".join(parts)
 
 
-# Maps from macro-level labels to score multipliers.
-_MACRO_MULTIPLIER = {
-    "空头": 1.20,
-    "震荡偏空": 1.20,
-    "多头": 0.95,
-    "震荡偏多": 0.95,
-}
-_DEFAULT_MULTIPLIER = 1.0  # 震荡 and any unrecognized level
-
-
-def _macro_multiplier(macro_level: str) -> float:
-    """Return the score multiplier for a given macro-level label."""
-    return _MACRO_MULTIPLIER.get(macro_level, _DEFAULT_MULTIPLIER)
-
-
 def rank_stocks(
     factor_df: pd.DataFrame,
     factor_weights: Dict[str, float],
@@ -107,7 +92,7 @@ def rank_stocks(
         excluded from the output.
     macro_level : str
         One of ``多头``, ``震荡偏多``, ``震荡``, ``震荡偏空``, ``空头``.
-        Adjusts scores: bearish levels ×1.2, bullish levels ×0.95.
+        仅作展示语境，不参与打分（乘数已证明不改变排序，2026-07-11 移除）。
     top_pct : float
         Fraction of stocks to retain (0 < top_pct <= 1).  Default 0.5.
 
@@ -120,15 +105,15 @@ def rank_stocks(
     # --- early exit ---
     if not factor_weights or factor_df.empty:
         return pd.DataFrame(
-            columns=["symbol", "name", "score", "rank", "top_factors",
-                     "sector", "reason"]
+            columns=["symbol", "name", "score", "raw_score", "rank",
+                     "top_factors", "sector", "reason"]
         )
 
     factor_cols = [c for c in factor_weights if c in factor_df.columns]
     if not factor_cols:
         return pd.DataFrame(
-            columns=["symbol", "name", "score", "rank", "top_factors",
-                     "sector", "reason"]
+            columns=["symbol", "name", "score", "raw_score", "rank",
+                     "top_factors", "sector", "reason"]
         )
 
     # --- 1. Winsorize + Z-score each factor column ---
@@ -153,14 +138,15 @@ def rank_stocks(
     else:
         score_norm = (score - s_min) / (s_max - s_min) * 100.0
 
-    # --- 4. Macro-level adjustment ---
-    mult = _macro_multiplier(macro_level)
-    if mult != 1.0:
-        score_norm = score_norm * mult
+    # --- (原第4步"大盘档位乘数"已移除：统一乘到 min-max 后的分数上是单调变换，
+    # 排序与Top N毫无变化，只会在空头档把显示分推过100。macro_level 仅作展示。) ---
 
     # --- assemble result frame ---
     result = factor_df[["symbol", "name"]].copy()
     result["score"] = score_norm.round(2)
+    # 原始加权z分：score 经 min-max 后只在当日截面内可比（每天最高≈100），
+    # raw_score 保留绝对量纲供跨日对比与追踪库沉淀
+    result["raw_score"] = score.round(4)
 
     # --- 5. Sector annotation & filtering ---
     if sector_strength_map is not None:
@@ -173,8 +159,8 @@ def rank_stocks(
 
     if result.empty:
         return pd.DataFrame(
-            columns=["symbol", "name", "score", "rank", "top_factors",
-                     "sector", "reason"]
+            columns=["symbol", "name", "score", "raw_score", "rank",
+                     "top_factors", "sector", "reason"]
         )
 
     # --- 6. Top factors per stock (top 3 by contribution) ---
@@ -197,18 +183,11 @@ def rank_stocks(
     result = result.head(cutoff).copy()
 
     # --- 9. Reason string ---
-    macro_note_map = {
-        "空头": "空头环境×1.2",
-        "震荡偏空": "偏空环境×1.2",
-        "多头": "多头环境×0.95",
-        "震荡偏多": "偏多环境×0.95",
-    }
-    macro_note = macro_note_map.get(macro_level, "")
     reasons = []
     for _, row in result.iterrows():
         sec_note = f"{row['sector']}强势" if row["sector"] and strong_sectors else ""
-        reasons.append(_build_reason(row["top_factors"], macro_note, sec_note))
+        reasons.append(_build_reason(row["top_factors"], "", sec_note))
     result["reason"] = reasons
 
-    return result[["symbol", "name", "score", "rank", "top_factors",
+    return result[["symbol", "name", "score", "raw_score", "rank", "top_factors",
                    "sector", "reason"]]
