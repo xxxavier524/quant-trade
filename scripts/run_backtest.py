@@ -43,18 +43,31 @@ class BacktestEngine:
     2. 运行信号生成器
     3. 执行买入/卖出（含滑点、手续费、仓位限制）
     4. 记录持仓和净值曲线
+
+    成交假设（2026-07-11 修正）：
+    - 信号日收盘后确认信号，次一交易日【开盘价】成交（此前按信号当日收盘成交，
+      现实中收盘才知信号，系统性乐观）
+    - 开盘较前收涨幅 ≥9.8% 视为涨停无法买入，跳过该信号；成交量为0（停牌）跳过
+    - 卖出在触发日收盘执行（EOD 系统收盘检查止损/止盈/到期）
+
+    已知局限（诚实入账）：universe 为现存股票，无退市股 → 多年期结果有幸存者偏差；
+    不模拟盘中触价，止损按收盘价判定。
     """
+
+    LIMIT_UP_PCT = 0.098  # 开盘涨幅超此值视为涨停买不进（主板10%留缓冲；创业板20%从宽）
 
     def __init__(
         self,
         initial_capital: float = INITIAL_CAPITAL,
         max_holdings: int = 5,
         max_single_pct: float = 0.20,
+        max_hold_days: int = 20,
     ):
         self.initial_capital = initial_capital
         self.cash = initial_capital
         self.max_holdings = max_holdings
         self.max_single_pct = max_single_pct
+        self.max_hold_days = max_hold_days  # 持有期上限（交易日），防区间震荡票无限期占坑
         self.holdings = {}       # symbol -> {shares, cost, entry_date}
         self.trades = []         # 交易记录
         self.nav_curve = []      # 净值曲线: [{date, nav, cash, holdings_value}]
@@ -108,6 +121,19 @@ class BacktestEngine:
 
         print(f"    signals ready: {len(all_signals)} stocks with signals, {sum(len(v) for v in all_signals.values())} total")
 
+        # 信号日 → 次一交易日开盘执行（收盘后确认信号，当日收盘不可成交）
+        exec_dates: dict[str, set] = {}
+        for symbol, sig_dates in all_signals.items():
+            idx = stocks[symbol].index
+            pos = {d: i for i, d in enumerate(idx)}
+            ex = set()
+            for d in sig_dates:
+                i = pos.get(d)
+                if i is not None and i + 1 < len(idx):
+                    ex.add(idx[i + 1])
+            if ex:
+                exec_dates[symbol] = ex
+
         # Phase 2: 组合模拟（快速，只查字典）
         print(f"  [Phase 2/2] 组合模拟...")
         n_days = len(all_dates)
@@ -117,17 +143,17 @@ class BacktestEngine:
             # 检查持仓退出
             self._check_exits(stocks, trade_date)
 
-            # 检查信号买入
-            for symbol in sorted(all_signals.keys()):
+            # 检查信号买入（次日开盘）
+            for symbol in sorted(exec_dates.keys()):
                 if symbol in self.holdings:
                     continue
                 if len(self.holdings) >= self.max_holdings:
                     break
-                if trade_date not in all_signals.get(symbol, set()):
+                if trade_date not in exec_dates.get(symbol, set()):
                     continue
                 if trade_date not in stocks.get(symbol, pd.DataFrame()).index:
                     continue
-                self._execute_buy(symbol, stocks[symbol], trade_date)
+                self._execute_buy(symbol, stocks[symbol], trade_date, stocks)
 
             # 记录净值
             hv = self._calc_holdings_value(stocks)
@@ -138,12 +164,24 @@ class BacktestEngine:
 
         return self._compute_metrics()
 
-    def _execute_buy(self, symbol: str, data: pd.DataFrame, trade_date):
-        """执行买入（含滑点、手续费、仓位检查）。"""
-        price = data.loc[trade_date, "close"]
+    def _execute_buy(self, symbol: str, data: pd.DataFrame, trade_date, stocks: dict):
+        """执行买入：次日开盘价+滑点；涨停开盘/停牌跳过；仓位按真实总资产。"""
+        row = data.loc[trade_date]
+        price = row.get("open", row["close"])
+        if pd.isna(price) or price <= 0:
+            price = row["close"]
+        # 停牌（零量）与开盘涨停不可成交
+        if float(row.get("volume", 1) or 0) == 0:
+            return
+        pos = data.index.get_loc(trade_date)
+        if pos > 0:
+            prev_close = float(data.iloc[pos - 1]["close"])
+            if prev_close > 0 and price / prev_close - 1 >= self.LIMIT_UP_PCT:
+                return
         buy_price = apply_slippage(price, 1)
 
-        total_nav = self.cash + self._calc_holdings_value({s: data for s in self.holdings})
+        # 总资产必须用各持仓自己的行情估值（此前误用候选股数据估全部持仓 → 仓位失真）
+        total_nav = self.cash + self._calc_holdings_value(stocks)
         max_shares = calc_max_shares(buy_price, total_nav)
 
         if max_shares < 100:
@@ -213,6 +251,15 @@ class BacktestEngine:
             # 止盈：+30%
             elif pnl_pct > 0.30:
                 self._execute_sell(symbol, data, trade_date, "take_profit")
+            # 持有期上限：区间震荡票到期离场，防无限期占坑（最多5坑）
+            elif self.max_hold_days:
+                try:
+                    held = (data.index.get_loc(trade_date)
+                            - data.index.get_loc(h["entry_date"]))
+                    if held >= self.max_hold_days:
+                        self._execute_sell(symbol, data, trade_date, "time_exit")
+                except KeyError:
+                    pass
 
     def _calc_holdings_value(self, stocks: dict) -> float:
         """计算当前持仓总市值。"""
