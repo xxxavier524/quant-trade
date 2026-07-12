@@ -90,16 +90,16 @@
 - `needle.py`：长下影 + J值超卖
 - 单元测试验证
 
-### 阶段五：VeighNa 回测
-- `vnpy_strategies/*.py`：继承 CtaTemplate，on_bar 调用信号生成器
-- 2020-2025 完整回测，配置滑点/手续费/仓位
-- 输出 HTML 报告：年化收益、最大回撤、夏普比率、胜率、盈亏比、月度热力图
+### 阶段五：回测（自研引擎，已验收）
+- `scripts/run_backtest.py`：次日开盘成交/涨停停牌跳过/滑点费率仓位/持有期上限内建
+- 2020-2025 完整回测；`--include-delisted` 加载退市股修正幸存者偏差
+- （2026-07-12 决定：vnpy CtaTemplate 封装零引用已删除，git 历史 `9e5a45d` 前可找回；
+  实盘对接走阶段九 QMT CSV 路线，不经 vnpy）
 
-### 阶段六：参数网格搜索
-- shrink_ratio: 0.2/0.25/0.3/0.4
-- j_threshold: 8/10/13/15
-- K: 1.5/2.0/2.5/3.0
-- 输出 Markdown 绩效表 + 帕累托前沿 → `config/best_params.json`
+### 阶段六：参数网格搜索（walk-forward 化）
+- `scripts/walk_forward.py`：锚定扩张训练窗 + 滚动验证窗，最差窗+中位数选稳健参数
+- 单窗口样本内选参已废弃（B1_B2_B3 曾出 hit_rate=1.0 的过拟合参数组）
+- 输出 Markdown 绩效表 → `config/best_params.json`（带 walk_forward 来源标注）
 
 ### 阶段七：云端交叉验证（聚宽）
 - 翻译信号逻辑为聚宽 notebook
