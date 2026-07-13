@@ -51,6 +51,8 @@ from alphapulse.factors import (
     weekly_long_bull,
     b1_entry_filters,
     zuchongzhi_target,
+    zg_advanced_patterns,
+    chip_laws,
 )
 
 FACTOR_REGISTRY = {
@@ -496,6 +498,85 @@ FACTOR_REGISTRY = {
         "description": "祖冲之目标价=2a-b(a=60日高点,b=60日低点)，到价触发卤煮",
         "source": "advanced-patterns 坑里起好货",
         "default_params": {"lookback": 60},
+    },
+    # --- P1形态战法包（未过事件研究前不进评分链，见 scripts/p1_event_study.py） ---
+    "DUAL_CANNON": {
+        "module": zg_advanced_patterns, "compute_func": "compute_dual_cannon",
+        "type": "factor",
+        "description": "双枪/平行重炮：2根放量阳(≥1.5×MA20,涨≥3%)间隔3-10日，中间全部缩量",
+        "source": "advanced-patterns 3.7",
+        "default_params": {"gap_min": 3, "gap_max": 10, "cannon_vol_mult": 1.5, "cannon_pct": 3.0},
+    },
+    "CHANGAN": {
+        "module": zg_advanced_patterns, "compute_func": "compute_changan",
+        "type": "factor",
+        "description": "长安战法：B1(J<-13)→放量长阳无长上影→缩半量分歧转一致(|涨跌|<2%,振幅<7%)",
+        "source": "advanced-patterns（宣称75%胜率，待验证）",
+        "default_params": {"j_threshold": -13.0, "yang_pct": 5.0, "half_vol": 0.6},
+    },
+    "NANA_PATTERN": {
+        "module": zg_advanced_patterns, "compute_func": "compute_nana",
+        "type": "factor",
+        "description": "娜娜图：连续放量涨+顶部无巨量阴+连续缩量回调+J负值",
+        "source": "advanced-patterns",
+        "default_params": {"up_days": 3, "shrink_days": 3, "lookback": 15},
+    },
+    "RESTLESS_BREAKOUT": {
+        "module": zg_advanced_patterns, "compute_func": "compute_restless",
+        "type": "factor",
+        "description": "跃跃欲试：横盘(20日振幅≤15%)内≥3次巨量阳+红肥绿瘦=蓄势（仅牛市前提）",
+        "source": "advanced-patterns",
+        "default_params": {"window": 20, "max_amplitude": 15.0, "min_surges": 3},
+    },
+    "REBUILD_AFTER_DISASTER": {
+        "module": zg_advanced_patterns, "compute_func": "compute_rebuild",
+        "type": "factor",
+        "description": "灾后重建：5日内放量金叉(白穿黄)后缩量回踩黄线±2%=最后震仓",
+        "source": "advanced-patterns",
+        "default_params": {"cross_lookback": 5, "near_yellow": 0.02},
+    },
+    "SUPER_B1": {
+        "module": zg_advanced_patterns, "compute_func": "compute_super_b1",
+        "type": "factor",
+        "description": "超级B1：N型上涨→放量下杀阴线(非跌停)→缩量企稳+J负值+反转十字星。只赌一次",
+        "source": "trading-core 3.4",
+        "default_params": {"uptrend_gain": 0.10, "smash_vol_mult": 1.5},
+    },
+    "SB1_RECLAIM": {
+        "module": zg_advanced_patterns, "compute_func": "compute_sb1_reclaim",
+        "type": "factor",
+        "description": "SB1假摔：横盘≥3日→放量阴线破平台低点→次日收回=洗盘反包",
+        "source": "trading-core 3.5",
+        "default_params": {"flat_days": 3, "flat_amp": 8.0},
+    },
+    "CENTIPEDE_FILTER": {
+        "module": zg_advanced_patterns, "compute_func": "compute_centipede",
+        "type": "risk",
+        "description": "蜈蚣图排除：长影/十字星≥45%+堆量不涨=呼吸紊乱，True=排除不碰",
+        "source": "trading-core 3.0b/breathing-theory",
+        "default_params": {"window": 20, "messy_ratio": 0.45},
+    },
+    # --- 筹码理论（换手率衰减引擎，日线近似） ---
+    "CHIP_LOW_DENSITY": {
+        "module": chip_laws, "compute_func": "compute_low_density",
+        "type": "factor",
+        "description": "筹码法则一·低位密集：峰值±10%集中≥70%且上方套牢≤30%=行情起点",
+        "source": "indicators 3.13 筹码理论",
+        "default_params": {"conc_min": 0.70, "above_max": 0.30},
+    },
+    "CHIP_LOCKED_LIFT": {
+        "module": chip_laws, "compute_func": "compute_locked_lift",
+        "type": "factor",
+        "description": "筹码法则二·锁仓拉升：20日涨≥5%且低位筹码留存≥40%=慢牛基因",
+        "source": "indicators 3.13",
+        "default_params": {"retention_min": 0.40},
+    },
+    "CHIP_HIGH_DENSITY_FORBID": {
+        "module": chip_laws, "compute_func": "compute_high_density_forbid",
+        "type": "risk",
+        "description": "筹码法则四·高位密集禁买：低位筹码留存≤20%且现价≥主力成本1.5倍=绝不买",
+        "source": "indicators 3.13",
+        "default_params": {"retention_max": 0.20, "cost_mult": 1.5},
     },
     # --- Z哥 B1+砖型图 融合选股（独立策略，zettaranc-perspective 体系） ---
     "ZG_B1_BRICK": {
