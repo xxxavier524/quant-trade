@@ -31,8 +31,9 @@
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>HOME</key>
         <string>/Users/qiushixuan</string>
-        <key>ALPHAPULSE_DATA_DIR</key>
-        <string>/Volumes/Mac-480g外接/quantan_data/day</string>
+        <!-- 2026-07-13 修复：删除外接盘 ALPHAPULSE_DATA_DIR 覆盖。
+             settings.py 2026-07-04 已迁回内置盘 data/day，此处残留导致
+             15:30 定时更新写外接盘而选股/回测读内置盘 → “数据不更新”。 -->
     </dict>
 
     <key>WorkingDirectory</key>
