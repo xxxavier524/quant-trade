@@ -205,6 +205,22 @@ pip install -r requirements.txt  # 首次
 
 B1 + 知行超短 + 量能B1融合信号。辅助策略。
 
+### 4.5b ZG_B1_BRICK (Z哥融合选股·独立试验) 🆕
+
+把 Z哥（zettaranc）少妇战法 SOP 串成一个自包含选股器，**刻意独立**于现有 B1，
+跑一段时间效果好再考虑并入主选股：
+
+- 进场：复用 `b1_formula` 的 B1 买点（6条件）
+- 周期确认：`four_brick_cycle` 只放行砖型图早段（第1-2红砖），尾段（第4砖起）否决
+- 纪律卡：每个信号附「只输一根K线」止损线（`dynamic_stop_loss`）+ S1/四砖尾段离场提示
+
+```bash
+python scripts/zg_screener.py --date 2026-05-15 --top 30   # 独立报告 reports/zg_screen_*.{csv,md}
+python scripts/zg_screener.py --ignore-macro               # 跳过择时闸门
+```
+
+注册名 `ZG_B1_BRICK`（type=selection）。来源：`.claude/skills/zettaranc-perspective`（女娲蒸馏）。
+
 ### 4.6 策略对比总览
 
 | 策略 | 年化收益 | 最大回撤 | Sharpe | 评级 |
@@ -265,6 +281,7 @@ launchctl load ~/Library/LaunchAgents/com.alphapulse.daily-auto.plist
 | 脚本 | 功能 | 输出 |
 |------|------|------|
 | `daily_screener.py` | 三大策略选股 | 信号Markdown报告 |
+| `zg_screener.py` 🆕 | Z哥融合选股(独立) | reports/zg_screen_*.{csv,md} |
 | `evening_review.py` | 信号vs实际涨跌 | 胜率统计 |
 | `risk_monitor.py` | 5项风控检查 | 告警(CRITICAL→exit 1) |
 | `export_qmt_csv.py` | QMT下单CSV | 代码转换+整手计算 |
@@ -275,6 +292,16 @@ launchctl load ~/Library/LaunchAgents/com.alphapulse.daily-auto.plist
 `python scripts/run_pipeline.py`
 
 假设生成→数据获取→因子编码→回测→审查→DSR/Risk Gate
+
+### Agent Team 人格角色 (`config/personas/`) 🆕
+
+`agent_team` 辩论庭支持 skill 驱动的人格角色：`config/personas/` 下每个 `.md`
+= 一个人格，文件内容作为 system prompt，在辩论时基于量化 evidence 独立出观点，
+注入 Referee 仲裁并展示在报告/GUI。
+
+- **金渐成**（`config/personas/金渐成.md`）：以「长期可持续的财富循环」为核心的
+  投资体系人格，判断顺序 生存→周期→战场→期望值→质量买点→边界。
+  来源 `.claude/skills/jin-jiancheng-perspective`（女娲蒸馏）。
 
 ---
 
