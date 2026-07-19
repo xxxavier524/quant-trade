@@ -33,11 +33,12 @@ def load_positions(positions_path: str) -> pd.DataFrame:
 
     期望列: symbol, shares, cost_price, current_price (可选), entry_date
     """
-    df = pd.read_csv(positions_path)
+    df = pd.read_csv(positions_path, dtype={"symbol": str})
     required = {"symbol", "shares", "cost_price"}
     missing = required - set(df.columns)
     if missing:
         raise ValueError(f"持仓CSV缺少必要列: {missing}")
+    df["symbol"] = df["symbol"].str.zfill(6)   # 002475 等前导零防丢失
     return df
 
 
@@ -145,6 +146,117 @@ def check_positions(
     return sorted(alerts, key=lambda a: {"CRITICAL": 0, "WARN": 1, "INFO": 2}.get(a["level"], 3))
 
 
+def check_holding_discipline(positions: pd.DataFrame, data_dir: str) -> list[dict]:
+    """Z哥持仓纪律检查（P0应对层集成，docs/research_journal/12_*）。
+
+    与 check_positions 的仓位/回撤规则互补，逐票执行：
+    - S1 当日出现（先信，不研究真假）→ CRITICAL
+    - DD 增强（连续两天收盘<前日最低）→ CRITICAL
+    - BBI 两日破位 → CRITICAL 清仓
+    - 防卖飞 V1.4 评分：≤2 离场 WARN / =3 减半 WARN / ≥4 INFO 持有
+    - 卤煮止盈（BBI上两根中大阳）→ WARN 减半
+    - 高位换手出货（4K累计≥160%）→ WARN
+    - 组合摸顶税：浮盈>20% 时给出计提减仓建议 INFO
+
+    注意：防卖飞评分只用于持仓管理，绝不作为开新仓依据（V1.4 第4条）。
+    """
+    from alphapulse.factors import bbi, sell_score_v14, s1_sell_signal, dd_sell_signal
+    from alphapulse.factors.turnover_signals import compute_high_turnover_exit
+    from alphapulse.utils.top_tax import top_tax_cut
+
+    alerts: list[dict] = []
+    total_cost = total_value = 0.0
+
+    for _, row in positions.iterrows():
+        symbol = str(row["symbol"])
+        csv_path = Path(data_dir) / f"{symbol}.csv"
+        if not csv_path.exists():
+            continue
+        try:
+            df = pd.read_csv(csv_path, parse_dates=["date"], index_col="date")
+        except Exception:
+            continue
+        if len(df) < 120 or not {"open", "high", "low", "close", "volume"} <= set(df.columns):
+            continue
+
+        close = float(df["close"].iloc[-1])
+        total_cost += row["shares"] * row["cost_price"]
+        total_value += row["shares"] * close
+
+        # --- S1（最高优先级：先信，不研究真假阴阳） ---
+        try:
+            if int(s1_sell_signal.compute(df).iloc[-1]) > 0:
+                alerts.append({"symbol": symbol, "level": "CRITICAL", "rule": "S1卖出信号",
+                               "message": f"{symbol}: 顶部放量阴线（S1），体系纪律=先走。"
+                                          "小票清仓，中大票至少减半。"})
+        except Exception:
+            pass
+
+        # --- DD增强 ---
+        try:
+            if int(dd_sell_signal.compute(df).iloc[-1]) >= 2:
+                alerts.append({"symbol": symbol, "level": "CRITICAL", "rule": "DD增强",
+                               "message": f"{symbol}: 连续两天收盘低于前日最低（滴滴增强），基本清仓。"})
+        except Exception:
+            pass
+
+        # --- BBI 两日破位 ---
+        try:
+            if bool(bbi.compute_bbi_break(df).iloc[-1]):
+                alerts.append({"symbol": symbol, "level": "CRITICAL", "rule": "BBI两日破位",
+                               "message": f"{symbol}: 收盘连续两日跌破BBI，少妇战法离场规则=清仓走人。"})
+        except Exception:
+            pass
+
+        # --- 防卖飞 V1.4 ---
+        try:
+            detail = sell_score_v14.compute_detail(df)
+            score = int(detail["score"].iloc[-1])
+            items = detail.iloc[-1]
+            miss = [n for k, n in [("close_up", "收盘跌"), ("bbi_hold", "破BBI"),
+                                   ("no_fangliang_yin", "放量阴线"), ("trend_up", "趋势走平/向下"),
+                                   ("j_alive", "J死叉")] if not bool(items[k])]
+            if score <= 2:
+                alerts.append({"symbol": symbol, "level": "WARN", "rule": f"防卖飞评分{score}/5",
+                               "message": f"{symbol}: 扣分项[{'/'.join(miss)}]，准备离场。"})
+            elif score == 3:
+                alerts.append({"symbol": symbol, "level": "WARN", "rule": "防卖飞评分3/5",
+                               "message": f"{symbol}: 扣分项[{'/'.join(miss)}]，减一半，等BBI两日破位再清。"})
+            else:
+                alerts.append({"symbol": symbol, "level": "INFO", "rule": f"防卖飞评分{score}/5",
+                               "message": f"{symbol}: 4-5分持有（仅限已持仓，不构成开新仓依据）。"})
+        except Exception:
+            pass
+
+        # --- 卤煮止盈 ---
+        try:
+            if bool(bbi.compute_luzhu(df).iloc[-1]):
+                alerts.append({"symbol": symbol, "level": "WARN", "rule": "卤煮止盈",
+                               "message": f"{symbol}: 站上BBI后连续两根中/大阳线，落袋减半。"})
+        except Exception:
+            pass
+
+        # --- 高位换手出货 ---
+        try:
+            if bool(compute_high_turnover_exit(df).iloc[-1]):
+                alerts.append({"symbol": symbol, "level": "WARN", "rule": "高位换手≥160%",
+                               "message": f"{symbol}: 4根K线累计换手≥160%，筹码快速发散，退出信号。"})
+        except Exception:
+            pass
+
+    # --- 组合摸顶税 ---
+    if total_cost > 0:
+        gain = (total_value - total_cost) / total_cost
+        if gain > 0.20:
+            cut = top_tax_cut(gain)
+            alerts.append({"symbol": "*", "level": "INFO", "rule": "摸顶税",
+                           "message": f"组合浮盈 {gain:.1%}，按摸顶税规则建议计提减仓约 "
+                                      f"{cut:.0%}（浮盈的30%）。顶不可预测，只能靠走出来；"
+                                      "不要越到后期越金字塔加仓。"})
+
+    return alerts
+
+
 def format_alerts_markdown(alerts: list[dict], target_date: str) -> str:
     """格式化风控报告。"""
     if not alerts:
@@ -188,6 +300,8 @@ def main():
     parser.add_argument("--capital", type=float, default=1_000_000, help="总资金")
     parser.add_argument("--date", default=date.today().isoformat(), help="检查日期")
     parser.add_argument("--output", default=None, help="输出文件路径")
+    parser.add_argument("--no-discipline", action="store_true",
+                        help="关闭Z哥持仓纪律检查（S1/DD/BBI破位/防卖飞/卤煮/换手/摸顶税）")
     args = parser.parse_args()
 
     print(f"[INFO] 加载持仓文件: {args.positions}")
@@ -195,6 +309,9 @@ def main():
     print(f"[INFO] 持仓数量: {len(positions)}")
 
     alerts = check_positions(positions, args.data_dir, args.capital)
+    if not args.no_discipline:
+        alerts += check_holding_discipline(positions, args.data_dir)
+        alerts = sorted(alerts, key=lambda a: {"CRITICAL": 0, "WARN": 1, "INFO": 2}.get(a["level"], 3))
     report = format_alerts_markdown(alerts, args.date)
 
     if args.output:
