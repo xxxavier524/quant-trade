@@ -10,11 +10,14 @@
     <array>
         <string>/Users/qiushixuan/cc/quantan trade/.venv/bin/python</string>
         <string>/Users/qiushixuan/cc/quantan trade/scripts/run_with_timeout.py</string>
-        <string>3000</string>
+        <!-- 2026-07-20 加大窗口：全量约5200只顺序取数远超旧30分钟窗口，天天追不平。
+             硬超时 3000s(50min)→8400s(140min)；更新步 --max-update-min 30→120。
+             15:30 启动，最迟 17:50 前结束，不影响晚间选股/推送。 -->
+        <string>8400</string>
         <string>/Users/qiushixuan/cc/quantan trade/.venv/bin/python</string>
         <string>/Users/qiushixuan/cc/quantan trade/scripts/eod_pipeline.py</string>
         <string>--max-update-min</string>
-        <string>30</string>
+        <string>120</string>
     </array>
 
     <key>StartCalendarInterval</key>

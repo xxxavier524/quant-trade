@@ -130,19 +130,36 @@ def bs_code(sym: str) -> str:
     return f"sh.{sym}" if sym.startswith(("6", "9")) else f"sz.{sym}"
 
 
-def latest_trading_date(bs) -> str:
-    """用上证指数确定最新交易日（1次API调用）。"""
+def latest_trading_date(bs, data_path: Path | None = None) -> str:
+    """用上证指数确定最新交易日。baostock 不可用时退回 akshare 指数 / 现有CSV众数。"""
     start = (datetime.now() - timedelta(days=15)).strftime("%Y-%m-%d")
     end = datetime.now().strftime("%Y-%m-%d")
-    rs = bs.query_history_k_data_plus("sh.000001", "date,close",
-                                      start_date=start, end_date=end, frequency="d")
-    last = None
-    while (rs.error_code == "0") and rs.next():
-        last = rs.get_row_data()[0]
-    if not last:
-        alert("无法确定最新交易日（baostock 指数查询失败），任务中止。")
-        sys.exit(2)
-    return last
+    if bs is not None:
+        rs = bs.query_history_k_data_plus("sh.000001", "date,close",
+                                          start_date=start, end_date=end, frequency="d")
+        last = None
+        while (rs.error_code == "0") and rs.next():
+            last = rs.get_row_data()[0]
+        if last:
+            return last
+    # 兜底1：akshare 指数
+    try:
+        from alphapulse.utils.source_chain import fetch_daily
+        res = fetch_daily("000001", start, end, ctx={}, per_source_timeout=15,
+                          chain=[("akshare", __import__(
+                              "alphapulse.utils.source_chain", fromlist=["_src_akshare"]
+                          )._src_akshare, True)])
+        if len(res.df):
+            return str(res.df["date"].iloc[-1])[:10]
+    except Exception:
+        pass
+    # 兜底2：现有CSV最后日期众数
+    if data_path is not None:
+        dates = [d for d in (read_csv_last_date(f) for f in data_path.glob("*.csv")) if d]
+        if dates:
+            return pd.Series(dates).mode().iloc[0]
+    alert("无法确定最新交易日（所有源失败且无本地数据），任务中止。")
+    sys.exit(2)
 
 
 def load_progress(today: str, latest: str) -> int:
@@ -179,7 +196,10 @@ def main() -> int:
     ap.add_argument("--new-limit", type=int, default=100,
                     help="每日新股全量下载上限")
     ap.add_argument("--data-dir", default=DATA_DIR)
+    ap.add_argument("--source-timeout", type=float, default=15.0,
+                    help="每个数据源的单次超时秒数（超时自动切下一个源）")
     args = ap.parse_args()
+    per_source_timeout = args.source_timeout
 
     data_path = Path(args.data_dir)
     preflight(data_path)
@@ -191,9 +211,13 @@ def main() -> int:
     lg = bs.login()
     if lg.error_code != "0":
         alert(f"baostock 登录失败: {lg.error_msg}")
-        return 2
+        # baostock 登录失败不再直接退出：多源链里还有 akshare/pytdx/腾讯兜底
+        print("  baostock 登录失败，继续用 akshare/pytdx/腾讯 多源兜底")
+        bs = None
 
-    latest = latest_trading_date(bs)
+    from alphapulse.utils.source_chain import fetch_daily
+
+    latest = latest_trading_date(bs, data_path)
     print(f"[{datetime.now():%H:%M:%S}] 最新交易日: {latest}，开始增量更新")
 
     symbols = sorted(f.stem for f in data_path.glob("*.csv"))
@@ -211,9 +235,10 @@ def main() -> int:
             timed_out = True
             save_progress(today_str, i, stats, latest)
             break
-        # baostock 连接中途断开时所有请求会快速失败；先重连一次，再失败则保存进度退出
+        # 连续失败≥20：baostock 若在用先重连一次；多源链下裸价源/akshare 仍可工作，
+        # 故仅在覆盖率不足时才退出续传（bs=None 时跳过重连逻辑）。
         if consecutive_failures >= 20:
-            if not relogin_done:
+            if bs is not None and not relogin_done:
                 print("  连续失败≥20，尝试重新登录 baostock ...")
                 try:
                     bs.logout()
@@ -226,13 +251,17 @@ def main() -> int:
                     consecutive_failures = 0
                     continue
             save_progress(today_str, i, stats, latest)
-            bs.logout()
-            # baostock 断连但 pytdx 可能已覆盖主力：覆盖率达标则不算失败
+            if bs is not None:
+                try:
+                    bs.logout()
+                except Exception:
+                    pass
+            # 主源断连但裸价源/akshare 可能已覆盖主力：覆盖率达标则不算失败
             cov = _coverage(data_path, latest)
             if cov >= 0.75:
-                print(f"  baostock断连但覆盖率{cov*100:.0f}%达标，视为完成")
+                print(f"  主源持续失败但覆盖率{cov*100:.0f}%达标，视为完成")
                 return 0
-            alert(f"baostock 连接持续失败，覆盖率{cov*100:.0f}%，已存进度（{i}/{len(symbols)}）下次续传。")
+            alert(f"多源持续失败，覆盖率{cov*100:.0f}%，已存进度（{i}/{len(symbols)}）下次续传。")
             return 4
         sym = symbols[i]
         fpath = data_path / f"{sym}.csv"
@@ -245,23 +274,15 @@ def main() -> int:
         try:
             overlap_start = ((datetime.strptime(last_date, "%Y-%m-%d") - timedelta(days=7)).strftime("%Y-%m-%d")
                              if last_date else "2020-01-01")
-            new_df = bs_query(bs, bs_code(sym), overlap_start, today_str)
-            used_tdx = False
-            if new_df.empty and last_date:
-                # baostock失败 → pytdx直连备援（融合自daily_stock_analysis精华#1）。
-                # pytdx为不复权裸价，靠下方重叠close一致性检查兜底：
-                # 近期有除权则不一致 → 跳过等baostock，绝不混入错误价格
-                try:
-                    from alphapulse.utils.tdx_source import fetch_recent_daily
-                    tdx_df = fetch_recent_daily(sym, n=30)
-                    tdx_df = tdx_df[tdx_df["date"] >= overlap_start]
-                    if not tdx_df.empty:
-                        new_df = tdx_df
-                        used_tdx = True
-                        stats["tdx_fallback"] = stats.get("tdx_fallback", 0) + 1
-                except Exception:
-                    pass
-            # 只摄入已确认交易日（≤latest）的K线：盘中运行时 pytdx 返回当日
+            # 多源故障切换取数：baostock→akshare→pytdx→腾讯，逐源独立超时自动切换。
+            # 前复权源(baostock/akshare)可直接采信；裸价源(pytdx/腾讯)标记 used_raw，
+            # 靠下方重叠close一致性检查兜底：近期有除权则不一致 → 跳过等复权源。
+            res = fetch_daily(sym, overlap_start, today_str,
+                              ctx={"bs": bs}, per_source_timeout=per_source_timeout,
+                              stats=stats)
+            new_df = res.df
+            used_tdx = not res.adjusted        # 沿用下方裸价校验分支的变量名
+            # 只摄入已确认交易日（≤latest）的K线：盘中运行时裸价源返回当日
             # 形成中的半截K线，一旦写入且 last_date>=latest 会被永远跳过不再修正
             if not new_df.empty:
                 new_df = new_df[new_df["date"] <= latest]
@@ -318,7 +339,7 @@ def main() -> int:
             print(f"  进度 {i+1}/{len(symbols)}: {stats}")
         time.sleep(0.12)
 
-    # ── 新股发现（剩余时间内） ──
+    # ── 新股发现（剩余时间内，走多源链） ──
     if not timed_out:
         existing = set(symbols)
         new_candidates = [c for c in all_a_share_codes() if c not in existing][:args.new_limit]
@@ -327,23 +348,31 @@ def main() -> int:
                 timed_out = True
                 break
             try:
-                df = bs_query(bs, bs_code(sym), "2020-01-01", today_str)
-                if len(df) >= 60:
-                    atomic_write(df, data_path / f"{sym}.csv")
+                res = fetch_daily(sym, "2020-01-01", today_str, ctx={"bs": bs},
+                                  per_source_timeout=per_source_timeout, stats=stats)
+                if len(res.df) >= 60:
+                    atomic_write(res.df, data_path / f"{sym}.csv")
                     stats["new"] += 1
             except Exception:
                 pass
             time.sleep(0.25)
 
-    bs.logout()
+    if bs is not None:
+        try:
+            bs.logout()
+        except Exception:
+            pass
 
     # 健康判据用"全市场覆盖率"（已到最新交易日占比），而非 baostock 失败数：
     # baostock 限流时 pytdx 备援已接住主力，失败的多是除权卡死股(由 recover_stale 治本)
     coverage = _coverage(data_path, latest)
     status = "TIMEOUT（下次续传）" if timed_out else "完成"
+    src_hits = " ".join(f"{k[4:]}={v}" for k, v in sorted(stats.items())
+                        if k.startswith("src_"))
     summary = (f"数据更新{status} @ {latest}: 覆盖率 {coverage*100:.0f}%，已最新 {stats['current']}，"
                f"更新 {stats['updated']}，复权重下 {stats['refetched']}，新增 {stats['new']}，"
-               f"失败 {stats['failed']}，TDX备援 {stats.get('tdx_fallback', 0)}")
+               f"失败 {stats['failed']}，超时切换 {stats.get('timeout', 0)}，"
+               f"源命中[{src_hits or '无'}]")
     print(f"[{datetime.now():%H:%M:%S}] {summary}")
 
     # 断点语义（2026-07-10修正）：只有"跑完且覆盖率达标"才写满 done_index。
