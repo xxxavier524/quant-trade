@@ -152,10 +152,25 @@ def main():
         issues.append("eod_pipeline 无成功记录")
 
     # 6. launchd plist 一致性（macOS）
+    #    判定标准 = 是否与 settings.DATA_DIR 一致（而非硬编码某个盘），
+    #    这样迁盘决策变化时不会误报（2026-07-13 修正：外接盘现为主存储）。
     print("\n[6] launchd 定时任务一致性")
+    canon = os.path.normpath(str(data_dir))
+
+    def plist_data_dir(pl: dict) -> str:
+        """取 plist 实际使用的数据目录：优先 ALPHAPULSE_DATA_DIR，否则 --output-dir。"""
+        env = pl.get("EnvironmentVariables") or {}
+        if env.get("ALPHAPULSE_DATA_DIR"):
+            return os.path.normpath(env["ALPHAPULSE_DATA_DIR"])
+        args = pl.get("ProgramArguments", [])
+        for i, a in enumerate(args):
+            if a == "--output-dir" and i + 1 < len(args):
+                return os.path.normpath(args[i + 1])
+        return ""     # 未显式指定 → 继承 settings.DATA_DIR，视为一致
+
     la_dir = Path.home() / "Library" / "LaunchAgents"
     if sys.platform == "darwin" and la_dir.exists():
-        found_stale = False
+        found_mismatch = False
         for name in ("com.alphapulse.daily-update", "com.alphapulse.full-download",
                      "com.alphapulse.daily-auto"):
             f = la_dir / f"{name}.plist"
@@ -168,34 +183,40 @@ def main():
             except Exception as e:
                 p(FAIL, f"{name}: plist 解析失败 {e}")
                 continue
-            env = (pl.get("EnvironmentVariables") or {})
-            dd = env.get("ALPHAPULSE_DATA_DIR", "")
-            args = " ".join(pl.get("ProgramArguments", []))
-            stale = ("/Volumes/" in dd) or ("/Volumes/" in args and "output-dir" in args)
+            pdd = plist_data_dir(pl)
+            mismatch = bool(pdd) and pdd != canon
             loaded = subprocess.run(["launchctl", "list", name],
                                     capture_output=True).returncode == 0
-            if stale:
-                found_stale = True
-                p(FAIL, f"{name}: 仍指向外接盘 ({dd or '见output-dir参数'})"
+            if mismatch:
+                found_mismatch = True
+                p(FAIL, f"{name}: 数据目录 {pdd} ≠ settings.DATA_DIR ({canon})"
                         f"{'，且已加载' if loaded else ''}")
             else:
                 p(OK if loaded else WARN,
-                  f"{name}: 数据目录正常{'，已加载' if loaded else '，但未加载(launchctl load)'}")
+                  f"{name}: 数据目录一致{'，已加载' if loaded else '，但未加载(launchctl load)'}")
                 if not loaded:
                     fixes.append(f"launchctl load ~/Library/LaunchAgents/{name}.plist")
-        if found_stale:
-            issues.append("LaunchAgents 中的 plist 残留外接盘路径（与内置盘主存储冲突）")
-            fixes.append('重装plist: cp "config/"com.alphapulse.*.plist ~/Library/LaunchAgents/ '
-                         "&& launchctl unload ~/Library/LaunchAgents/com.alphapulse.daily-update.plist "
-                         "&& launchctl load ~/Library/LaunchAgents/com.alphapulse.daily-update.plist")
+        if found_mismatch:
+            issues.append("LaunchAgents 中的 plist 数据目录与 settings.DATA_DIR 不一致")
+            fixes.append('同步plist: cp "config/"com.alphapulse.*.plist ~/Library/LaunchAgents/ '
+                         "&& for n in daily-update full-download daily-auto; do "
+                         "launchctl unload ~/Library/LaunchAgents/com.alphapulse.$n.plist 2>/dev/null; "
+                         "launchctl load ~/Library/LaunchAgents/com.alphapulse.$n.plist; done")
     else:
         p(WARN, "非macOS或无LaunchAgents目录，跳过")
 
-    # 7. 外接盘
-    print("\n[7] 外接盘（冷备）")
-    ext = Path("/Volumes/Mac-480g外接")
-    p(OK if ext.exists() else WARN,
-      f"{ext} {'已挂载' if ext.exists() else '未挂载（冷备不影响主流程，但旧plist会因此失败）'}")
+    # 7. 主存储盘挂载
+    print("\n[7] 主存储盘挂载")
+    if canon.startswith("/Volumes/"):
+        vol = "/" + "/".join(canon.split("/")[1:3])   # /Volumes/<卷名>
+        mounted = Path(vol).exists()
+        p(OK if mounted else FAIL,
+          f"{vol} {'已挂载（主存储在此盘）' if mounted else '未挂载！主存储在此盘，流水线会启动即失败'}")
+        if not mounted:
+            issues.append("主存储盘未挂载")
+            fixes.append(f"插上并确认挂载 {vol}，或临时切换: export ALPHAPULSE_DATA_DIR=<可用目录>")
+    else:
+        p(OK, f"主存储为内置盘路径 {canon}")
 
     print_summary()
 
