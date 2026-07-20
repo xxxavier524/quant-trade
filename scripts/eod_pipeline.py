@@ -55,6 +55,10 @@ def main() -> int:
         steps.append(run_step("数据增量更新",
                               ["scripts/daily_update.py", "--max-minutes", str(args.max_update_min)],
                               timeout=(args.max_update_min + 10) * 60))
+    # 指数更新：硬闸门(上证MACD零轴/大盘S1)与大盘档位都依赖 data/index/，
+    # 此前从未纳入流水线导致指数长期陈旧（2026-07-20 修复）。走新浪直连，很快。
+    steps.append(run_step("指数更新",
+                          ["scripts/fetch_index_data.py"], timeout=180))
     # 选股：即使更新失败也跑（用已有数据），陈旧告警在脚本内
     screener_args = ["scripts/daily_screener.py", "--top", str(args.top)]
     if args.push_label:
@@ -69,7 +73,7 @@ def main() -> int:
                           ["scripts/review_agent_decisions.py"], timeout=300))
 
     REPORTS_DIR.mkdir(exist_ok=True)
-    _noncritical = {"信号追踪", "agent决策对账"}
+    _noncritical = {"信号追踪", "agent决策对账", "指数更新"}
     marker = {
         "finished_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "steps": steps,
