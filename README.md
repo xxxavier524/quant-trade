@@ -365,8 +365,16 @@ launchctl load ~/Library/LaunchAgents/com.alphapulse.daily-auto.plist
 
 ## 十二、数据来源
 
-- **主力**: baostock + akshare 交替下载
-- **备用**: yfinance适配器
-- **路径**: `/Volumes/Mac-480g外接/quantan_data/day/`
+- **增量更新多源故障切换链**（`alphapulse/utils/source_chain.py`）：
+  `baostock(前复权) → akshare(前复权) → pytdx(裸价) → 腾讯(裸价)`，
+  每源独立超时（`--source-timeout`，默认15s），超时/异常/空结果自动切下一个；
+  裸价源经重叠日 close 一致性校验兜底（近期除权则跳过等复权源）。
+  baostock 登录失败也不再中止，直接用其余源兜底。
+- **全量下载**: `_smart_downloader.py`（baostock + akshare 交替）
+- **指数**: `fetch_index_data.py`（新浪直连，已纳入 eod_pipeline）
+- **路径**: `/Volumes/Mac-480g外接/quantan_data/day/`（主存储，外接盘）
 - **格式**: CSV (date, open, high, low, close, volume, amount, turnover)
 - **环境变量**: `ALPHAPULSE_DATA_DIR` 可覆盖数据路径
+- **自检/追平**: `scripts/check_data_health.py`（一键诊断）、
+  `scripts/catch_up_data.sh`（断档后循环续传追平）
+- **窗口**: daily-update 每日窗口 30min→120min（全量顺序取数需更长时间）
