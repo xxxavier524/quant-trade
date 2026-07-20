@@ -46,6 +46,9 @@ reports/nightly_review_*.md
 reports/last_run.json
 reports/friday_picks_*.csv
 reports/friday_screen_*.json
+# 自动化任务每日追加写的滚动文件——tracked状态会挡pull/merge（2026-07同步排障结论）
+daily_auto_report.md
+reports/pick_reviews.md
 
 # 备份副本不进git（git历史本身就是备份）
 *.bak
