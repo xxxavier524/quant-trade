@@ -226,6 +226,7 @@ def main() -> int:
         print(f"  从断点续传: {start_idx}/{len(symbols)}")
 
     stats = {"updated": 0, "current": 0, "refetched": 0, "failed": 0, "new": 0}
+    breaker: dict = {}   # 跨股票共享的源熔断状态（某源夜间宕机→连续失败达阈值即跳过）
     timed_out = False
     consecutive_failures = 0
     relogin_done = False
@@ -279,7 +280,7 @@ def main() -> int:
             # 靠下方重叠close一致性检查兜底：近期有除权则不一致 → 跳过等复权源。
             res = fetch_daily(sym, overlap_start, today_str,
                               ctx={"bs": bs}, per_source_timeout=per_source_timeout,
-                              stats=stats)
+                              stats=stats, breaker=breaker)
             new_df = res.df
             used_tdx = not res.adjusted        # 沿用下方裸价校验分支的变量名
             # 只摄入已确认交易日（≤latest）的K线：盘中运行时裸价源返回当日
@@ -349,7 +350,8 @@ def main() -> int:
                 break
             try:
                 res = fetch_daily(sym, "2020-01-01", today_str, ctx={"bs": bs},
-                                  per_source_timeout=per_source_timeout, stats=stats)
+                                  per_source_timeout=per_source_timeout,
+                                  stats=stats, breaker=breaker)
                 if len(res.df) >= 60:
                     atomic_write(res.df, data_path / f"{sym}.csv")
                     stats["new"] += 1
@@ -369,6 +371,9 @@ def main() -> int:
     status = "TIMEOUT（下次续传）" if timed_out else "完成"
     src_hits = " ".join(f"{k[4:]}={v}" for k, v in sorted(stats.items())
                         if k.startswith("src_"))
+    tripped = [k[len("tripped_"):] for k in stats if k.startswith("tripped_")]
+    if tripped:
+        src_hits += f" | 熔断源:{','.join(tripped)}"
     summary = (f"数据更新{status} @ {latest}: 覆盖率 {coverage*100:.0f}%，已最新 {stats['current']}，"
                f"更新 {stats['updated']}，复权重下 {stats['refetched']}，新增 {stats['new']}，"
                f"失败 {stats['failed']}，超时切换 {stats.get('timeout', 0)}，"
