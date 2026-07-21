@@ -23,13 +23,42 @@ volume 单位统一为「股」，date 为 'YYYY-MM-DD' 字符串。
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutTimeout
+import threading
 from dataclasses import dataclass
 from typing import Callable
 
 import pandas as pd
 
 logger = logging.getLogger("source_chain")
+
+
+class _SourceTimeout(Exception):
+    """单源超时（守护线程未在限时内返回）。"""
+
+
+def _call_with_timeout(fn: Callable, args: tuple, timeout: float):
+    """在守护线程里跑 fn，到点就返回、绝不等待挂起线程（真·快速切换）。
+
+    关键点：不用 ThreadPoolExecutor —— 它的上下文退出会 join 挂起线程，
+    使 15s 超时被底层 30s socket 超时拖住。守护线程 join(timeout) 到点即走，
+    残留线程在后台自行随 socket 超时结束，不阻塞主流程。
+    """
+    box: dict = {}
+
+    def target():
+        try:
+            box["df"] = fn(*args)
+        except Exception as e:      # noqa: BLE001 —— 交由上层切换
+            box["err"] = e
+
+    t = threading.Thread(target=target, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        raise _SourceTimeout(f"timed out after {timeout}s")
+    if "err" in box:
+        raise box["err"]
+    return box.get("df")
 
 STD_COLS = ["date", "open", "high", "low", "close", "volume", "amount", "turnover"]
 
@@ -90,8 +119,14 @@ def _src_akshare(symbol: str, start: str, end: str, ctx: dict) -> pd.DataFrame:
 
 
 def _src_pytdx(symbol: str, start: str, end: str, ctx: dict) -> pd.DataFrame:
+    import contextlib
+    import io
+    import os
     from alphapulse.utils.tdx_source import fetch_recent_daily
-    df = fetch_recent_daily(symbol, n=40)
+    # pytdx 连接失败会往 stdout 打印“接收数据异常，请稍后再试。”刷屏 → 静音
+    with contextlib.redirect_stdout(io.StringIO()), \
+            contextlib.redirect_stderr(open(os.devnull, "w")):
+        df = fetch_recent_daily(symbol, n=40)
     if len(df):
         df = df[df["date"].astype(str) >= start]
     return df
@@ -128,6 +163,8 @@ def fetch_daily(
     per_source_timeout: float = 15.0,
     chain: list[tuple[str, Callable, bool]] | None = None,
     stats: dict | None = None,
+    breaker: dict | None = None,
+    breaker_threshold: int = 8,
 ) -> SourceResult:
     """逐源尝试取日线，返回首个非空结果。全失败返回空 df（source='none'）。
 
@@ -137,26 +174,42 @@ def fetch_daily(
         ctx: 携带 {'bs': 已登录baostock}，可为空
         per_source_timeout: 每个源的超时秒数（超时即切下一个）
         chain: 覆盖默认源链（测试/定制用）
-        stats: 若传入，累加各源命中次数 stats[f'src_{name}'] 与超时 stats['timeout']
+        stats: 若传入，累加各源命中 stats[f'src_{name}']、超时 stats['timeout']、熔断 stats['tripped_{name}']
+        breaker: 跨调用共享的熔断状态 {源名: 连续失败数}。批量任务传同一个 dict：
+            某源连续失败达 breaker_threshold 次即在本轮剩余调用中跳过（主源夜间宕机时
+            避免每只股票都白等一个超时），任一源成功取数时清零该源计数。
+        breaker_threshold: 连续失败多少次触发熔断（默认8）
     """
     ctx = ctx or {}
     chain = chain or DEFAULT_CHAIN
+    breaker = breaker if breaker is not None else {}
     for name, fn, adjusted in chain:
+        if breaker.get(name, 0) >= breaker_threshold:
+            continue                                    # 已熔断，跳过
         try:
-            with ThreadPoolExecutor(max_workers=1) as ex:
-                fut = ex.submit(fn, symbol, start, end, ctx)
-                raw = fut.result(timeout=per_source_timeout)
-        except FutTimeout:
+            raw = _call_with_timeout(fn, (symbol, start, end, ctx), per_source_timeout)
+        except _SourceTimeout:
             logger.debug(f"{symbol} 源[{name}] 超时({per_source_timeout}s)，切换")
             if stats is not None:
                 stats["timeout"] = stats.get("timeout", 0) + 1
+            _trip(breaker, name, breaker_threshold, stats)
             continue
         except Exception as e:
             logger.debug(f"{symbol} 源[{name}] 异常: {e}，切换")
+            _trip(breaker, name, breaker_threshold, stats)
             continue
         df = _std(raw)
         if len(df):
+            breaker[name] = 0                           # 成功 → 清零熔断计数
             if stats is not None:
                 stats[f"src_{name}"] = stats.get(f"src_{name}", 0) + 1
             return SourceResult(df, name, adjusted)
+        _trip(breaker, name, breaker_threshold, stats)  # 空结果也算失败
     return SourceResult(pd.DataFrame(columns=STD_COLS), "none", True)
+
+
+def _trip(breaker: dict, name: str, threshold: int, stats: dict | None) -> None:
+    breaker[name] = breaker.get(name, 0) + 1
+    if breaker[name] == threshold and stats is not None:
+        stats[f"tripped_{name}"] = stats.get(f"tripped_{name}", 0) + 1
+        logger.warning(f"源[{name}] 连续失败{threshold}次，本轮剩余跳过（熔断）")

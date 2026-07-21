@@ -80,6 +80,53 @@ def test_std_normalizes_turn_and_types():
     assert out["close"].iloc[0] == 1.5
 
 
+def test_timeout_does_not_block_on_hung_thread():
+    """慢源(3s)在 0.3s 超时后应立刻切换，不被守护线程拖住（总耗时≈超时而非3s）。"""
+    chain = [("slow", _slow, True), ("fast", _ok("fast"), True)]
+    t0 = time.monotonic()
+    res = fetch_daily("600000", "2026-07-01", "2026-07-17", chain=chain,
+                      per_source_timeout=0.3)
+    assert res.source == "fast"
+    assert time.monotonic() - t0 < 1.5      # 远小于慢源的 3s
+
+
+def test_circuit_breaker_skips_dead_source():
+    """主源连续失败达阈值后被熔断，后续调用直接跳到次源。"""
+    calls = {"A": 0}
+
+    def a_fail(sym, s, e, ctx):
+        calls["A"] += 1
+        raise RuntimeError("dead")
+
+    chain = [("A", a_fail, True), ("B", _ok("B"), True)]
+    breaker, stats = {}, {}
+    for _ in range(10):
+        res = fetch_daily("600000", "2026-07-01", "2026-07-17",
+                          chain=chain, breaker=breaker, stats=stats,
+                          breaker_threshold=3)
+        assert res.source == "B"
+    assert calls["A"] == 3                    # 达阈值后不再调用A
+    assert stats.get("tripped_A") == 1
+
+
+def test_breaker_resets_on_success():
+    """源恢复成功后熔断计数清零。"""
+    state = {"fail": True}
+
+    def flaky(sym, s, e, ctx):
+        if state["fail"]:
+            raise RuntimeError("x")
+        return _fake_df()
+
+    chain = [("A", flaky, True), ("B", _ok("B"), True)]
+    breaker = {}
+    fetch_daily("600000", "a", "b", chain=chain, breaker=breaker, breaker_threshold=5)
+    assert breaker["A"] == 1
+    state["fail"] = False
+    res = fetch_daily("600000", "a", "b", chain=chain, breaker=breaker, breaker_threshold=5)
+    assert res.source == "A" and breaker["A"] == 0
+
+
 def test_std_drops_rows_without_close():
     raw = pd.DataFrame({"date": ["2026-07-16", "2026-07-17"],
                         "close": [None, 1.5], "open": [1, 1],
