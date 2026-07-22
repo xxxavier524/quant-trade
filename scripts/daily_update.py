@@ -19,6 +19,7 @@
 """
 
 import argparse
+import atexit
 import json
 import os
 import socket
@@ -40,6 +41,7 @@ from alphapulse.config.settings import DATA_DIR  # 统一读settings(2026-07-05�
 LOGS_DIR = PROJECT_ROOT / "logs"
 PROGRESS_FILE = LOGS_DIR / "update_progress.json"
 FAILURE_LOG = LOGS_DIR / "data_update_failure.log"
+PID_FILE = LOGS_DIR / "daily_update.pid"
 
 COLUMNS = ["date", "open", "high", "low", "close", "volume", "amount", "turnover"]
 BS_FIELDS = "date,open,high,low,close,volume,amount,turn"
@@ -176,8 +178,27 @@ def load_progress(today: str, latest: str) -> int:
 
 def save_progress(today: str, idx: int, stats: dict, latest: str) -> None:
     LOGS_DIR.mkdir(exist_ok=True)
-    PROGRESS_FILE.write_text(json.dumps(
+    tmp = PROGRESS_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(
         {"date": today, "done_index": idx, "latest": latest, **stats}))
+    os.replace(tmp, PROGRESS_FILE)  # 原子替换：杀进程不留半截进度文件（H3）
+
+
+def acquire_singleton_lock() -> None:
+    """PID 锁：防止 15:30 与 20:30 两个 launchd 任务并发跑同一更新，互相踩
+    update_progress.json 并把失败日志重复写两遍（H3，复用 _smart_downloader 模式）。
+    已有存活实例则退出 2；陈旧锁自动清理。"""
+    LOGS_DIR.mkdir(exist_ok=True)
+    if PID_FILE.exists():
+        try:
+            old_pid = int(PID_FILE.read_text().strip())
+            os.kill(old_pid, 0)  # 进程存活则不抛异常
+            alert(f"另一 daily_update 实例仍在运行（PID {old_pid}），本次退出避免并发踩踏。")
+            sys.exit(2)
+        except (OSError, ValueError):
+            PID_FILE.unlink(missing_ok=True)  # 陈旧锁，清掉继续
+    PID_FILE.write_text(str(os.getpid()))
+    atexit.register(lambda: PID_FILE.unlink(missing_ok=True))
 
 
 def all_a_share_codes() -> list[str]:
@@ -201,6 +222,7 @@ def main() -> int:
     args = ap.parse_args()
     per_source_timeout = args.source_timeout
 
+    acquire_singleton_lock()  # 防 15:30/20:30 并发踩踏（H3）
     data_path = Path(args.data_dir)
     preflight(data_path)
 

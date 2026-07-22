@@ -71,11 +71,22 @@ def main() -> int:
     # agent决策对账：决策日志 vs 实际行情，各角色命中率（非关键）
     steps.append(run_step("agent决策对账",
                           ["scripts/review_agent_decisions.py"], timeout=300))
+    # 卡死股恢复：除权导致落后的股票慢速啃一批（H4，此前无任何调度→永不自动恢复）。
+    # 非关键、恢复的数据下次选股才生效；baostock 限流时自然空转，不影响主流程。
+    steps.append(run_step("卡死股恢复",
+                          ["scripts/recover_stale.py", "--limit", "200"], timeout=900))
 
     REPORTS_DIR.mkdir(exist_ok=True)
-    _noncritical = {"信号追踪", "agent决策对账", "指数更新"}
+    _noncritical = {"信号追踪", "agent决策对账", "指数更新", "卡死股恢复"}
+    try:
+        git_rev = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=str(PROJECT_ROOT),
+            stderr=subprocess.DEVNULL, timeout=10).decode().strip()
+    except Exception:
+        git_rev = "unknown"
     marker = {
         "finished_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "git_rev": git_rev,   # 部署漂移排查（H2）：记录实际运行的代码版本
         "steps": steps,
         "ok": all(s["ok"] for s in steps if s["step"] not in _noncritical),
     }

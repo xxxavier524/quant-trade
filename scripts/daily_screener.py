@@ -37,6 +37,48 @@ logger = logging.getLogger("daily_screener")
 
 REPORTS_DIR = PROJECT_ROOT / "reports"
 
+# 数据新鲜度硬闸（P0 2026-07-22）：防止在陈旧/缩水数据上出票并推送。
+# 基准交易日取自独立更新的上证指数（不受个股取数失败影响）。
+HARD_MIN_COVERAGE = 0.5   # 到达目标日的股票占比低于此值 → 硬中止（不写不推）
+SOFT_MIN_COVERAGE = 0.8   # 低于此值 → 降级模式（本地出票但不推送飞书）
+
+
+class StaleDataError(RuntimeError):
+    """选股池数据陈旧或覆盖不足，已跳过出票（不写不推）。"""
+
+
+def _index_latest_date() -> str | None:
+    """基准最新交易日 = 上证指数最新bar日期（data/index/sh000001.csv，独立更新）。"""
+    idx = PROJECT_ROOT / "data" / "index" / "sh000001.csv"
+    if not idx.exists():
+        return None
+    try:
+        d = pd.read_csv(idx, usecols=["date"])
+        return str(d["date"].iloc[-1]) if len(d) else None
+    except Exception:
+        return None
+
+
+def _freshness_verdict(target_date: str, ref_date: str | None,
+                       coverage: float) -> tuple[str, str]:
+    """新鲜度裁决（仅实盘路径调用）：返回 (action, reason)。
+
+    action ∈ {'ok', 'degraded', 'abort'}：
+    - abort:  选股池落后于指数基准，或覆盖率 < 硬阈值 → 不写不推
+    - degraded: 覆盖率介于硬/软阈值 → 本地出票但不推送（防推送有偏子集）
+    """
+    if ref_date and target_date < ref_date:
+        return "abort", (f"选股池最新交易日 {target_date} 落后于基准指数 {ref_date}"
+                         f"（个股取数未跟上，疑似数据未更新）")
+    if coverage < HARD_MIN_COVERAGE:
+        return "abort", (f"仅 {coverage*100:.0f}% 股票到达 {target_date}"
+                         f"（< {HARD_MIN_COVERAGE*100:.0f}% 硬阈值）")
+    if coverage < SOFT_MIN_COVERAGE:
+        return "degraded", (f"覆盖率 {coverage*100:.0f}% 偏低"
+                            f"（< {SOFT_MIN_COVERAGE*100:.0f}%）")
+    return "ok", ""
+
+
 # 子分数中文名（报告显示用）
 SUB_NAMES = {
     "j_low": "J值低位", "trend_gap": "趋势强度", "vol_shrink": "缩量",
@@ -60,15 +102,22 @@ def load_names() -> dict[str, str]:
 
 
 def run(date: str | None, top_n: int, data_dir: Path,
-        push_label: str = "", use_gates: bool = True) -> pd.DataFrame:
+        push_label: str = "", use_gates: bool = True,
+        allow_stale: bool = False, raise_on_stale: bool = False) -> pd.DataFrame:
     t0 = time.monotonic()
     names = load_names()
+
+    # 基准交易日（独立于个股取数）：实盘路径用指数最新日，回放用 --date。
+    # 硬闸门/大盘评分与选股池对齐到同一基准日（此前闸门用"9999-12-31"取指数最新、
+    # 选股池用个股last_date众数，两者可能是不同交易日 → 闸门判的市场态与票不匹配）。
+    ref_date = date or _index_latest_date()
+    gate_date = date or ref_date or "9999-12-31"
 
     # ── 硬闸门（择时是门不是分：上证MACD零轴 + 大盘S1，数据缺失fail-open）──
     if use_gates:
         try:
             from alphapulse.market.hard_gates import evaluate_gates
-            gates_ok, gate_msgs = evaluate_gates(date or "9999-12-31")
+            gates_ok, gate_msgs = evaluate_gates(gate_date)
             for m in gate_msgs:
                 logger.info(f"  闸门 | {m}")
             if not gates_ok:
@@ -80,7 +129,7 @@ def run(date: str | None, top_n: int, data_dir: Path,
     # ── 大盘诊断（量能+N型+知行BS，真实指数 data/index/）──
     macro_level, macro_score, macro_advice = "震荡", 50.0, ""
     try:
-        macro = compute_market_score(end_date=date or "9999-12-31")
+        macro = compute_market_score(end_date=gate_date)
         macro_level, macro_score = macro["level"], macro["score"]
         macro_advice = macro["advice"]
     except Exception as e:
@@ -101,10 +150,26 @@ def run(date: str | None, top_n: int, data_dir: Path,
     last_dates = pd.Series({s: d.iloc[-1]["date"] for s, d in all_frames.items()})
     target_date = date or last_dates.mode().iloc[0]
     coverage = (last_dates == target_date).mean()
-    if coverage < 0.8:
-        logger.warning(
-            f"⚠️ 仅 {coverage*100:.0f}% 股票更新到 {target_date}，数据可能陈旧，"
-            f"请先运行 scripts/daily_update.py")
+
+    # ── 数据新鲜度硬闸（P0）：实盘路径下，选股池落后于指数基准或覆盖不足即中止，
+    #    不写 screen_*.csv、不推飞书，避免在陈旧/缩水股票池上出"当天"票（C1/C2）。──
+    push_ok = True
+    if date is None:
+        action, reason = _freshness_verdict(target_date, ref_date, coverage)
+        if action == "abort" and not allow_stale:
+            logger.error(f"🛑 跳过选股（不写不推）：{reason}。加 --allow-stale 可强制出票。")
+            if raise_on_stale:
+                raise StaleDataError(reason)
+            return pd.DataFrame()
+        if action == "abort":  # allow_stale：仍出票但明确告警
+            logger.warning(f"⚠️ 数据陈旧但 --allow-stale 强制出票：{reason}")
+        elif action == "degraded":
+            push_ok = False
+            logger.warning(f"⚠️ {reason}，降级模式：本地出票但不推送飞书（防推有偏子集）")
+        if ref_date is None:
+            logger.warning("⚠️ 无指数基准 data/index/sh000001.csv，无法校验落后，仅按覆盖率判断")
+    elif coverage < SOFT_MIN_COVERAGE:  # --date 回放：保留原告警，不中止
+        logger.warning(f"⚠️ 仅 {coverage*100:.0f}% 股票有 {target_date} 数据（回放）")
 
     # 数据比目标日新的截断回目标日（更新到一半时众数落在旧日，直接剔除会把
     # 最新的那批股票整批扔出选股池）；比目标日旧的确实缺数据，只能剔除
@@ -239,7 +304,8 @@ def run(date: str | None, top_n: int, data_dir: Path,
     logger.info(f"耗时 {(time.monotonic()-t0)/60:.1f} 分钟")
 
     # 飞书推送（配置了webhook才发）：按两大战法分列，含板块/概念（用户需求 2026-07-10）
-    if FEISHU_WEBHOOK_URL:
+    # push_ok=False（降级模式，覆盖率偏低）时只落盘不推送，避免把有偏子集推给用户
+    if FEISHU_WEBHOOK_URL and push_ok:
         try:
             from alphapulse.notify.feishu_bot import send_feishu
             from alphapulse.tracking.signal_tracker import family_of, _clean
@@ -281,13 +347,21 @@ def main():
     ap.add_argument("--push-label", default="", help="飞书推送标题附注（如 晚间版）")
     ap.add_argument("--no-gate", action="store_true",
                     help="关闭硬闸门（上证MACD零轴+大盘S1），强制出票")
+    ap.add_argument("--allow-stale", action="store_true",
+                    help="跳过数据新鲜度硬闸（默认：选股池落后指数或覆盖<50%即中止不出票）")
     args = ap.parse_args()
 
     data_dir = Path(args.data_dir)
     if not data_dir.exists():
         sys.exit(f"数据目录不存在: {data_dir}（外接硬盘未挂载？）")
-    top = run(args.date, args.top, data_dir,
-              push_label=args.push_label, use_gates=not args.no_gate)
+    try:
+        top = run(args.date, args.top, data_dir,
+                  push_label=args.push_label, use_gates=not args.no_gate,
+                  allow_stale=args.allow_stale, raise_on_stale=True)
+    except StaleDataError as e:
+        # rc=3 让 eod_pipeline 记录"全市场选股 ok:false"（非关键步之外，会翻转总状态）
+        print(f"🛑 数据陈旧，未出票: {e}", file=sys.stderr)
+        sys.exit(3)
     if not top.empty:
         cols = ["rank", "symbol", "name", "score", "strict_signal", "top_factors"]
         print(top[cols].head(20).to_string(index=False))
