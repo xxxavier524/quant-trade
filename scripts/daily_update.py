@@ -42,6 +42,7 @@ LOGS_DIR = PROJECT_ROOT / "logs"
 PROGRESS_FILE = LOGS_DIR / "update_progress.json"
 FAILURE_LOG = LOGS_DIR / "data_update_failure.log"
 PID_FILE = LOGS_DIR / "daily_update.pid"
+_QUIET = False  # --quiet：抑制飞书告警（仅写文件日志），供 data_catchup 每小时静默续传
 
 COLUMNS = ["date", "open", "high", "low", "close", "volume", "amount", "turnover"]
 BS_FIELDS = "date,open,high,low,close,volume,amount,turn"
@@ -55,8 +56,10 @@ def log_failure(msg: str) -> None:
 
 
 def alert(msg: str) -> None:
-    """飞书告警（webhook 未配置时仅写日志）。"""
+    """飞书告警（webhook 未配置时仅写日志）。--quiet 模式只写文件日志、不推飞书。"""
     log_failure(msg)
+    if _QUIET:
+        return
     try:
         from alphapulse.config.settings import FEISHU_WEBHOOK_URL
         if FEISHU_WEBHOOK_URL:
@@ -219,8 +222,12 @@ def main() -> int:
     ap.add_argument("--data-dir", default=DATA_DIR)
     ap.add_argument("--source-timeout", type=float, default=15.0,
                     help="每个数据源的单次超时秒数（超时自动切下一个源）")
+    ap.add_argument("--quiet", action="store_true",
+                    help="抑制飞书告警（仅写文件日志）——供 data_catchup 每小时静默续传")
     args = ap.parse_args()
     per_source_timeout = args.source_timeout
+    global _QUIET
+    _QUIET = args.quiet
 
     acquire_singleton_lock()  # 防 15:30/20:30 并发踩踏（H3）
     data_path = Path(args.data_dir)

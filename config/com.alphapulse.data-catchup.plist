@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.alphapulse.data-catchup</string>
+
+    <!-- 每小时数据自愈补齐（2026-07-23 用户定，替代 daily-update 15:30 + update-retry 19:30）：
+         baostock 在跑批时段间歇失败→单次常只覆盖14-23%→旧的两次定时任务每天都 rc=1 告警。
+         改为收盘后每小时唤醒 data_catchup.py：断点续传直到当日覆盖率达标(静默,不推飞书)，
+         达标即选一次股(选股自身推送)，仅在最后窗口(22:30)仍不足才推一次告警。
+         窗口 15:35/16:30/…/22:30 覆盖 K 线发布窗口(约18:00-19:00)前后，直到晚间数据齐。 -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/qiushixuan/cc/quantan trade/.venv/bin/python</string>
+        <string>/Users/qiushixuan/cc/quantan trade/scripts/run_with_timeout.py</string>
+        <string>3300</string>
+        <string>/Users/qiushixuan/cc/quantan trade/.venv/bin/python</string>
+        <string>/Users/qiushixuan/cc/quantan trade/scripts/data_catchup.py</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Hour</key><integer>15</integer><key>Minute</key><integer>35</integer></dict>
+        <dict><key>Hour</key><integer>16</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Hour</key><integer>18</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Hour</key><integer>20</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Hour</key><integer>21</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/qiushixuan</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/qiushixuan/cc/quantan trade</string>
+
+    <key>StandardOutPath</key>
+    <string>/Users/qiushixuan/cc/quantan trade/logs/data_catchup_stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/qiushixuan/cc/quantan trade/logs/data_catchup_stderr.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>KeepAlive</key>
+    <false/>
+</dict>
+</plist>
