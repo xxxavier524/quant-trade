@@ -348,7 +348,7 @@ def main():
     ap.add_argument("--no-gate", action="store_true",
                     help="关闭硬闸门（上证MACD零轴+大盘S1），强制出票")
     ap.add_argument("--allow-stale", action="store_true",
-                    help="跳过数据新鲜度硬闸（默认：选股池落后指数或覆盖<50%即中止不出票）")
+                    help="跳过数据新鲜度硬闸（默认：选股池落后指数或覆盖率过低即中止不出票）")
     args = ap.parse_args()
 
     data_dir = Path(args.data_dir)

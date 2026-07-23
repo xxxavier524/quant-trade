@@ -48,6 +48,18 @@ def test_target_ahead_of_ref_is_ok():
     assert _freshness_verdict("2026-07-22", "2026-07-21", 0.95)[0] == "ok"
 
 
+def test_cli_help_does_not_crash():
+    """回归：argparse help 里的裸 % 会在 Py3.14 add_argument 即崩（rc=1）→选股整步失败。
+    该用例直接跑 CLI --help，守住 main()/argparse 这条单测覆盖不到的路径。"""
+    import subprocess
+    import sys
+    root = Path(__file__).resolve().parent.parent
+    r = subprocess.run([sys.executable, str(root / "scripts" / "daily_screener.py"), "--help"],
+                       capture_output=True, text=True, cwd=str(root))
+    assert r.returncode == 0, f"--help crashed: {r.stderr[-400:]}"
+    assert "--allow-stale" in r.stdout
+
+
 if __name__ == "__main__":
     import subprocess
     raise SystemExit(subprocess.call(["pytest", "-q", __file__]))
