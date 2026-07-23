@@ -42,6 +42,8 @@ def main() -> int:
     ap.add_argument("--skip-update", action="store_true", help="只重跑选股（调试用）")
     ap.add_argument("--push-label", default="", help="推送标题附注（22:00晚间版传'晚间版'）")
     ap.add_argument("--force-weekend", action="store_true", help="周末也强制运行")
+    ap.add_argument("--allow-stale", action="store_true",
+                    help="跳过数据新鲜度铁律（默认：数据未最新则跳过选股/研判/追踪/对账）")
     args = ap.parse_args()
 
     # 周末守卫：launchd 每天触发，周六日无行情，照跑只会把周五内容重复推送
@@ -59,29 +61,38 @@ def main() -> int:
     # 此前从未纳入流水线导致指数长期陈旧（2026-07-20 修复）。走新浪直连，很快。
     steps.append(run_step("指数更新",
                           ["scripts/fetch_index_data.py"], timeout=180))
-    # 选股：即使更新失败也跑（用已有数据），陈旧告警在脚本内
-    screener_args = ["scripts/daily_screener.py", "--top", str(args.top)]
-    if args.push_label:
-        screener_args += ["--push-label", args.push_label]
-    steps.append(run_step("全市场选股", screener_args, timeout=900))
-    # agent团队研判：对当日Top写决策日志（纯量化,无--debate即不调LLM）。此前该写入者
-    # 从未接入流水线→agent_decisions.jsonl 冻结在10条(2026-07-03)。非关键（C3修复）。
-    steps.append(run_step("agent团队研判",
-                          ["scripts/run_agent_team.py", "--top", "10"], timeout=600))
-    # 信号追踪：录入今日Top + 回填历史表现（非关键，失败不影响）
-    # 600s：含最多5次DeepSeek成功复盘 + 飞书频控重试(最长3×24s)，300s可能被掐
-    steps.append(run_step("信号追踪",
-                          ["scripts/track_signals.py"], timeout=600))
-    # agent决策对账：决策日志 vs 实际行情，各角色命中率（非关键）
-    steps.append(run_step("agent决策对账",
-                          ["scripts/review_agent_decisions.py"], timeout=300))
-    # 卡死股恢复：除权导致落后的股票慢速啃一批（H4，此前无任何调度→永不自动恢复）。
-    # 非关键、恢复的数据下次选股才生效；baostock 限流时自然空转，不影响主流程。
+
+    # 数据新鲜度铁律（用户定 2026-07-23）：选股/研判/追踪/对账等一切下游操作，
+    # 必须在"数据已最新"前提下执行；否则整体跳过，绝不在陈旧数据上出票/复盘。
+    from alphapulse.config.settings import DATA_DIR
+    from alphapulse.utils.data_freshness import check_freshness
+    fr = check_freshness(DATA_DIR)
+    print(f"数据新鲜度确认: {fr['reason']}", flush=True)
+    if fr["ok"] or args.allow_stale:
+        screener_args = ["scripts/daily_screener.py", "--top", str(args.top)]
+        if args.push_label:
+            screener_args += ["--push-label", args.push_label]
+        steps.append(run_step("全市场选股", screener_args, timeout=900))
+        # agent团队研判：写决策日志（纯量化,无--debate即不调LLM）——修复冻结10条(C3)
+        steps.append(run_step("agent团队研判",
+                              ["scripts/run_agent_team.py", "--top", "10"], timeout=600))
+        # 信号追踪：录入今日Top + 回填历史表现（脚本内也自带新鲜度确认，双保险）
+        steps.append(run_step("信号追踪",
+                              ["scripts/track_signals.py"], timeout=600))
+        # agent决策对账：决策日志 vs 实际行情
+        steps.append(run_step("agent决策对账",
+                              ["scripts/review_agent_decisions.py"], timeout=300))
+    else:
+        print("🛑 数据未最新，跳过下游（选股/研判/追踪/对账）——加 --allow-stale 可强制。", flush=True)
+        steps.append({"step": "下游操作", "ok": True, "rc": 0, "seconds": 0,
+                      "skipped": f"数据未最新: {fr['reason']}"})
+    # 卡死股恢复：除权导致落后的股票慢速啃一批（H4）。始终跑——它正是修复落后数据的手段。
     steps.append(run_step("卡死股恢复",
                           ["scripts/recover_stale.py", "--limit", "200"], timeout=900))
 
     REPORTS_DIR.mkdir(exist_ok=True)
-    _noncritical = {"信号追踪", "agent决策对账", "指数更新", "卡死股恢复", "agent团队研判"}
+    _noncritical = {"信号追踪", "agent决策对账", "指数更新", "卡死股恢复",
+                    "agent团队研判", "下游操作"}
     try:
         git_rev = subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"], cwd=str(PROJECT_ROOT),
@@ -91,6 +102,8 @@ def main() -> int:
     marker = {
         "finished_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "git_rev": git_rev,   # 部署漂移排查（H2）：记录实际运行的代码版本
+        "data_fresh": fr["ok"], "target": fr.get("target"),
+        "coverage": round(fr["coverage"], 3) if fr.get("coverage") is not None else None,
         "steps": steps,
         "ok": all(s["ok"] for s in steps if s["step"] not in _noncritical),
     }

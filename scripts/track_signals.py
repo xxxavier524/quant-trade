@@ -22,6 +22,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from alphapulse.config.settings import DATA_DIR, FEISHU_WEBHOOK_URL  # noqa: E402
 from alphapulse.tracking import signal_tracker as tk  # noqa: E402
+from alphapulse.utils.data_freshness import check_freshness  # noqa: E402
 
 
 def main():
@@ -29,8 +30,17 @@ def main():
     ap.add_argument("--distill", action="store_true", help="连涨归因+LLM沉淀")
     ap.add_argument("--no-feishu", action="store_true", help="不推送飞书")
     ap.add_argument("--no-llm", action="store_true", help="成功复盘不调LLM")
+    ap.add_argument("--allow-stale", action="store_true",
+                    help="跳过数据新鲜度确认（默认：数据未最新则不复盘）")
     ap.add_argument("--data-dir", default=DATA_DIR)
     args = ap.parse_args()
+
+    # 数据新鲜度铁律（用户定 2026-07-23）：复盘也须在数据最新前提下执行
+    fr = check_freshness(args.data_dir)
+    print(f"数据新鲜度确认: {fr['reason']}")
+    if not fr["ok"] and not args.allow_stale:
+        print("🛑 数据未最新，跳过复盘（加 --allow-stale 强制）")
+        return
 
     for csv in sorted((PROJECT_ROOT / "reports").glob("screen_*.csv")):
         n = tk.record_signals(csv)

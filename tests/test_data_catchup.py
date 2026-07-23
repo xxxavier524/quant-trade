@@ -31,11 +31,12 @@ def test_final_window_enough_to_select_gives_partial_notice():
     assert a["run_selection"] is True and a["notify"] == "partial"
 
 
-def test_final_window_too_low_alerts_once():
+def test_final_window_too_low_alerts_once_and_does_not_select():
+    # 铁律：覆盖率 < 选股下限时绝不选股（不在陈旧数据上操作），只首次告警
     a = plan(0.40, FINAL_HOUR + 1, dict(FRESH))
-    assert a["run_selection"] is True and a["notify"] == "fail"
+    assert a["run_selection"] is False and a["notify"] == "fail"
     # 已告警过则不再重复
-    a2 = plan(0.40, FINAL_HOUR + 1, {"selection_done": True, "final_alerted": True})
+    a2 = plan(0.40, FINAL_HOUR + 1, {"selection_done": False, "final_alerted": True})
     assert a2["notify"] is None and a2["run_selection"] is False
 
 

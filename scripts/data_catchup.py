@@ -90,7 +90,8 @@ def plan(cov: float, hour: int, state: dict,
     if hour >= final_hour:
         if cov >= select_min:
             return {"run_selection": not sel_done, "notify": None if sel_done else "partial"}
-        return {"run_selection": not sel_done,
+        # 覆盖 < 选股下限：铁律"数据最新才操作"→ 不选股，只在首次告警
+        return {"run_selection": False,
                 "notify": None if state.get("final_alerted") else "fail"}
     return {"run_selection": False, "notify": None}
 
