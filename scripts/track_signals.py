@@ -44,6 +44,9 @@ def main():
     n = tk.update_performance(Path(args.data_dir))
     print(f"回填表现: +{n} 条")
 
+    nr = tk.update_realized()
+    print(f"回填已实现收益(固定退出口径): +{nr} 条")
+
     outcomes = tk.evaluate_outcomes()
     print(f"成功判定: 成功{outcomes['success']} 止踪{outcomes['stopped_drop']} "
           f"过期{outcomes['expired']}")
@@ -51,6 +54,10 @@ def main():
     reviews = tk.distill_success(use_llm=not args.no_llm)
     for rv in reviews:
         print(f"⭐ 复盘 {rv['symbol']} {rv['name']} +{rv['outcome_pct']}%: {rv['review'][:80]}")
+
+    losses = tk.distill_failures()
+    if losses:
+        print(f"记录亏损复盘: {len(losses)} 条（pick_reviews.md 现含赢家+输家）")
 
     review_text = tk.nightly_review_text(new_reviews=reviews, new_outcomes=outcomes)
     print("\n" + review_text)

@@ -64,6 +64,10 @@ def main() -> int:
     if args.push_label:
         screener_args += ["--push-label", args.push_label]
     steps.append(run_step("全市场选股", screener_args, timeout=900))
+    # agent团队研判：对当日Top写决策日志（纯量化,无--debate即不调LLM）。此前该写入者
+    # 从未接入流水线→agent_decisions.jsonl 冻结在10条(2026-07-03)。非关键（C3修复）。
+    steps.append(run_step("agent团队研判",
+                          ["scripts/run_agent_team.py", "--top", "10"], timeout=600))
     # 信号追踪：录入今日Top + 回填历史表现（非关键，失败不影响）
     # 600s：含最多5次DeepSeek成功复盘 + 飞书频控重试(最长3×24s)，300s可能被掐
     steps.append(run_step("信号追踪",
@@ -77,7 +81,7 @@ def main() -> int:
                           ["scripts/recover_stale.py", "--limit", "200"], timeout=900))
 
     REPORTS_DIR.mkdir(exist_ok=True)
-    _noncritical = {"信号追踪", "agent决策对账", "指数更新", "卡死股恢复"}
+    _noncritical = {"信号追踪", "agent决策对账", "指数更新", "卡死股恢复", "agent团队研判"}
     try:
         git_rev = subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"], cwd=str(PROJECT_ROOT),

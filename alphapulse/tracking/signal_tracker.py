@@ -31,10 +31,15 @@ SUB_COLS = ["j_low", "trend_gap", "vol_shrink", "yangyin", "surge", "dif",
             "ql_pos", "pct_calm", "amplitude", "bowl", "washout_recover"]
 
 # 成功/止踪口径（用户 2026-07-10 定义）
-SUCCESS_PCT = 5.0      # 5日内相对信号日收盘涨超 +5% = 脱离成本区（成功）
+SUCCESS_PCT = 5.0      # 5日内相对信号日收盘涨超 +5% = 脱离成本区（旧"曾触及"口径，偏乐观）
 STOP_DROP_PCT = -5.0   # 累计跌超 -5% = 大幅下跌，停止跟踪
 HORIZON_DAYS = 5       # 跟踪窗口（交易日）
 STALE_CALENDAR_DAYS = 21  # 数据长期缺失的信号按过期处理，防止永久悬挂
+# 已实现收益口径（P1 2026-07-23，诚实度）：固定可成交退出——持有至 HORIZON 日收盘，
+# 期间任一日收盘相对信号日破止损则当日出；扣往返成本（买滑0.1+卖滑0.2+双边费≈0.05）≈0.35%。
+# 区别于旧"5日内任一收盘触及+5%即永久判赢"（路径最大值，系统性高估）。
+ROUND_TRIP_COST_PCT = 0.35
+ELIGIBLE_CALENDAR_DAYS = 10  # 信号满此自然日应已走完5个交易日，用于诚实分母（暴露未结算缺口）
 
 _FAMILY_PATH = PROJECT_ROOT / "config" / "strategy_families.json"
 _DEFAULT_FAMILIES = {"基本面法": ["B1", "量能B1", "单针下三十"], "砖型图法": ["知行超短"]}
@@ -68,6 +73,7 @@ _SIGNAL_EXTRA_COLS = [
     ("concepts", "TEXT DEFAULT ''"), ("pattern_state", "TEXT DEFAULT ''"),
     ("status", "TEXT DEFAULT 'tracking'"), ("outcome_day", "INTEGER"),
     ("outcome_pct", "REAL"), ("reviewed", "INTEGER DEFAULT 0"),
+    ("realized_pct", "REAL"), ("realized_day", "INTEGER"),  # 固定可成交退出口径(P1)
 ]
 
 
@@ -203,6 +209,55 @@ def update_performance(data_dir: Path, horizon: int = 7) -> int:
     return updated
 
 
+def realized_return(base_close: float, day_closes: list[float],
+                    stop_pct: float = STOP_DROP_PCT, horizon: int = HORIZON_DAYS,
+                    cost_pct: float = ROUND_TRIP_COST_PCT) -> tuple[float, int] | None:
+    """固定可成交退出的已实现收益(%)与出场日（诚实口径，替代"曾触及+5%"路径最大值）。
+
+    规则：持有至 horizon 日收盘；期间任一日收盘相对信号日收盘 ≤ stop_pct 则当日止损出。
+    扣往返成本 cost_pct。day_closes 为信号日之后 day1..dayN 的收盘价（按日序）。
+    未触发止损且数据不足 horizon 日 → None（未到期，不计入分子分母）。
+    """
+    if base_close <= 0:
+        return None
+    for n in range(1, min(len(day_closes), horizon) + 1):
+        c = day_closes[n - 1]
+        if (c / base_close - 1) * 100 <= stop_pct:          # 收盘破止损，当日出
+            return round((c / base_close - 1) * 100 - cost_pct, 2), n
+    if len(day_closes) >= horizon:                          # 持满 horizon 日收盘出
+        c = day_closes[horizon - 1]
+        return round((c / base_close - 1) * 100 - cost_pct, 2), horizon
+    return None
+
+
+def update_realized() -> int:
+    """回填已实现收益（固定可成交退出口径），对尚无 realized_pct 且数据已足的信号。幂等。"""
+    conn = _conn()
+    sigs = pd.read_sql(
+        "SELECT id, close FROM signals WHERE realized_pct IS NULL AND close > 0", conn)
+    if sigs.empty:
+        conn.close()
+        return 0
+    perf = pd.read_sql(
+        "SELECT signal_id, day_n, close FROM performance WHERE signal_id IN (%s) "
+        "ORDER BY signal_id, day_n" % ",".join(str(i) for i in sigs["id"]), conn)
+    pmap = {sid: g for sid, g in perf.groupby("signal_id")} if not perf.empty else {}
+    n = 0
+    for _, s in sigs.iterrows():
+        g = pmap.get(s["id"])
+        if g is None:
+            continue
+        closes = g.sort_values("day_n")["close"].tolist()
+        r = realized_return(float(s["close"]), closes)
+        if r is not None:
+            conn.execute("UPDATE signals SET realized_pct=?, realized_day=? WHERE id=?",
+                         (r[0], r[1], int(s["id"])))
+            n += 1
+    conn.commit()
+    conn.close()
+    return n
+
+
 def evaluate_outcomes(success_pct: float = SUCCESS_PCT, stop_pct: float = STOP_DROP_PCT,
                       horizon: int = HORIZON_DAYS) -> dict:
     """对在跟踪信号做成功/止踪判定（幂等，只改 status='tracking' 的行）。
@@ -259,21 +314,47 @@ def evaluate_outcomes(success_pct: float = SUCCESS_PCT, stop_pct: float = STOP_D
 
 
 def success_stats(window_days: int = 30) -> dict:
-    """按战法家族统计成功率（近 window_days 自然日内的信号，已出结果的为分母）。"""
+    """按战法家族统计（近 window_days 自然日内的信号）。
+
+    诚实主口径：realized_win/realized_mean（固定可成交退出、扣费的已实现收益）。
+    另暴露 eligible/unresolved_old（已到期却仍未结算，多因数据缺失——防结算时间差高估）。
+    旧"曾触及+5%"口径保留为 touch_rate/rate（向后兼容），供对照，勿单独当作盈利依据。
+    """
     conn = _conn()
     cutoff = (datetime.now() - timedelta(days=window_days)).strftime("%Y-%m-%d")
     df = pd.read_sql(
-        "SELECT family, status, outcome_day FROM signals WHERE date >= ?", conn, params=(cutoff,))
+        "SELECT family, status, outcome_day, realized_pct, date FROM signals WHERE date >= ?",
+        conn, params=(cutoff,))
     conn.close()
+    today = datetime.now().date()
+
+    def _age(d: str) -> int:
+        try:
+            return (today - datetime.strptime(d, "%Y-%m-%d").date()).days
+        except Exception:
+            return 0
+    if not df.empty:
+        df = df.assign(age=df["date"].map(_age))
     fams = list(load_families()) + ["基本面法+砖型图法", ""]
     out = {}
     for fam in fams:
-        sub = df[df["family"] == fam]
+        sub = df[df["family"] == fam] if not df.empty else df
         resolved = sub[sub["status"].isin(["success", "expired", "stopped_drop"])]
         succ = resolved[resolved["status"] == "success"]
+        rl = sub["realized_pct"].dropna() if "realized_pct" in sub else pd.Series(dtype=float)
+        eligible = sub[sub["age"] >= ELIGIBLE_CALENDAR_DAYS] if "age" in sub else sub.iloc[0:0]
+        unresolved_old = eligible[eligible["status"] == "tracking"]
         out[fam or "综合评分"] = {
+            # 诚实主口径：固定可成交退出的已实现收益
+            "n_realized": int(rl.notna().sum()),
+            "realized_win": round(float((rl > 0).mean()) * 100, 1) if len(rl) else None,
+            "realized_mean": round(float(rl.mean()), 2) if len(rl) else None,
+            # 已到期却未结算（数据缺失）——诚实暴露分母缺口
+            "eligible": int(len(eligible)), "unresolved_old": int(len(unresolved_old)),
+            # 旧"曾触及+5%"口径（路径最大值，偏乐观），保留对照
             "resolved": len(resolved), "success": len(succ),
-            "rate": round(len(succ) / len(resolved) * 100, 1) if len(resolved) else None,
+            "touch_rate": round(len(succ) / len(resolved) * 100, 1) if len(resolved) else None,
+            "rate": round(len(succ) / len(resolved) * 100, 1) if len(resolved) else None,  # 兼容旧键
             "avg_days": round(succ["outcome_day"].mean(), 1) if len(succ) else None,
             "tracking": int((sub["status"] == "tracking").sum()),
             "stopped": int((sub["status"] == "stopped_drop").sum()),
@@ -348,18 +429,58 @@ def distill_success(use_llm: bool = True, limit: int = 5) -> list:
     return reviews
 
 
+def distill_failures(limit: int = 10) -> list:
+    """把新出结果的亏损信号（止踪 / 到期且已实现为负）写入 pick_reviews.md，规则拼装、不调 LLM，
+    使复盘文件反映完整结果集而非只有赢家（P1 诚实度，配合 distill_success）。幂等：用 reviewed 标记。"""
+    conn = _conn()
+    rows = pd.read_sql(
+        "SELECT * FROM signals WHERE reviewed=0 AND ("
+        "status='stopped_drop' OR (status='expired' AND realized_pct < 0)) "
+        "ORDER BY date DESC LIMIT ?", conn, params=(limit,))
+    if rows.empty:
+        conn.close()
+        return []
+    out = []
+    for _, r in rows.iterrows():
+        rp = r["realized_pct"]
+        day = int(r["realized_day"]) if pd.notna(r["realized_day"]) else (r["outcome_day"] or HORIZON_DAYS)
+        rp_txt = f"{rp:+.2f}%" if pd.notna(rp) else (f"{r['outcome_pct']:+.2f}%" if pd.notna(r["outcome_pct"]) else "—")
+        text = (f"选股: {r['strategies'] or '综合评分'} 总分{r['score']:.0f}，"
+                f"{r['sector'] or '未知板块'}。结果: {'大跌止踪' if r['status'] == 'stopped_drop' else '到期'}"
+                f"，实盘口径 {rp_txt}（第{int(day)}日）。")
+        conn.execute("INSERT OR REPLACE INTO pick_reviews VALUES(?,?,?,?)",
+                     (int(r["id"]), r["date"], r["symbol"], text))
+        conn.execute("UPDATE signals SET reviewed=1 WHERE id=?", (int(r["id"]),))
+        out.append({"date": r["date"], "symbol": r["symbol"], "name": r["name"],
+                    "status": r["status"], "realized_pct": rp, "review": text})
+    conn.commit()
+    conn.close()
+    if out:
+        REVIEWS_MD.parent.mkdir(exist_ok=True)
+        with open(REVIEWS_MD, "a", encoding="utf-8") as f:
+            for rv in out:
+                mark = "🛑" if rv["status"] == "stopped_drop" else "❌"
+                rp = rv["realized_pct"]
+                rp_txt = f"{rp:+.2f}%" if rp is not None and rp == rp else "—"
+                f.write(f"\n## {mark} {rv['date']} {rv['symbol']} {rv['name']} "
+                        f"实盘{rp_txt} [{rv['status']}]\n\n{rv['review']}\n")
+    return out
+
+
 def nightly_review_text(new_reviews: list | None = None, new_outcomes: dict | None = None) -> str:
-    """夜间复盘飞书文本：按战法分列的成功率 + 今日新成功案例复盘 + 止踪通报。"""
+    """夜间复盘飞书文本：实盘已实现口径为主 + 曾触及+5%对照 + 今日新成功案例 + 止踪通报。"""
     stats = success_stats()
     lines = [f"🌙 夜间复盘 {datetime.now():%Y-%m-%d}",
-             f"【选股成功率·近30日】(成功={HORIZON_DAYS}日内涨超{SUCCESS_PCT:.0f}%脱离成本区)"]
+             f"【选股实盘口径·近30日】(持有{HORIZON_DAYS}日/破{abs(STOP_DROP_PCT):.0f}%止损、扣费≈{ROUND_TRIP_COST_PCT:.2f}%)"]
     for fam, s in stats.items():
-        if s["resolved"] == 0 and s["tracking"] == 0:
+        if s["resolved"] == 0 and s["tracking"] == 0 and s["n_realized"] == 0:
             continue
-        rate = f"{s['rate']}%" if s["rate"] is not None else "—"
-        avg = f"，均{s['avg_days']}日达标" if s["avg_days"] else ""
-        lines.append(f"· {fam}: {s['success']}/{s['resolved']}={rate}{avg}"
-                     f" | 跟踪中{s['tracking']} 止踪{s['stopped']}")
+        rw = f"{s['realized_win']}%" if s["realized_win"] is not None else "—"
+        rm = f"{s['realized_mean']:+.2f}%" if s["realized_mean"] is not None else "—"
+        touch = f"{s['touch_rate']}%" if s["touch_rate"] is not None else "—"
+        gap = f" 未结算(已到期){s['unresolved_old']}/{s['eligible']}" if s["eligible"] else ""
+        lines.append(f"· {fam}: 实盘胜率{s['n_realized']}单={rw} 均值{rm}"
+                     f" | 曾触及+5%={touch} | 跟踪{s['tracking']} 止踪{s['stopped']}{gap}")
     if new_reviews:
         lines.append("⭐ 新脱离成本区:")
         for rv in new_reviews:

@@ -13,6 +13,7 @@
 """
 
 import logging
+import re
 import sys
 from datetime import date as _date
 from pathlib import Path
@@ -73,8 +74,17 @@ def main() -> int:
     logger.info(f"决策 {len(dec)} 条，可对账 {len(df)} 条")
 
     today = _date.today().isoformat()
-    lines = [f"\n## Agent决策对账 {today}",
-             f"累计决策 {len(dec)} 条 · 可对账 {len(df)} 条（有次日行情）\n",
+    # 诚实标注（M8/C3）：显示决策数据日范围；若最新决策滞后 today 超一周，标 STALE，
+    # 不再用 today() 假装"新鲜对账"（此前每天盖今日期、重复 append 两次的过时块问题）。
+    tdates = pd.to_datetime(dec["trade_date"], errors="coerce").dropna()
+    newest = tdates.max() if len(tdates) else None
+    lag_days = (pd.Timestamp(today) - newest).days if newest is not None else None
+    stale = lag_days is not None and lag_days > 7
+    drange = f"{tdates.min():%Y-%m-%d}~{newest:%Y-%m-%d}" if newest is not None else "—"
+    stale_tag = (f" ⚠️STALE（最新决策 {newest:%Y-%m-%d}，滞后 {lag_days} 天——"
+                 f"写入者 run_agent_team 可能未在流水线运行）") if stale else ""
+    lines = [f"\n## Agent决策对账 {today}{stale_tag}",
+             f"决策数据日 {drange} · 累计 {len(dec)} 条 · 可对账 {len(df)} 条（有次日行情）\n",
              "| 评级 | n | 1日胜率 | 3日胜率/均值 | 5日胜率/均值 |", "|---|---|---|---|---|"]
 
     def _s(sub, col):
@@ -107,10 +117,22 @@ def main() -> int:
                      f"{float((pos['fwd5'] * w).sum())*100:+.2f}% · "
                      f"等权 {pos['fwd5'].mean()*100:+.2f}%")
 
-    with REPORT.open("a", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
-    print("\n".join(lines))
+    block = "\n".join(lines) + "\n"
+    write_reconciliation_block(REPORT, today, block)
+    print(block)
     return 0
+
+
+def write_reconciliation_block(report: Path, today: str, block: str) -> None:
+    """幂等写入当日对账块：先移除已存在的当日块（含历史重复），再追加最新一次结果。
+    修复此前每天无条件 append 导致同日重复、且早于晚间数据的过时块留存的问题。"""
+    if report.exists():
+        text = report.read_text(encoding="utf-8")
+        text = re.sub(rf"\n## Agent决策对账 {re.escape(today)}.*?(?=\n## |\Z)", "",
+                      text, flags=re.S)
+        report.write_text(text, encoding="utf-8")
+    with report.open("a", encoding="utf-8") as f:
+        f.write(block)
 
 
 if __name__ == "__main__":
