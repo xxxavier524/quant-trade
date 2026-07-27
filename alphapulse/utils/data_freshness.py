@@ -33,9 +33,20 @@ def index_latest_date(index_csv: Path | None = None) -> str | None:
     return _tail_last_date(index_csv or INDEX_CSV)
 
 
+def list_csvs(data_dir) -> list[Path]:
+    """列 CSV。注意：Path.glob 会静默吞掉 PermissionError（外接盘未授权/未挂载时
+    返回空列表），故此处显式探测一次，让"不可读"与"真的没有数据"可被区分。"""
+    d = Path(data_dir)
+    try:
+        os.scandir(d).close()          # 触发 PermissionError / FileNotFoundError
+    except (PermissionError, FileNotFoundError, NotADirectoryError):
+        raise
+    return list(d.glob("*.csv"))
+
+
 def market_coverage(data_dir, target: str) -> float:
     """已到 target 交易日的个股占比（与 daily_update._coverage 同口径）。"""
-    files = list(Path(data_dir).glob("*.csv"))
+    files = list_csvs(data_dir)
     if not files:
         return 0.0
     n = sum(1 for f in files if (_tail_last_date(f) or "") >= target)
@@ -51,10 +62,21 @@ def check_freshness(data_dir, min_coverage: float = FRESH_MIN_COVERAGE) -> dict:
     """
     target = index_latest_date()
     if not target:
-        return {"ok": False, "target": None, "coverage": None,
+        return {"ok": False, "target": None, "coverage": None, "code": "no_index",
                 "reason": "缺指数基准(data/index/sh000001.csv)，无法确认数据最新——先跑 fetch_index_data"}
+    # 目录不可读/不存在 ≠ 数据陈旧：外接盘未挂载或无访问权限(macOS 可移动卷授权)时
+    # glob 会静默返回空 → 曾被误报成"仅0%数据未最新"，让人误查数据源(2026-07-27)。
+    try:
+        files = list_csvs(data_dir)
+    except (PermissionError, FileNotFoundError, NotADirectoryError) as e:
+        return {"ok": False, "target": target, "coverage": None, "code": "unreadable",
+                "reason": f"数据目录不可读: {data_dir}（外接盘未挂载或无访问权限）— {type(e).__name__}"}
+    if not files:
+        return {"ok": False, "target": target, "coverage": 0.0, "code": "empty",
+                "reason": f"数据目录为空: {data_dir}（挂载点错误？）"}
     cov = market_coverage(data_dir, target)
     ok = cov >= min_coverage
     reason = (f"数据已最新：{cov*100:.0f}% 个股已到基准日 {target}" if ok
               else f"数据未最新：仅 {cov*100:.0f}% 个股到基准日 {target}（<{min_coverage*100:.0f}% 阈值）")
-    return {"ok": ok, "target": target, "coverage": cov, "reason": reason}
+    return {"ok": ok, "target": target, "coverage": cov,
+            "code": "fresh" if ok else "stale", "reason": reason}

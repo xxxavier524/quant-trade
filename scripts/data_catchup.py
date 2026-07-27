@@ -21,6 +21,7 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -39,7 +40,13 @@ INDEX_CSV = PROJECT_ROOT / "data" / "index" / "sh000001.csv"
 DONE_THRESHOLD = 0.90   # 覆盖率达此值视为"当日数据够了"（留停牌股余量）
 SELECT_MIN = 0.75       # 够选股的最低覆盖率（与 daily_update 健康线一致）
 FINAL_HOUR = 22         # 最后一个补齐窗口的小时；此后仍不足才告警
-ATTEMPT_MIN = 35        # 单次 resume 的时间预算（分钟）——+选股≈55min，短于1小时窗口间隔
+# 时间预算（2026-07-27 事故修正）：plist 硬超时 3300s，此前 索引180+续传2700+选股1200
+# =4080s 必然被 SIGTERM。改为自管全局预算：总预算 < 硬超时，且各步按"剩余时间"分配。
+BUDGET_SEC = 3000       # 本次唤醒总预算（< plist 3300s 硬超时，留 300s 余量）
+INDEX_SEC = 180         # 指数刷新
+SELECT_RESERVE_SEC = 1200   # 为选股预留
+SELECT_MIN_SEC = 420    # 剩余不足此值就不启动选股（避免刚跑就被砍），留给下个窗口
+ATTEMPT_MIN = 25        # 单次 resume 的内部软预算（分钟）；到点自存进度退出，下窗续传
 
 
 def _index_latest() -> str | None:
@@ -117,9 +124,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="只算 target/cov/plan，无副作用")
     ap.add_argument("--force-weekend", action="store_true")
+    ap.add_argument("--budget-sec", type=int, default=BUDGET_SEC,
+                    help="本次唤醒总时间预算秒（须小于 plist 硬超时，默认3000）")
     ap.add_argument("--data-dir", default=DATA_DIR)
     args = ap.parse_args()
 
+    deadline = time.monotonic() + args.budget_sec   # 全局预算：各步按剩余时间分配
     now = datetime.now()
     today = now.strftime("%Y-%m-%d")
     data_path = Path(args.data_dir)
@@ -137,7 +147,7 @@ def main() -> int:
         return 2
 
     if not args.dry_run:
-        _run(["scripts/fetch_index_data.py"], timeout=180)  # 刷新指数基准（快）
+        _run(["scripts/fetch_index_data.py"], timeout=INDEX_SEC)  # 刷新指数基准（快）
     target = _index_latest()
     if not target:
         print("无指数基准 sh000001.csv，无法确定目标交易日；跳过（不告警）")
@@ -152,22 +162,40 @@ def main() -> int:
         print("plan:", plan(cov, now.hour, state))
         return 0
 
-    # 未达标 → 静默续传一次（断点续传，--quiet 不推飞书）
+    # 未达标 → 静默续传一次（断点续传，--quiet 不推飞书）。按剩余预算分配，绝不超总预算。
     if cov < DONE_THRESHOLD:
-        rc = _run(["scripts/daily_update.py", "--quiet", "--max-minutes", str(ATTEMPT_MIN)],
-                  timeout=(ATTEMPT_MIN + 10) * 60)
-        state["attempts"] = int(state.get("attempts", 0)) + 1
-        cov = _coverage(data_path, target)  # 重测
-        print(f"续传后覆盖率 {cov*100:.1f}%（daily_update rc={rc}，第{state['attempts']}次）")
+        remain = deadline - time.monotonic()
+        upd_budget = int(max(0, remain - SELECT_RESERVE_SEC))
+        if upd_budget < 120:
+            print(f"剩余预算不足（{remain:.0f}s），本窗不续传，等下个整点")
+        else:
+            soft_min = max(2, min(ATTEMPT_MIN, upd_budget // 60 - 2))  # 软限早于硬杀，保证存进度
+            rc = _run(["scripts/daily_update.py", "--quiet", "--max-minutes", str(soft_min)],
+                      timeout=upd_budget)
+            state["attempts"] = int(state.get("attempts", 0)) + 1
+            cov = _coverage(data_path, target)  # 重测
+            print(f"续传后覆盖率 {cov*100:.1f}%（daily_update rc={rc}，第{state['attempts']}次，"
+                  f"软限{soft_min}min/硬限{upd_budget}s）")
     state["best_cov"] = max(float(state.get("best_cov", 0.0)), cov)
 
     action = plan(cov, now.hour, state)
 
     if action["run_selection"]:
-        sel_rc = _run(["scripts/eod_pipeline.py", "--skip-update", "--push-label", "自愈"],
-                      timeout=1200)
-        state["selection_done"] = True
-        print(f"已触发选股流水线（eod_pipeline --skip-update rc={sel_rc}）")
+        sel_budget = int(deadline - time.monotonic())
+        if sel_budget < SELECT_MIN_SEC:
+            print(f"剩余 {sel_budget}s 不足以完成选股（<{SELECT_MIN_SEC}s），留给下个窗口")
+            action["notify"] = None          # 没跑成就别发"已完成"类通知
+        else:
+            sel_rc = _run(["scripts/eod_pipeline.py", "--skip-update", "--push-label", "自愈"],
+                          timeout=sel_budget)
+            # 以"是否真产出当日选股结果"为准，而非 rc：eod_pipeline 末步 recover_stale
+            # 可能被预算砍掉(rc=124)，但选股/追踪/对账已完成，不应重复整轮。
+            produced = (PROJECT_ROOT / "reports" / f"screen_{target}.csv").exists()
+            state["selection_done"] = produced
+            print(f"选股流水线 rc={sel_rc} 预算{sel_budget}s → screen_{target}.csv "
+                  f"{'已产出' if produced else '未产出(下窗重试)'}")
+            if not produced:
+                action["notify"] = None      # 未产出则不发"完成/部分完成"通知
 
     if action["notify"] == "partial":
         _feishu(f"📊 AlphaPulse 数据自愈: 当日数据覆盖 {cov*100:.0f}%（已尽力续传 "

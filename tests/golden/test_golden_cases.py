@@ -24,9 +24,19 @@ from alphapulse.config.settings import DATA_DIR  # noqa: E402
 
 GOLDEN_DIR = Path(__file__).parent
 
+def _data_unavailable() -> bool:
+    """数据不可用即跳过。注意"目录存在"≠"可读"：外接盘卸载后留下空挂载点，
+    或 macOS 未授权可移动卷时 glob 静默返回空 → 旧的 exists() 守卫不触发，
+    最终 0 个样本除零崩溃（2026-07-27）。故这里要求真的能读到 CSV。"""
+    try:
+        return not any(Path(DATA_DIR).glob("*.csv"))
+    except (PermissionError, FileNotFoundError, NotADirectoryError):
+        return True
+
+
 pytestmark = pytest.mark.skipif(
-    not Path(DATA_DIR).exists(),
-    reason="数据目录未挂载（外接硬盘）",
+    _data_unavailable(),
+    reason="数据目录未挂载/不可读（外接硬盘或权限）",
 )
 
 

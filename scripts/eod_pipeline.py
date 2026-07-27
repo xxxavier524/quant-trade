@@ -17,6 +17,10 @@ from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# 以 `python scripts/eod_pipeline.py` 运行时 sys.path[0]=scripts/（cwd 不入路径），
+# 不插入项目根则 `import alphapulse` 必然 ModuleNotFoundError（2026-07-27 事故：
+# ffd742a 加的新鲜度确认 import 让整条流水线启动即崩，当日选股全部未产出）。
+sys.path.insert(0, str(PROJECT_ROOT))
 PY = str(PROJECT_ROOT / ".venv" / "bin" / "python")
 REPORTS_DIR = PROJECT_ROOT / "reports"
 
