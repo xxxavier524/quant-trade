@@ -4,6 +4,10 @@ A股端到端量化选股系统 — 从数据准备到策略回测到实盘导�
 
 **版本**: v2.0 | **更新**: 2026-05-23 | **覆盖**: 5,229只A股 (2020-2026)
 
+> **v5（2026-08-02 起，分支 `codex/v5`）**：N 型结构信号已因果化（无未来函数）；
+> 胜率唯一主口径 = 追踪库已实现收益（`realized`）；硬闸门关闭会留痕告警而非静默空转。
+> 详见 [progress_log.md](progress_log.md) 与 AGENTS.md。
+
 ---
 
 ## 一、快速入口
@@ -24,9 +28,9 @@ pip install -r requirements.txt  # 首次
 | 运行三个策略回测 | `python scripts/run_backtest.py --strategy ALL --sample 300` |
 | 两阶段AI回测 | `python scripts/run_two_stage_opt.py` |
 | 每日选股报告 | `python scripts/daily_screener.py` |
-| 晚间复盘 | `python scripts/evening_review.py --signals signals.csv` |
+| 晚间复盘 | `python scripts/evening_review.py [--push]`（口径=追踪库实盘 realized） |
 | 风控检查 | `python scripts/risk_monitor.py --positions positions.csv` |
-| QMT下单导出 | `python scripts/export_qmt_csv.py --signals signals.csv` |
+| QMT下单导出 | `python scripts/export_qmt_csv.py --signals screen_*.csv`（⚠️ P1 待修：当前 screen CSV 无 date/signal 列，需先对齐接口） |
 | 案例股检测 | `python scripts/backtest_cases.py` |
 | 运行全因子扫描 | `python scripts/daily_auto_run.py` |
 | 运行全部测试 | `python -m pytest tests/ -v` |

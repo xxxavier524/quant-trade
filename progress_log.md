@@ -615,3 +615,53 @@ update-retry launchd(只跑数据不重跑选股)，与②配合：下午失败�
 - **D3 vnpy**：vnpy_strategies/ 删除（零引用，git可回溯），CLAUDE.md 阶段五/六改自研引擎+walk-forward语义。
 - **D4 K线合并生产AB**（989股×2024-2025，前向收益均在原始价评价）：知行超短 +4.4pp/z=6.79/平均5日收0.72%→1.40% → 接入（settings.KLINE_MERGE_ZHIXING）；砖型图 +1.5pp/z=1.76 未过门槛不接。
 - **顺带修**：策略信号帧索引=输入行标签（非date）——C6 的 sig_brick3 曾因此永远False，已修（500股日抽查命中2次≈0.4%/日）。
+
+---
+
+## v5 P0 — 2026-08-02（分支 codex/v5，基线 v4-fusion@7c1dc31）
+
+**背景**：全目录审查（约42K行）发现三类系统性问题——N 型结构未来函数、
+胜率口径分裂（94.7% 条件胜率 vs 实盘追踪 19.7%）、硬闸门关闭时无人值守静默空转
+近三周（07-16 起零选股产物但 last_run.json 记 ok:true）。538 单测全过，问题在接线/口径。
+
+### P0-1 N 型结构因果化（`n_struct.compute_causal`）
+- 根因：`argrelextrema(order=5)` 判定枢轴需前后 5 根K线 → `needle_washout` 的
+  B→C 回调段标记、`b1_b2_b3` 的 N_STRUCT=0 过滤都在信号日用了未来信息，
+  案例回放命中率系统性虚高。
+- 修复：新增 `compute_causal`——结构只在确认时点公布（C/D 枢轴+order）；
+  phase 2 = 回调确认后的恢复窗口（"回调进行中"在实盘天生不可知，这是诚实语义）；
+  phase 1 不实时存在（需等 C 验证才知是 N 型）。`compute()` 保留但标注废弃（仅兼容）。
+- 消费方：`needle_washout`（删除 `_build_n_structure_context`）、`b1_b2_b3`
+  （改用因果标签，原过滤近乎惰性语义保留）。
+- 对抗测试（152 项）：**截断不变性**——t 日信号不得被追加未来数据改变（旧版必失败）；
+  旧版泄漏演示（A/B/C/D 枢轴标签全部提前公布）。
+
+### P0-2 胜率口径统一为 realized
+- `evening_review` / `daily_auto_run` 夜场报告主数字改为追踪库已实现收益
+  （持有5日/收盘破5%止损/扣往返费≈0.35%），"曾触及+5%"仅作对照。
+- 决策固化：B1B2B3 已证负期望（08-02 周检：留出窗 9 组参数全负，最好 -41.69% 年化），
+  **调参救不了 → 重做信号**；auto_retune 维持"负期望不覆盖参数"守卫。
+
+### P0-3 硬闸门关闭留痕
+- `daily_screener` 闸门关闭写 `reports/gate_closed_<date>.json`（含原因/时间）；
+  闸门重开自动清除当日标记。
+- `eod_pipeline` 读标记 → `last_run.json` 增加 `gated/gate_reason` + "硬闸门(空头区间)"
+  步骤；夜场报告提示"🚧 硬闸门关闭中·不开新仓"。
+
+### 文档同步
+- AGENTS.md / CLAUDE.md：新增 v5 分支说明、因果铁律、realized 主口径、
+  修正过时的 CLI 与调度描述（14:30/15:30 → data_catchup 15:35 链路）。
+- README.md：命令表对齐（evening_review / QMT 待修标注）+ v5 说明。
+
+### 结果与验证
+- 全量测试：**689 passed / 2 skipped**（`test_get_strong_sectors_returns_list` 超时为
+  既有网络依赖问题，东财接口被封且无超时，与本次改动无关）。
+- 对抗检查：新增 156 项测试全过；旧版泄漏演示确认 compute() 确实提前公布枢轴。
+
+### 已知遗留（P1）
+- `knowledge_points.py`（KEY_SUPPORT 支撑价）与 `utils/filters.py`（web/friday 遗留路径）
+  仍调用非因果 `n_struct.compute`——未接每日生产信号，但需在 P1 替换为因果版。
+- QMT 导出链路：`export_qmt_csv.py` 无法消费 `screen_*.csv`（缺 date/signal 列，实测崩溃）。
+- 每日 IC 自动调权闭环断裂（写键/读键/消费键不一致，nightly 为 no-op）。
+- `run_backtest` 静默吞错、short 模式口径、risk_monitor 三个假规则（见审查报告）。
+- 数据停更 07-28（07-29~31 三个工作日 catchup 无记录，机器睡眠/断网待查）。

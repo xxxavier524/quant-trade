@@ -9,8 +9,21 @@
 - 数据源：通达信 `.day` → CSV，主存储于外接盘 `/Volumes/Mac-480g外接/quantan_data/day`（经 `settings.DATA_DIR` 读取，勿硬编码；内置盘 `data/day/` 为迁移期旧副本勿用）
 - 命名空间：`alphapulse.factors`、`alphapulse.strategies`
 - 滑点买0.1%卖0.2%、手续费万2.5最低5元、单票≤20%最多5只
+- 信号因子一律禁止未来函数：枢轴/形态/阶段必须按确认时点公布
+  （N 型结构用 `n_struct.compute_causal`，禁止用带 ±N 前视的 `compute` 生成信号）
+- 胜率唯一主口径 = 追踪库 `realized`（已实现收益，持有5日/破5%止损/扣往返费）；
+  "曾触及+5%"、playbook 序列胜率仅作对照，不得当成功率主数字上报
 - 每次修改代码前 `git commit`
 - 每阶段结束追加 `progress_log.md`
+
+## v5 分支（2026-08-02 起）
+
+- 当前生产/开发分支：`codex/v5`（基线 = 原 `v4-fusion`，tag `v3-stable` 可回退）
+- P0 已完成：N 型结构因果化、胜率口径统一为 realized、硬闸门关闭留痕告警
+- 关键决策：B1B2B3 已证负期望（留出窗全参数组负值，见 daily_auto_report.md），
+  **调参救不了 → 重做信号**；auto_retune 对负期望候选不覆盖参数
+- 已知遗留（P1）：`knowledge_points.py` / `utils/filters.py` 仍调用非因果
+  `n_struct.compute`（未接生产信号）；QMT 导出链路待修；文档/调度口已对齐
 
 ## 模型路由
 
@@ -22,14 +35,22 @@
 ### 每日凌晨 2:00 — 因子/策略/案例全量扫描
 - 触发方式：macOS launchd (`config/com.alphapulse.daily-auto.plist`)
 - 执行脚本：`scripts/daily_auto_run.py`
-- 输出：追加到 `daily_auto_report.md`
+- 输出：飞书夜场报告（追踪库 realized 口径 + 硬闸门状态）；`daily_auto_report.md`
+  由 eod_pipeline 的 agent 决策对账与周日 auto_retune 追加
 - 安装 launchd：`launchctl load ~/Library/LaunchAgents/com.alphapulse.daily-auto.plist`
 
-### 每日 14:30 — 盘中选股
-- 执行脚本：`scripts/daily_screener.py --output signals_$(date +%Y-%m-%d).csv`
+### 每日收盘后（15:35 起每小时）— 数据自愈 + 选股流水线
+- 触发方式：macOS launchd (`config/com.alphapulse.data-catchup.plist`，15:35~22:30)
+- 链路：data_catchup 每小时续传至覆盖率达标 → `scripts/eod_pipeline.py`
+  （指数更新 → 数据新鲜度铁律 → 全市场选股 → agent 研判 → 信号追踪 → 决策对账 → 卡死股恢复）
+- 全市场选股：`scripts/daily_screener.py [--date YYYY-MM-DD] [--top N] [--no-gate]`
+  → 输出 `reports/screen_YYYY-MM-DD.csv` + `reports/daily_report_*.md`
+- 硬闸门关闭时：写 `reports/gate_closed_<date>.json`，流水线记录 `gated:true`，
+  夜场报告提示"不开新仓"（禁止静默空转）
 
-### 每日 15:30 — 晚间复盘
-- 执行脚本：`scripts/evening_review.py --signals signals_$(date +%Y-%m-%d).csv`
+### 晚间复盘（手动/按需）
+- 执行脚本：`scripts/evening_review.py [--push] [--window 30] [--output 文件]`
+- 口径：追踪库 realized 为主（已实现胜率/均值），"曾触及+5%"仅对照
 
 ### 风控 — 按需
 - 执行脚本：`scripts/risk_monitor.py --positions positions.csv`
