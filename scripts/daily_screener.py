@@ -13,6 +13,7 @@
 """
 
 import argparse
+import json
 import logging
 import sys
 import time
@@ -122,7 +123,20 @@ def run(date: str | None, top_n: int, data_dir: Path,
                 logger.info(f"  闸门 | {m}")
             if not gates_ok:
                 logger.warning("硬闸门关闭：今日不开新仓（评分链跳过）。加 --no-gate 可强制出票。")
+                # v5 P0-3（2026-08-02）：闸门关闭必须留痕。此前返回空表 + rc=0，
+                # 无人值守在空头区间静默空转近三周而 last_run.json 记 ok:true。
+                # marker 供 eod_pipeline 记录 gated、夜间报告提示"不开新仓"。
+                REPORTS_DIR.mkdir(exist_ok=True)
+                gate_marker = REPORTS_DIR / f"gate_closed_{gate_date}.json"
+                gate_marker.write_text(json.dumps({
+                    "date": gate_date,
+                    "gates": gate_msgs,
+                    "closed_at": datetime.now().isoformat(timespec="seconds"),
+                }, ensure_ascii=False, indent=2))
                 return pd.DataFrame()
+            stale = REPORTS_DIR / f"gate_closed_{gate_date}.json"
+            if stale.exists():
+                stale.unlink()   # 闸门重开：清掉当日标记，避免夜间报告引用过期状态
         except Exception as e:
             logger.warning(f"硬闸门评估异常（放行）: {e}")
 

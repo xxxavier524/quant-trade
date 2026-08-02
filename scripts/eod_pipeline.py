@@ -39,6 +39,18 @@ def run_step(name: str, args: list[str], timeout: int) -> dict:
     return {"step": name, "ok": ok, "rc": rc, "seconds": round(dur)}
 
 
+def _read_gate_marker(target: str) -> tuple[bool, list[str]]:
+    """读当日硬闸门关闭标记（v5 P0-3）。返回 (是否关闭, 闸门原因列表)。"""
+    marker = REPORTS_DIR / f"gate_closed_{target}.json"
+    if not marker.exists():
+        return False, []
+    try:
+        msgs = list(json.loads(marker.read_text(encoding="utf-8")).get("gates", []))
+    except Exception:
+        msgs = []
+    return True, msgs
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--max-update-min", type=int, default=30)
@@ -90,13 +102,21 @@ def main() -> int:
         print("🛑 数据未最新，跳过下游（选股/研判/追踪/对账）——加 --allow-stale 可强制。", flush=True)
         steps.append({"step": "下游操作", "ok": True, "rc": 0, "seconds": 0,
                       "skipped": f"数据未最新: {fr['reason']}"})
+
+    # v5 P0-3（2026-08-02）：硬闸门关闭留痕。此前 daily_screener 0 秒返回空表 rc=0，
+    # 流水线记 ok:true 而实际连续数周零产物——空头区间"不开新仓"是设计，但必须可见可查。
+    gated, gate_msgs = _read_gate_marker(fr.get("target") or "")
+    if gated:
+        steps.append({"step": "硬闸门(空头区间)", "ok": True, "rc": 0, "seconds": 0,
+                      "note": " | ".join(gate_msgs) or "上证MACD零轴/大盘S1关闭 → 今日不开新仓"})
+
     # 卡死股恢复：除权导致落后的股票慢速啃一批（H4）。始终跑——它正是修复落后数据的手段。
     steps.append(run_step("卡死股恢复",
                           ["scripts/recover_stale.py", "--limit", "200"], timeout=900))
 
     REPORTS_DIR.mkdir(exist_ok=True)
     _noncritical = {"信号追踪", "agent决策对账", "指数更新", "卡死股恢复",
-                    "agent团队研判", "下游操作"}
+                    "agent团队研判", "下游操作", "硬闸门(空头区间)"}
     try:
         git_rev = subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"], cwd=str(PROJECT_ROOT),
@@ -107,6 +127,8 @@ def main() -> int:
         "finished_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "git_rev": git_rev,   # 部署漂移排查（H2）：记录实际运行的代码版本
         "data_fresh": fr["ok"], "target": fr.get("target"),
+        "gated": gated,
+        "gate_reason": (" | ".join(gate_msgs) if gated else None),
         "coverage": round(fr["coverage"], 3) if fr.get("coverage") is not None else None,
         "steps": steps,
         "ok": all(s["ok"] for s in steps if s["step"] not in _noncritical),

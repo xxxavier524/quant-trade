@@ -9,6 +9,7 @@
    scripts/run_backtest.py 的组合级评估后再启用）
 3. 因子权重 IC 更新保留（FactorWeighter，无 IC 历史时不写权重）
 """
+import json
 import sys
 import time
 import logging
@@ -43,18 +44,36 @@ def run_factor_update():
     fw.save()
 
 
-def build_nightly_summary() -> str:
-    """夜场报告 = 追踪库真实成功率（与15:30复盘同源，凌晨视角再确认一次）。"""
+def build_nightly_summary(reports_dir: Path | None = None) -> str:
+    """夜场报告 = 追踪库真实成功率（与15:30复盘同源，凌晨视角再确认一次）。
+
+    reports_dir 仅测试注入用（默认项目 reports/）。
+    """
+    reports_dir = reports_dir or (Path(__file__).resolve().parent.parent / "reports")
     from alphapulse.tracking import signal_tracker as tk
     stats = tk.success_stats(window_days=30)
     lines = [f"🔬 夜场报告 ({datetime.now():%Y-%m-%d}) — 真实追踪数据",
-             f"近30日选股成功率（{tk.HORIZON_DAYS}日内+{tk.SUCCESS_PCT:.0f}%脱离成本区）:"]
+             f"近30日选股已实现胜率（唯一主口径：持有{tk.HORIZON_DAYS}日/破{abs(tk.STOP_DROP_PCT):.0f}%止损/"
+             f"扣费≈{tk.ROUND_TRIP_COST_PCT:.2f}%）:"]
     for fam, s in stats.items():
-        if s["resolved"] == 0 and s["tracking"] == 0:
+        if s["resolved"] == 0 and s["tracking"] == 0 and s["n_realized"] == 0:
             continue
-        rate = f"{s['rate']}%" if s["rate"] is not None else "—"
-        lines.append(f"· {fam}: {s['success']}/{s['resolved']}={rate}"
-                     f" | 跟踪中{s['tracking']} 止踪{s['stopped']}")
+        rw = f"{s['realized_win']}%" if s["realized_win"] is not None else "—"
+        rm = f"{s['realized_mean']:+.2f}%" if s["realized_mean"] is not None else "—"
+        touch = f"{s['touch_rate']}%" if s["touch_rate"] is not None else "—"
+        lines.append(f"· {fam}: 实盘{s['n_realized']}单={rw} 均值{rm}"
+                     f" | 曾触及+5%={touch} 跟踪中{s['tracking']} 止踪{s['stopped']}")
+
+    # v5 P0-3：硬闸门关闭必须提示（此前选股静默返回空，无人值守空转无告警）
+    try:
+        gate_files = sorted(reports_dir.glob("gate_closed_*.json"))
+        if gate_files:
+            latest = json.loads(gate_files[-1].read_text(encoding="utf-8"))
+            gdate = latest.get("date", "?")
+            gmsgs = "；".join(latest.get("gates", [])) or "上证MACD零轴/大盘S1关闭"
+            lines.insert(1, f"🚧 硬闸门关闭中（自 {gdate}）：{gmsgs} → 今日不开新仓")
+    except Exception as e:
+        logger.warning(f"闸门标记读取失败: {e}")
     rep = tk.weekly_report()
     if not rep.empty:
         lines.append(f"近一周信号 {len(rep)} 条，连涨≥2天 {int((rep['streak'] >= 2).sum())} 条")

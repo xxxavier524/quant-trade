@@ -37,15 +37,17 @@ def main():
     text = tk.nightly_review_text()
 
     md = [f"# 晚间复盘（近{args.window}日）\n",
-          f"成功口径：{tk.HORIZON_DAYS}日内涨超+{tk.SUCCESS_PCT:.0f}%脱离成本区；"
-          f"累计跌超{tk.STOP_DROP_PCT:.0f}%停止跟踪\n",
-          "| 战法 | 已出结果 | 成功 | 成功率 | 平均达标日 | 跟踪中 | 大跌止踪 |",
+          f"实盘口径（唯一主口径，v5）：持有{tk.HORIZON_DAYS}个交易日收盘退出，"
+          f"期间收盘破{abs(tk.STOP_DROP_PCT):.0f}%即止损，扣往返成本≈{tk.ROUND_TRIP_COST_PCT:.2f}%；"
+          f"'曾触及+5%'仅作对照（路径最大值，偏乐观）\n",
+          "| 战法 | 已结算 | 实盘胜率 | 实盘均值 | 曾触及+5% | 跟踪中 | 大跌止踪 |",
           "|---|---|---|---|---|---|---|"]
     for fam, s in stats.items():
-        rate = f"{s['rate']}%" if s["rate"] is not None else "—"
-        avg = s["avg_days"] if s["avg_days"] else "—"
-        md.append(f"| {fam} | {s['resolved']} | {s['success']} | {rate} "
-                  f"| {avg} | {s['tracking']} | {s['stopped']} |")
+        rw = f"{s['realized_win']}%" if s["realized_win"] is not None else "—"
+        rm = f"{s['realized_mean']:+.2f}%" if s["realized_mean"] is not None else "—"
+        touch = f"{s['touch_rate']}%" if s["touch_rate"] is not None else "—"
+        md.append(f"| {fam} | {s['n_realized']} | {rw} | {rm} | {touch} "
+                  f"| {s['tracking']} | {s['stopped']} |")
     report = "\n".join(md)
     print(report)
     print("\n--- 飞书文本预览 ---\n" + text)
