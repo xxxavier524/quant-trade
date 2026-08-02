@@ -534,9 +534,16 @@ def generate_signals(
     bull_bear_np = bull_bear_line.values
     consolidation_np = consolidation.values
 
-    # 红/绿砖 bool 数组
-    is_red_np = brick_np > 0
-    is_green_np = brick_np == 0
+    # 红/绿砖 bool 数组（2026-07-28 修正 H5）
+    # 旧定义按"水平"取: is_red=brick>0 / is_green=brick==0。但 brick=IF(VAR6A>4,VAR6A-4,0)
+    # 使 brick==0 仅占约0.3%的交易日 → 绿→红转换几乎不存在（实测298只样本:
+    # N_JUMP 仅2条、CONTINUATION 仅1条，三子类型死掉两个）。
+    # 改为与 brick_ultra.compute 一致的"方向"定义: 砖值上升=红、下降=绿。
+    prev_np = np.empty_like(brick_np)
+    prev_np[0] = np.nan
+    prev_np[1:] = brick_np[:-1]
+    is_red_np = brick_np > prev_np      # NaN 比较为 False，首日自然不触发
+    is_green_np = brick_np < prev_np
 
     # 放量阳线
     high_vol_bullish_np = (

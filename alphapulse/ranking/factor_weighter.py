@@ -192,8 +192,11 @@ class FactorWeighter:
             ic_ir = compute_ic_ir(ic_list)
             boost = np.clip(1.0 + ic_ir * 0.5, 0.8, 1.5)
 
-            # 3. Raw weight: use abs of decay IC as base (we weight on magnitude)
-            raw_w = abs(decay_ic) * boost
+            # 3. Raw weight: 用"有符号"IC，负IC截零（2026-07-28 修正）。
+            #    此前用 abs(decay_ic)：一个稳定反向预测（IC 显著为负）的因子会拿到
+            #    与同等强度正向因子一样大的正权重，等于把反指当正指用。
+            #    与 scripts/ic_weight_tuning.py 的 clip(lower=0) 口径保持一致。
+            raw_w = max(0.0, decay_ic) * boost
             raw[fname] = raw_w
 
         total = sum(raw.values())
