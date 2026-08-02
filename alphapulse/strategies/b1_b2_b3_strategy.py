@@ -2,14 +2,14 @@
 
 三阶段递进逻辑：
   B1（底部挖掘）: b1_formula (80%权重) + volume_b1 (20%增强)
-                 过滤: N_STRUCT=0 + 近10日振幅<15%
+                 过滤: N_STRUCT=0（因果版标签，近乎惰性）+ 近10日振幅<15%
   B2（确认信号）: B1后5日内，阳线涨幅>3% + 成交量>前日2倍 + 收盘>白线
   B3（锁仓信号）: B2后3日内，阳线缩量<前日0.7 + 收盘>前日 + 最低>=B2收盘
 
 核心原则：
   - B1选股公式(b1_formula.py)是决定性因素，占80%权重
   - 量能B1(volume_b1.py)作为增强条件，叠加时置信度从0.6提升到0.8
-  - N_STRUCT=0确保无已有N型上涨结构（避免追高）
+  - N_STRUCT=0（因果版）：枢轴日标签按确认日公布，避免追高语义的因果近似
   - 近10日振幅<15%排除剧烈波动股
 
 因子依赖：
@@ -23,7 +23,7 @@ import numpy as np
 from alphapulse.factors.b1_formula import compute as b1_compute
 from alphapulse.factors.volume_b1 import compute as vol_b1_compute
 from alphapulse.factors.zhixing_trend import compute_short_trend
-from alphapulse.factors.n_struct import compute as n_struct_compute
+from alphapulse.factors.n_struct import compute_causal
 from alphapulse.factors.violent_kline import compute as violent_kline_compute
 
 
@@ -88,7 +88,7 @@ def generate_signals(
     B1 入场逻辑（b1_formula 80%权重 + volume_b1 20%权重）:
       - 主信号: b1_formula.compute() 触发（cond1~cond6全部满足，决定性因素）
       - 增强信号: volume_b1.compute() 同时触发 → 置信度 +0.2
-      - 过滤条件: N_STRUCT=0（不能已有N型上涨结构）
+      - 过滤条件: N_STRUCT=0（因果版：枢轴标签按确认日公布，详见代码注释）
       - 过滤条件: 近10日振幅<15%（排除剧烈波动）
       - 置信度: b1_formula单独=0.6，量能B1叠加=0.8
 
@@ -147,8 +147,13 @@ def generate_signals(
     b1_vol = vol_b1_compute(data)
 
     # -- 过滤条件1: N_STRUCT = 0（不能已有N型上涨结构）--
-    ns_label = n_struct_compute(data)
-    no_n_struct = ns_label.isna()
+    # v5 因果化（2026-08-02）：旧版 ns_label = n_struct.compute(data) 的枢轴标签
+    # 需要未来 min_leg_len 根K线确认——在信号日使用它是未来函数。compute_causal
+    # 把标签放在"枢轴确认日"，此处 isna() 只反映 ≤t 已确认的枢轴。
+    # 注意：该过滤是"当日非枢轴日"的因果近似，天然近乎惰性；真正语义
+    # "已走完N型再上升段则禁买（避免追高）"留待 v5 策略重做时用 phase3 窗口验证。
+    ns_ctx = compute_causal(data)
+    no_n_struct = ns_ctx["label"].isna()
 
     # -- 过滤条件2: 近10日振幅 < 15%（排除剧烈波动）--
     amp_10d = (high.rolling(10).max() / low.rolling(10).min() - 1)

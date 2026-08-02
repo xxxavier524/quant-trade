@@ -63,70 +63,6 @@ def _price_position_in_range(
     return position.fillna(0.5)
 
 
-def _build_n_structure_context(
-    ns_labels: pd.Series,
-    high: pd.Series,
-    low: pd.Series,
-) -> tuple:
-    """从n_struct的A/B/C/D标签构建每根bar的N型上下文。
-
-    遍历所有A-B-C序列，为每根bar标记：
-      - phase: 1=上升段(A→B), 2=回调段(B→C=T1→T2), 3=再上升段(C→D), 0=无
-      - a_price: 该N型结构中A点的价格
-      - b_price: 该N型结构中B点的价格
-
-    Returns:
-        (phase, a_price, b_price) 三个 pd.Series
-    """
-    n = len(ns_labels)
-    phase = pd.Series(0, index=ns_labels.index, dtype=int)
-    a_price = pd.Series(np.nan, index=ns_labels.index, dtype=float)
-    b_price = pd.Series(np.nan, index=ns_labels.index, dtype=float)
-
-    # 收集所有有标签的枢轴点
-    pivots = []
-    for i in range(n):
-        lbl = ns_labels.iloc[i]
-        if isinstance(lbl, str) and lbl in ("A", "B", "C", "D"):
-            pivots.append((i, lbl))
-
-    if len(pivots) < 3:
-        return phase, a_price, b_price
-
-    # 遍历A-B-C三元组，标记各阶段
-    for j in range(len(pivots) - 2):
-        i1, l1 = pivots[j]
-        i2, l2 = pivots[j + 1]
-        i3, l3 = pivots[j + 2]
-
-        if l1 != "A" or l2 != "B" or l3 != "C":
-            continue
-
-        b_val = high.iloc[i2]
-        a_val = low.iloc[i1]
-
-        # 上升段: A → B (含A和B)
-        phase.iloc[i1 : i2 + 1] = 1
-        a_price.iloc[i1 : i2 + 1] = a_val
-        b_price.iloc[i1 : i2 + 1] = b_val
-
-        # 回调段: B之后 → C (T1→T2，核心关注区域)
-        phase.iloc[i2 + 1 : i3 + 1] = 2
-        a_price.iloc[i2 + 1 : i3 + 1] = a_val
-        b_price.iloc[i2 + 1 : i3 + 1] = b_val
-
-        # 再上升段: C之后 → D (如果存在)
-        for k in range(j + 3, len(pivots)):
-            ik, lk = pivots[k]
-            if lk == "D":
-                phase.iloc[i3 + 1 : ik + 1] = 3
-                a_price.iloc[i3 + 1 : ik + 1] = a_val
-                b_price.iloc[i3 + 1 : ik + 1] = b_val
-                break
-
-    return phase, a_price, b_price
-
-
 # ============================================================================
 # 主信号生成函数
 # ============================================================================
@@ -198,21 +134,16 @@ def generate_signals(
         b1_recent_60d = pd.Series(True, index=idx)
 
     # ========================================================================
-    # 前提条件 P2: N型结构触发
+    # 前提条件 P2/P3: N型结构触发 + T1→T2回调阶段上下文
+    # v5 因果版（2026-08-02）：旧版 _build_n_structure_context 用未来确认的
+    # C/D 枢轴标记回调段 = 未来函数，命中率系统性虚高。compute_causal 把阶段
+    # 按"确认时点"（枢轴日+min_leg_len）对齐，只有 ≤t 的信息可见。
     # ========================================================================
-    ns_labels = n_struct.compute(data)
-    has_any_n_struct = ns_labels.notna().any()
-    ns_triggered = pd.Series(False, index=idx)
-    if has_any_n_struct:
-        first_ns = ns_labels.first_valid_index()
-        if first_ns is not None:
-            ns_triggered = pd.Series(idx >= first_ns, index=idx)
-
-    # ========================================================================
-    # 前提条件 P3: 当前在N型T1→T2回调阶段 + AB价格上下文
-    # ========================================================================
-    n_phase, a_price_ctx, b_price_ctx = _build_n_structure_context(ns_labels, high, low)
-    in_pullback = n_phase == 2  # phase=2 即 B→C 回调段
+    ns_ctx = n_struct.compute_causal(data)
+    n_phase = ns_ctx["phase"]
+    a_price_ctx = ns_ctx["a_price"]
+    b_price_ctx = ns_ctx["b_price"]
+    in_pullback = n_phase == 2  # phase=2 即 B→C 回调段（C 确认后才可见）
 
     # ========================================================================
     # 入场条件 C1: 长下影 — 下影线长度 > 实体长度 × shadow_mult
