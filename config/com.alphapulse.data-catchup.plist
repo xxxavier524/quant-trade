@@ -10,7 +10,10 @@
          baostock 在跑批时段间歇失败→单次常只覆盖14-23%→旧的两次定时任务每天都 rc=1 告警。
          改为收盘后每小时唤醒 data_catchup.py：断点续传直到当日覆盖率达标(静默,不推飞书)，
          达标即选一次股(选股自身推送)，仅在最后窗口(22:30)仍不足才推一次告警。
-         窗口 15:35/16:30/…/22:30 覆盖 K 线发布窗口(约18:00-19:00)前后，直到晚间数据齐。 -->
+         窗口 15:35/16:30/…/22:30 覆盖 K 线发布窗口(约18:00-19:00)前后，直到晚间数据齐。
+         2026-08-02 事故复盘：07-28 22:50 后整机断电至 08-02 19:02，3 个工作日（07-29~31）
+         全部漏更——StartCalendarInterval 错过的窗口不会补跑。RunAtLoad=true 使每次
+         开机/登录立即触发一次自愈（周末守卫照常跳过），配合 data_catchup 的多日断点续传。 -->
     <key>ProgramArguments</key>
     <array>
         <string>/Users/qiushixuan/cc/quantan trade/.venv/bin/python</string>
@@ -50,7 +53,7 @@
     <string>/Users/qiushixuan/cc/quantan trade/logs/data_catchup_stderr.log</string>
 
     <key>RunAtLoad</key>
-    <false/>
+    <true/>
 
     <key>KeepAlive</key>
     <false/>
