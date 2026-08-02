@@ -139,3 +139,8 @@ def test_screen_optimize_smoke(tmp_path, monkeypatch):
         sys.argv = old
     # 无有效窗（窗口内信号不足）也属于正常退出；关键是流程不崩
     assert code in (0, 1)
+    # 回归：链式回测成功率是百分数，报告里不得出现 ×100 后的荒谬值（曾输出 2406%）
+    report = (PROJECT_ROOT / "reports" / "screen_optimize_NEEDLE_WASHOUT.md")
+    if report.exists():
+        text = report.read_text(encoding="utf-8")
+        assert "2406" not in text, "链式成功率被错误地乘了100"

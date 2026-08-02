@@ -211,7 +211,8 @@ def main() -> int:
     md += ["\n## 链式流程回测（每窗只用之前窗口信息选参）\n",
            "| 验证窗 | 样本外成功率% | 信号数 | 当时选中参数 |", "|---|---|---|---|"]
     for c in chain:
-        oos = f"{c['oos']*100:.1f}" if c["oos"] is not None else "—"
+        # chain_selection 的 oos 来自 evaluate_strategy（已是百分数），不要再乘 100
+        oos = f"{c['oos']:.1f}" if c["oos"] is not None else "—"
         md.append(f"| {c['window']} | {oos} | {c['n']} | `{c['chosen'] or '—'}` |")
     out_md = PROJECT_ROOT / "reports" / f"screen_optimize_{args.strategy}.md"
     out_md.parent.mkdir(exist_ok=True)
