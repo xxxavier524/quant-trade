@@ -20,10 +20,41 @@ from pydantic import BaseModel
 import uvicorn
 
 from alphapulse.factors.factor_registry import FACTOR_REGISTRY, compute_factor
-from alphapulse.config.settings import DATA_DIR, INITIAL_CAPITAL
+from alphapulse.config.settings import DATA_DIR
 from alphapulse.utils.filters import filter_universe
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def load_stocks(data_dir: str | Path, min_days: int = 200) -> dict[str, pd.DataFrame]:
+    """本地日线加载器（v5 2026-08-02：run_backtest 已移除，内联替代）。"""
+    stocks = {}
+    for f in sorted(Path(data_dir).glob("*.csv")):
+        try:
+            df = pd.read_csv(f, dtype={"date": str})
+            if len(df) >= min_days:
+                stocks[f.stem] = df
+        except Exception:
+            continue
+    return stocks
+
+
+def _screen_metrics(stocks: dict, signal_fn, horizon: int = 5,
+                    success_pct: float = 5.0) -> dict:
+    """纯选股成功率评估（v5：替代原交易回测引擎，见 alphapulse.screening）。"""
+    from alphapulse.screening.evaluator import evaluate_strategy, signal_dates_of
+    closes_map = {s: d.set_index("date")["close"].astype(float)
+                  for s, d in stocks.items()}
+    dates_by_symbol: dict[str, list[str]] = {}
+    for sym, df in stocks.items():
+        try:
+            dates = signal_dates_of(signal_fn(df, symbol=sym), df)
+            if dates:
+                dates_by_symbol[sym] = dates
+        except Exception:
+            continue
+    return evaluate_strategy(dates_by_symbol, closes_map, horizon, success_pct)
+
 
 app = FastAPI(title="AlphaPulse-A", version="2.1")
 
@@ -100,8 +131,6 @@ def api_screen(
     strategies: str = Query(None, description="Comma-separated strategy names"),
 ):
     """Run daily screener with full filtering and strategy selection."""
-    from scripts.run_backtest import load_stocks
-
     data_path = Path(DATA_DIR)
     if not data_path.exists():
         return {"error": f"Data dir not found: {DATA_DIR}"}
@@ -250,8 +279,6 @@ def api_backtest(
     sample: int = Query(100, ge=20, le=500),
 ):
     """Run quick backtest on sampled stocks."""
-    from scripts.run_backtest import BacktestEngine, load_stocks
-
     strat_fn = _get_strategy_fn(strategy)
     if not strat_fn:
         return {"error": f"Unknown strategy: {strategy}"}
@@ -263,13 +290,13 @@ def api_backtest(
         random.seed(42)
         stocks = {k: stocks[k] for k in random.sample(list(stocks.keys()), sample)}
 
-    engine = BacktestEngine(initial_capital=INITIAL_CAPITAL)
-    bt_results = engine.run(stocks, strat_fn, "2022-01-01", str(date.today()))
+    bt_results = _screen_metrics(stocks, strat_fn)
 
     return {
         "strategy": strategy,
         "n_stocks": len(stocks),
         "metrics": bt_results,
+        "metric": "选股机会命中（5日内收盘≥+5%，无交易模拟）",
     }
 
 
@@ -280,8 +307,6 @@ def api_factor_backtest(
     sample: int = Query(500, ge=50, le=1000),
 ):
     """Run quick backtest for a single factor (or NLP-generated factor)."""
-    from scripts.run_backtest import BacktestEngine, load_stocks
-
     data_path = Path(DATA_DIR)
     stocks = load_stocks(str(data_path), min_days=365)
     stocks = filter_universe(stocks)
@@ -327,13 +352,13 @@ def api_factor_backtest(
             return pd.DataFrame(columns=["symbol", "date", "signal", "strategy", "factor_snapshot"])
         return pd.DataFrame(results).set_index("date").sort_index()
 
-    engine = BacktestEngine(initial_capital=INITIAL_CAPITAL)
-    bt_results = engine.run(stocks, factor_signal_fn, "2022-01-01", str(date.today()))
+    bt_results = _screen_metrics(stocks, factor_signal_fn)
 
     return {
         "factor_name": factor_name,
         "n_stocks": len(stocks),
         "metrics": bt_results,
+        "metric": "选股机会命中（5日内收盘≥+5%，无交易模拟）",
     }
 
 
@@ -391,8 +416,6 @@ def api_nlp_factor(req: NLPFactorRequest):
 
     # Run backtest on 500 stocks
     try:
-        from scripts.run_backtest import BacktestEngine, load_stocks
-
         data_path = Path(DATA_DIR)
         stocks = load_stocks(str(data_path), min_days=365)
         stocks = filter_universe(stocks)
@@ -427,8 +450,7 @@ def api_nlp_factor(req: NLPFactorRequest):
                 return pd.DataFrame(columns=["symbol", "date", "signal", "strategy", "factor_snapshot"])
             return pd.DataFrame(results).set_index("date").sort_index()
 
-        engine = BacktestEngine(initial_capital=INITIAL_CAPITAL)
-        bt_results = engine.run(stocks, factor_signal_fn, "2022-01-01", str(date.today()))
+        bt_results = _screen_metrics(stocks, factor_signal_fn)
     except Exception as e:
         bt_results = {"error": str(e)}
 
@@ -581,7 +603,6 @@ def api_url_factor(req: URLFactorRequest):
                 }
 
                 try:
-                    from scripts.run_backtest import BacktestEngine, load_stocks
                     data_path = Path(DATA_DIR)
                     stocks = load_stocks(str(data_path), min_days=365)
                     stocks = filter_universe(stocks)
@@ -614,8 +635,7 @@ def api_url_factor(req: URLFactorRequest):
                             return pd.DataFrame(columns=["symbol", "date", "signal", "strategy", "factor_snapshot"])
                         return pd.DataFrame(results).set_index("date").sort_index()
 
-                    engine = BacktestEngine(initial_capital=INITIAL_CAPITAL)
-                    backtest_results = engine.run(stocks, factor_signal_fn, "2022-01-01", str(date.today()))
+                    backtest_results = _screen_metrics(stocks, factor_signal_fn)
                 except Exception as e:
                     backtest_results = {"error": str(e)}
         except Exception:
@@ -645,7 +665,6 @@ def api_cases():
     cases["symbol"] = cases["symbol"].astype(str).str.zfill(6)
     case_symbols = set(cases["symbol"].tolist())
 
-    from scripts.run_backtest import load_stocks
     stocks = load_stocks(str(Path(DATA_DIR)), min_days=200)
     case_stocks = {s: stocks[s] for s in case_symbols if s in stocks}
     missing = sorted(case_symbols - set(case_stocks.keys()))

@@ -704,3 +704,49 @@ update-retry launchd(只跑数据不重跑选股)，与②配合：下午失败�
 ### 验证
 - 新增 14 项 P1 测试全过；全量套件回归通过（693+14，网络依赖测试仍 deselect）。
 - 后台补数进行中（done_index 进度可查 `logs/update_progress.json`）。
+
+## v5 大重构 — 2026-08-02（纯选股版）
+
+**用户决策**：去掉全部量化交易部分，只保留选股；从第一性原理构建
+"仅针对选股成功率的回测+优化系统"。
+
+### B1B2B3 原理溯源（结论：来自原始策略体系）
+- `docs/trading_system.md` §2 战法一明确记载（用户口述体系）：
+  B1 = 形态与资金共振的底部买点（B1 公式 1.1/1.2）→ B2 = B1 后的**放量阳线**
+  确认加速 → B3 = B2 后的**缩量阳线无明显破位**（主力锁仓，确定性更高）。
+- 因此 B1B2B3 不是凭空发明的，但旧实现混入了交易模拟（等 B2 期间止损、
+  持有期退出），其"94.7% 序列胜率"是条件胜率，已随交易引擎下线；
+  v5 中 B1/B2/B3 退化为**纯选股确认链**（信号分级，不模拟持有）。
+
+### 交易侧移除清单（git 历史可回溯）
+- 模块：`alphapulse/backtest/{portfolio_eval,short_term_bt,bt_storage}.py`、
+  `alphapulse/risk/`（position_manager）、`alphapulse/strategies/playbook_engine.py`、
+  `alphapulse/agent_team/risk.py`
+- 脚本：run_backtest / risk_monitor / export_qmt_csv / run_playbook / hold_matrix /
+  grid_search_stop / backtest_agent_team / auto_retune / run_two_stage_opt /
+  backtest_cases{,_v2,_dates} / grid_search_b1b2b3
+- 定时任务：weekly-retune（auto_retune）已 unload 并移出 LaunchAgents
+- 测试：test_position_manager / test_portfolio_eval / test_risk_monitor_discipline /
+  test_v3_backtest / test_auto_retune_gate / test_v5_p1_batch（交易部分）
+- 依赖修补：start_web 三个回测 API → 纯选股成功率；pattern_model 训练标签 =
+  选股机会命中（原 PLAYBOOKS 交易标签）；friday_screener/grid_search_brick_types
+  内联加载器；agent_team 移除风控层
+
+### 新系统：纯选股成功率回测 + 优化（第一性原理）
+- 规格文档：`docs/v5_screen_system.md`
+- **主口径 = 机会命中**：信号日收盘后 H（默认5）日内任一收盘 ≥ +5%；
+  纯涨跌判断，无交易模拟
+- **随机基线**：同信号日全体股票命中率；超额 ≤0 的策略无选股价值，
+  优化默认拒绝写入 lift < 3pp 的参数
+- 因果门禁：screen_bt 抽样截断不变性；右删失处理；--include-delisted 修正幸存者偏差
+- 组件：`alphapulse/screening/{evaluator,strategies}.py` + `scripts/screen_bt.py`
+  （全策略成功率报告）+ `scripts/screen_optimize.py`（walk-forward 稳健分+
+  链式回测+基线门槛→best_params.json 带 provenance）
+- 覆盖 10 策略：B1_FORMULA / B1_B2_B3 / BRICK_THREE_TYPES / NEEDLE_WASHOUT /
+  BRICK_ULTRA / NEEDLE / B1_ENHANCED / ZG_B1_BRICK / VOLUME_B1 / ZHIXING_ULTRA
+
+### 验证
+- 全量测试 **631 passed / 2 skipped**（网络依赖测试继续 deselect）
+- 新增 10 项新系统测试（口径/基线/样本门槛/右删失/注册表/CLI 端到端）
+- 文档：AGENTS/CLAUDE/README 全部改为纯选股体系；里程碑改为成功率口径
+- 数据补数仍在后台进行（约 1/4 完成，见 logs/update_progress.json）

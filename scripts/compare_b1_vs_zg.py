@@ -164,18 +164,26 @@ def _zg_v2(data, symbol="", **params):
 
 
 def portfolio_backtest(stocks, start, end) -> dict:
-    from run_backtest import BacktestEngine
+    """v5：交易引擎已移除，改为纯选股成功率评估（见 alphapulse.screening）。"""
+    from alphapulse.screening.evaluator import evaluate_strategy, signal_dates_of
 
     results = {}
     for name, fn in [("B1_FORMULA", b1_signals),
                      ("ZG_B1_BRICK", zg_b1_brick.generate_signals),
                      ("ZG仅第2砖", _zg_pos2_only),
                      ("ZG_v2(2砖∧DIF>0)", _zg_v2)]:
-        logger.info(f"组合级回测: {name}")
-        engine = BacktestEngine()
-        r = engine.run(stocks, fn, start, end)
-        r["n_trades_buy"] = sum(1 for t in engine.trades if t["direction"] == "BUY")
-        results[name] = r
+        logger.info(f"选股成功率评估: {name}")
+        closes_map = {s: d.set_index("date")["close"].astype(float)
+                      for s, d in stocks.items()}
+        dates_by_symbol: dict[str, list[str]] = {}
+        for sym, df in stocks.items():
+            try:
+                dates = signal_dates_of(fn(df, symbol=sym), df)
+                if dates:
+                    dates_by_symbol[sym] = dates
+            except Exception:
+                continue
+        results[name] = evaluate_strategy(dates_by_symbol, closes_map)
     return results
 
 
@@ -239,13 +247,11 @@ def build_report(ev: pd.DataFrame, port: dict, args, n_stocks: int) -> str:
         cells += [f"{s.mean():+.2f}", f"{(s > 0).mean() * 100:.1f}"] if len(s) else ["—", "—"]
         lines.append("| " + " | ".join(cells) + " |")
 
-    lines += ["", "## B. 组合级回测（引擎口径：5只持仓上限、-10%/+30%退出、含滑点手续费）", ""]
+    lines += ["", "## B. 选股成功率（v5 纯选股口径：5日内任一收盘≥+5%机会命中，无交易模拟）", ""]
     metric_rows = [
-        ("总收益", "total_return"), ("年化收益", "annual_return"),
-        ("最大回撤", "max_drawdown"), ("Sharpe", "sharpe_ratio"),
-        ("Calmar", "calmar_ratio"), ("Sortino", "sortino_ratio"),
-        ("交易胜率", "win_rate"), ("盈亏比", "profit_loss_ratio"),
-        ("最大连亏", "max_consecutive_losses"), ("买入笔数", "n_trades_buy"),
+        ("信号数", "n"), ("成功率%", "success_rate"), ("基线%", "base_rate"),
+        ("超额pp", "lift_pp"), ("期末收益均值%", "end_ret_mean"),
+        ("期末中位%", "end_ret_median"), ("期末上涨占比%", "hit_ratio_end"),
     ]
     names = list(port)
     lines.append("| 指标 | " + " | ".join(names) + " |")
@@ -256,7 +262,8 @@ def build_report(ev: pd.DataFrame, port: dict, args, n_stocks: int) -> str:
             v = port[n].get(key)
             if v is None:
                 vals.append("—")
-            elif key in ("total_return", "annual_return", "max_drawdown", "win_rate"):
+            elif key in ("success_rate", "base_rate", "lift_pp",
+                         "end_ret_mean", "end_ret_median", "hit_ratio_end"):
                 vals.append(fmt_pct(v))
             elif isinstance(v, float):
                 vals.append(f"{v:.2f}")

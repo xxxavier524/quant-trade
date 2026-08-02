@@ -802,8 +802,7 @@ class MemoryAgent:
 class _SimpleBacktestEngine:
     """内联简化回测引擎，用于 Agent 独立性。
 
-    复用 run_backtest.py 中 BacktestEngine 的逻辑，
-    但不依赖外部文件。
+    自研轻量研究回测引擎（v5：仅研究/开发用，不进入每日选股产品）。
     """
 
     def __init__(self, initial_capital=1_000_000, max_holdings=5, max_single_pct=0.20):

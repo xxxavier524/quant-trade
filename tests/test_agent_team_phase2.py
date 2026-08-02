@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from alphapulse.agent_team.contract import StockOpinion, TeamVerdict
 from alphapulse.agent_team.debate import parse_referee, run_debate, DebateOutcome
 from alphapulse.agent_team.fusion import bayes_fuse, fuse_team_score
-from alphapulse.agent_team.risk import apply_risk
 from alphapulse.agent_team.context import TeamContext
 from alphapulse.agent_team import core
 
@@ -94,43 +93,6 @@ def test_run_debate_exception_returns_none():
     assert run_debate(_verdict(), chat_fn=boom) is None
 
 
-# ── risk ──
-def test_risk_buy_full_position():
-    v = _verdict(80, mv=50.0)
-    apply_risk([v], "偏多")
-    assert v.meta["position_pct"] == 20.0
-
-def test_risk_smallcap_discount():
-    v = _verdict(80, mv=8.0)
-    apply_risk([v], "偏多")
-    assert v.meta["position_pct"] == 10.0             # 20×0.5
-
-def test_risk_macro_bear_discount():
-    v = _verdict(80, mv=50.0)
-    apply_risk([v], "偏空")
-    assert v.meta["position_pct"] == 10.0
-
-def test_risk_zengchi_coef():
-    v = _verdict(65, mv=50.0)                          # 增持
-    apply_risk([v], "震荡")
-    assert v.meta["position_pct"] == 12.0             # 20×0.6
-
-def test_risk_hold_no_position():
-    v = _verdict(50, mv=50.0)                          # 持有
-    apply_risk([v], "震荡")
-    assert v.meta["position_pct"] == 0.0
-
-def test_risk_max_positions_standby():
-    vs = [_verdict(80 - i, mv=50.0) for i in range(7)]
-    for i, v in enumerate(vs):
-        v.symbol = f"60000{i}"
-    apply_risk(vs, "震荡")
-    with_pos = [v for v in vs if v.meta["position_pct"] > 0]
-    standby = [v for v in vs if any(op.agent == "risk" and op.evidence.get("standby")
-                                    for op in v.opinions)]
-    assert len(with_pos) == 5 and len(standby) == 2   # 5只满员+2候补
-
-
 # ── 批量接线（mock 辩论）──
 def _ohlcv(n=250, seed=7):
     np.random.seed(seed)
@@ -149,11 +111,12 @@ def _ctx():
                        concept_map={"600000": "AI算力"})
 
 
-def test_batch_no_debate_has_risk_opinion():
+def test_batch_no_debate_returns_verdict():
+    """v5：仓位风控层已移除，批量分析只产出选股研判（不再有 risk opinion）。"""
     out = core.analyze_batch([("600000", "A", _ohlcv())], _ctx())
     v = out[0]
-    assert any(op.agent == "risk" for op in v.opinions)
-    assert "position_pct" in v.meta
+    assert v.ok and v.score == v.score                # 有分且非 NaN
+    assert not any(op.agent == "risk" for op in v.opinions)
 
 def test_batch_debate_only_above_threshold():
     debated = []

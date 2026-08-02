@@ -26,7 +26,17 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts.run_backtest import load_stocks
+def load_stocks(data_dir, min_days=300):
+    """本地日线加载器（v5：run_backtest 已移除，内联替代）。"""
+    out = {}
+    for f in sorted(Path(data_dir).glob("*.csv")):
+        try:
+            df = pd.read_csv(f, dtype={"date": str})
+            if len(df) >= min_days:
+                out[f.stem] = df
+        except Exception:
+            continue
+    return out
 from alphapulse.strategies.brick_three_types import generate_signals
 
 from alphapulse.config.settings import DATA_DIR

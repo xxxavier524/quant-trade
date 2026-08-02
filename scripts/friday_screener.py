@@ -6,7 +6,20 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts.run_backtest import load_stocks
+from alphapulse.config.settings import DATA_DIR  # noqa: E402
+
+
+def load_stocks(data_dir: str | Path, min_days: int = 200) -> dict[str, pd.DataFrame]:
+    """本地加载日线 CSV（date 列保留、RangeIndex）。v5：run_backtest 已移除，内联加载器。"""
+    stocks = {}
+    for f in sorted(Path(data_dir).glob("*.csv")):
+        try:
+            df = pd.read_csv(f, dtype={"date": str})
+            if len(df) >= min_days:
+                stocks[f.stem] = df
+        except Exception:
+            continue
+    return stocks
 from alphapulse.strategies.b1_formula_strategy import generate_signals as b1
 from alphapulse.strategies.brick_ultra_strategy import generate_signals as brick
 from alphapulse.strategies.needle_enhanced import generate_signals as needle

@@ -91,6 +91,4 @@ def analyze_batch(items, ctx, debate: bool = False,
                 except Exception as e:
                     logger.warning(f"{v.symbol} 辩论异常(保持P0): {e}")
 
-    from alphapulse.agent_team.risk import apply_risk
-    apply_risk(out, ctx.macro_level, max_positions)
     return out

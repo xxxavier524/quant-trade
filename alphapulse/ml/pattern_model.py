@@ -89,38 +89,49 @@ def features_at(df: pd.DataFrame, i: int) -> dict | None:
 
 
 def build_training_set(stocks: dict[str, pd.DataFrame],
-                       playbooks: list[str] | None = None,
-                       playbook_kwargs: dict[str, dict] | None = None) -> pd.DataFrame:
-    """全部战法交易 → 特征表（每笔交易一行 + label + entry_year + weight）。
+                       strategies: list[str] | None = None,
+                       strategy_kwargs: dict[str, dict] | None = None,
+                       horizon: int = 5,
+                       success_pct: float = 5.0) -> pd.DataFrame:
+    """全部选股策略信号 → 特征表（每信号一行 + label + entry_year + weight）。
 
-    playbook_kwargs: 每个战法的模拟参数覆盖（如 {"B1B2B3": {"stop_pct": 0.10}}，
-    用调优后的止损口径生成标签，见 config/best_params.json）。
+    v5（2026-08-02）：标签从"战法逐笔交易净收益"改为纯选股口径——
+    label = 信号后 horizon 日内任一收盘 ≥ +success_pct%（机会命中），
+    net_return = 期末收益（T+H 收盘相对 T 收盘）。与
+    alphapulse.screening.evaluator 完全同口径，无任何交易模拟。
+
+    strategies: 选股策略名（见 alphapulse.screening.strategies.SCREENING_STRATEGIES）；
+    strategy_kwargs: 每策略参数覆盖。
     """
-    from alphapulse.strategies.playbook_engine import PLAYBOOKS
-    playbooks = playbooks or list(PLAYBOOKS)
-    playbook_kwargs = playbook_kwargs or {}
+    from alphapulse.screening.evaluator import forward_outcome, signal_dates_of
+    from alphapulse.screening.strategies import run_strategy
+    strategies = strategies or ["B1_FORMULA", "B1_B2_B3", "BRICK_THREE_TYPES",
+                                "NEEDLE_WASHOUT", "NEEDLE"]
+    strategy_kwargs = strategy_kwargs or {}
     rows = []
     for sym, df in stocks.items():
         frame = feature_frame(df)  # 每股只算一次
         if frame.empty:
             continue
+        closes = df.set_index("date")["close"].astype(float)
         dates = df["date"].astype(str).tolist()
         idx_map = {d: i for i, d in enumerate(dates)}
-        for pb in playbooks:
+        for st in strategies:
             try:
-                trades = PLAYBOOKS[pb](df, symbol=sym, **playbook_kwargs.get(pb, {}))
+                sig_frame = run_strategy(st, df, **strategy_kwargs.get(st, {}))
+                sig_dates = signal_dates_of(sig_frame, df)
             except Exception:
                 continue
-            for t in trades:
-                i = idx_map.get(t["entry_date"])
+            for o in forward_outcome(sig_dates, closes, horizon, success_pct):
+                i = idx_map.get(o.date)
                 if i is None or i < 120:
                     continue
                 rows.append({**frame.iloc[i].to_dict(),
-                             "label": int(t["net_return"] > 0),
-                             "net_return": float(t["net_return"]),
-                             "entry_year": int(t["entry_date"][:4]),
-                             "playbook": pb, "symbol": sym,
-                             "entry_date": t["entry_date"], "weight": 1.0})
+                             "label": int(o.success),
+                             "net_return": round(float(o.end_ret), 4),
+                             "entry_year": int(o.date[:4]),
+                             "playbook": st, "symbol": sym,
+                             "entry_date": o.date, "weight": 1.0})
     return pd.DataFrame(rows)
 
 

@@ -1,12 +1,13 @@
-# AlphaPulse-A 量化交易系统
+# AlphaPulse-A 量化选股系统（v5 纯选股版）
 
-A股端到端量化选股系统 — 从数据准备到策略回测到实盘导出。
+A股端到端选股系统 — 数据 → 因子/策略 → 选股成功率回测与优化 → 每日选股 → 追踪复盘。
+交易侧（仓位/滑点/止损/资金曲线/下单）已于 2026-08-02 整体移除。
 
-**版本**: v2.0 | **更新**: 2026-05-23 | **覆盖**: 5,229只A股 (2020-2026)
+**版本**: v5 | **更新**: 2026-08-02 | **覆盖**: 5,236只A股 (2020-2026)
 
-> **v5（2026-08-02 起，分支 `codex/v5`）**：N 型结构信号已因果化（无未来函数）；
-> 胜率唯一主口径 = 追踪库已实现收益（`realized`）；硬闸门关闭会留痕告警而非静默空转。
-> 详见 [progress_log.md](progress_log.md) 与 AGENTS.md。
+> **v5**：选股成功率唯一主口径 = 机会命中（信号后 5 日内任一收盘 ≥ +5%），
+> 必须与随机基线对比；N 型结构已因果化；硬闸门关闭留痕告警。
+> 第一性原理规格见 [docs/v5_screen_system.md](docs/v5_screen_system.md)。
 
 ---
 
@@ -25,16 +26,11 @@ pip install -r requirements.txt  # 首次
 | 操作 | 命令 |
 |------|------|
 | 全量下载A股数据 | `python scripts/_smart_downloader.py` |
-| 运行三个策略回测 | `python scripts/run_backtest.py --strategy ALL --sample 300` |
-| 两阶段AI回测 | `python scripts/run_two_stage_opt.py` |
+| 全策略成功率回测 | `python scripts/screen_bt.py --strategies ALL --sample 300` |
+| 策略参数优化 | `python scripts/screen_optimize.py --strategy B1_B2_B3 --sample 800` |
 | 每日选股报告 | `python scripts/daily_screener.py` |
 | 晚间复盘 | `python scripts/evening_review.py [--push]`（口径=追踪库实盘 realized） |
-| 风控检查 | `python scripts/risk_monitor.py --positions positions.csv` |
-| QMT下单导出 | `python scripts/export_qmt_csv.py --signals screen_*.csv`（⚠️ P1 待修：当前 screen CSV 无 date/signal 列，需先对齐接口） |
-| 案例股检测 | `python scripts/backtest_cases.py` |
-| 运行全因子扫描 | `python scripts/daily_auto_run.py` |
 | 运行全部测试 | `python -m pytest tests/ -v` |
-| 监控守护 | `python scripts/_monitor_runner.py --daemon` |
 
 ---
 
@@ -43,18 +39,19 @@ pip install -r requirements.txt  # 首次
 ```
 输入层                 计算层                  输出层
 ┌──────────┐    ┌──────────────────┐    ┌──────────────┐
-│ 日线CSV   │───▶│ 19+因子计算引擎   │───▶│ 选股信号报告   │
-│ 5,229只  │    │ (向量化pandas)   │    │ (Markdown)   │
+│ 日线CSV   │───▶│ 40+因子计算引擎   │───▶│ 每日选股 Top50 │
+│ 5,236只  │    │ (向量化pandas)   │    │ (screen_*.csv)│
 └──────────┘    └──────────────────┘    └──────────────┘
                        │
 ┌──────────┐    ┌──────▼───────────┐    ┌──────────────┐
-│ 案例股46只│───▶│ 8+策略信号生成器  │───▶│ 回测结果JSON  │
+│ 退市股    │───▶│ 10+选股策略      │───▶│ 成功率报告     │
+│ (修正偏差)│    │ + 评分排序       │    │ (screen_bt)  │
 └──────────┘    └──────────────────┘    └──────────────┘
                        │
 ┌──────────┐    ┌──────▼───────────┐    ┌──────────────┐
-│ 行业轮动  │───▶│ 两阶段AI选股模型  │───▶│ QMT下单CSV    │
-│ β预测模型 │    │ (双层垂直体系)    │    └──────────────┘
-└──────────┘    └──────────────────┘
+│ 信号追踪  │───▶│ 参数优化         │───▶│ best_params   │
+│ (实盘口径)│    │ (walk-forward)  │    │ (带基线标注)   │
+└──────────┘    └──────────────────┘    └──────────────┘
 ```
 
 ### 目录结构
@@ -76,7 +73,8 @@ pip install -r requirements.txt  # 首次
 │   ├── ranking/                     # 综合评分与排序
 │   ├── tracking/                    # 信号追踪与成功率闭环
 │   ├── agent_team/                  # v4 五角色Agent团队
-│   ├── utils/                       # 回测/滑点/费率
+│   ├── screening/                   # 纯选股评估层（成功率+优化）★v5
+│   ├── utils/                       # 数据/工具（交易侧已移除）
 │   └── config/                      # settings.py
 ├── scripts/                         # 可执行脚本
 ├── tests/                           # 单元测试

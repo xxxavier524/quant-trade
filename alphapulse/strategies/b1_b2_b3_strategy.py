@@ -42,7 +42,7 @@ def assign_seq_ids(
 ) -> dict:
     """把 B1/B2/B3 布尔序列串成链路（因果单次线性扫描，只用 ≤t 信息）。
 
-    语义与 playbook_engine.simulate_b1b2b3 一致：一 B1 → 首个窗口内 B2 → 首个窗口内 B3。
+    语义：一 B1 → 首个窗口内 B2 → 首个窗口内 B3（v5 纯选股确认链，不模拟交易）。
 
     Returns:
         dict: (date_str, stage) -> {seq_id, parent_stage, seq_root_date}

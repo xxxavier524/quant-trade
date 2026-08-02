@@ -1,154 +1,118 @@
-# AlphaPulse-A 量化交易系统
+# AlphaPulse-A 量化选股系统（v5 纯选股版）
 
-> Claude Code 自动读取。完整计划与核心约束。
+> Claude 自动读取。完整计划与核心约束。
 
 ## 核心约束（全局）
 
 - Python 3.10+，向量化优先（pandas/numpy），禁止逐行循环
-- 回测主引擎为自研日线引擎 `scripts/run_backtest.py`（次日开盘成交/涨停跳过/滑点费率仓位内建）；`vnpy_strategies/` 为 VeighNa 封装备用未接线，不接受 backtrader
-- 数据源：通达信 `.day` → CSV，主存储于外接盘 `/Volumes/Mac-480g外接/quantan_data/day`（经 `settings.DATA_DIR` 读取，勿硬编码；内置盘 `data/day/` 为迁移期旧副本勿用）
-- 命名空间：`alphapulse.factors`、`alphapulse.strategies`
-- 滑点买0.1%卖0.2%、手续费万2.5最低5元、单票≤20%最多5只
+- **本系统只做选股**：输出"哪些票值得关注 + 各策略成功率证据"。
+  交易侧（仓位/滑点/止损/资金曲线/下单）已于 2026-08-02 整体移除
+  （git 历史可回溯），禁止重新引入
+- 数据源：通达信 `.day` → CSV，主存储于外接盘 `/Volumes/Mac-480g外接/quantan_data/day`
+  （经 `settings.DATA_DIR` 读取，勿硬编码；内置盘 `data/day/` 为迁移期旧副本勿用）
+- 命名空间：`alphapulse.factors`、`alphapulse.strategies`、`alphapulse.screening`
 - 信号因子一律禁止未来函数：枢轴/形态/阶段必须按确认时点公布
-  （N 型结构用 `n_struct.compute_causal`，禁止用带 ±N 前视的 `compute` 生成信号）
-- 胜率唯一主口径 = 追踪库 `realized`（已实现收益，持有5日/破5%止损/扣往返费）；
-  "曾触及+5%"、playbook 序列胜率仅作对照，不得当成功率主数字上报
+  （N 型结构用 `n_struct.compute_causal`，`compute()` 已废弃）
+- 选股成功率唯一主口径 = **机会命中**：信号日收盘后 H（默认5）个交易日内
+  任一收盘 ≥ +5%（见 `docs/v5_screen_system.md`）；必须与随机基线对比，
+  超额命中 ≤ 0 的策略无选股价值
 - 每次修改代码前 `git commit`
 - 每阶段结束追加 `progress_log.md`
 
 ## v5 分支（2026-08-02 起）
 
-- 当前生产/开发分支：`codex/v5`（基线 = 原 `v4-fusion`，tag `v3-stable` 可回退）
-- P0 已完成：N 型结构因果化、胜率口径统一为 realized、硬闸门关闭留痕告警
-- 关键决策：B1B2B3 已证负期望（留出窗全参数组负值，见 daily_auto_report.md），
-  **调参救不了 → 重做信号**；auto_retune 对负期望候选不覆盖参数
-- P1 已完成（2026-08-02）：risk_monitor 假规则（近60日高点/浮亏名/组合占总资金）、
-  run_backtest 静默吞错、QMT 导出接口打通 screen_*.csv、knowledge_points/filters
-  因果化、nightly IC 调权死代码下线；data-catchup 加 RunAtLoad 开机自愈
-- 仍待办：run_backtest `--mode short` 买价口径（信号日收盘 vs 主引擎次日开盘）
-  未统一；B1B2B3 策略重做（负期望，调参已放弃）
+- 当前分支：`codex/v5`（基线 v4-fusion；tag `v3-stable` 可回退）
+- 已移除交易侧：run_backtest 引擎、portfolio/position 管理、playbook 模拟、
+  risk_monitor、QMT 下单导出、auto_retune（周检调参）、相关回测脚本与测试
+- 已建立纯选股评估：`alphapulse/screening/` + `scripts/screen_bt.py` +
+  `scripts/screen_optimize.py`（第一性原理规格见 `docs/v5_screen_system.md`）
+- P0/P1 已完成：N型因果化、realized 口径、闸门留痕、假规则修复、QMT/IC 死代码下线
+- 已知待办：B1B2B3 策略重做（负期望，调参已放弃）；数据停更后追平验证
 
 ## 模型路由
 
 - **重推理任务** → `deepseek-v4-pro`：因子设计、策略逻辑修改、bug 调试、案例特征分析
-- **批量任务** → `deepseek-v4-flash`：数据清洗、回测执行（并行）、因子全量扫描、报告生成、CSV/Excel 转换
+- **批量任务** → `deepseek-v4-flash`：数据清洗、全市场因子扫描、成功率回测（并行）、报告生成
 
-## 自动化任务（无人值守）
+## 自动化任务（无人值守，全部为选股/数据链路）
 
-### 每日凌晨 2:00 — 因子/策略/案例全量扫描
-- 触发方式：macOS launchd (`config/com.alphapulse.daily-auto.plist`)
-- 执行脚本：`scripts/daily_auto_run.py`
-- 输出：飞书夜场报告（追踪库 realized 口径 + 硬闸门状态）；`daily_auto_report.md`
-  由 eod_pipeline 的 agent 决策对账与周日 auto_retune 追加
-- 安装 launchd：`launchctl load ~/Library/LaunchAgents/com.alphapulse.daily-auto.plist`
-
-### 每日收盘后（15:35 起每小时）— 数据自愈 + 选股流水线
-- 触发方式：macOS launchd (`config/com.alphapulse.data-catchup.plist`，15:35~22:30)
-  - RunAtLoad=true：开机/登录立即触发一次自愈（覆盖关机漏更，2026-08-02 起）
-- 链路：data_catchup 每小时续传至覆盖率达标 → `scripts/eod_pipeline.py`
+### 数据自愈 + 选股流水线（收盘后 15:35 起每小时）
+- 触发：launchd `config/com.alphapulse.data-catchup.plist`（15:35~22:30，RunAtLoad=true
+  开机/登录即触发一次，覆盖关机漏更）
+- 链路：data_catchup 续传至覆盖率达标 → `scripts/eod_pipeline.py`
   （指数更新 → 数据新鲜度铁律 → 全市场选股 → agent 研判 → 信号追踪 → 决策对账 → 卡死股恢复）
 - 全市场选股：`scripts/daily_screener.py [--date YYYY-MM-DD] [--top N] [--no-gate]`
-  → 输出 `reports/screen_YYYY-MM-DD.csv` + `reports/daily_report_*.md`
-- 硬闸门关闭时：写 `reports/gate_closed_<date>.json`，流水线记录 `gated:true`，
-  夜场报告提示"不开新仓"（禁止静默空转）
+  → `reports/screen_YYYY-MM-DD.csv` + `daily_report_*.md`
+- 硬闸门关闭（上证MACD零轴/大盘S1）→ 写 `reports/gate_closed_<date>.json`、
+  流水线记录 `gated:true`、夜场报告提示"不开新仓"（禁止静默空转）
+
+### 每日凌晨 2:00 — 夜场报告
+- launchd `config/com.alphapulse.daily-auto.plist` → `scripts/daily_auto_run.py`
+- 内容：追踪库实盘口径（realized）复盘 + 硬闸门状态，推飞书；
+  `daily_auto_report.md` 由决策对账与周日 screen_optimize 追加
 
 ### 晚间复盘（手动/按需）
-- 执行脚本：`scripts/evening_review.py [--push] [--window 30] [--output 文件]`
-- 口径：追踪库 realized 为主（已实现胜率/均值），"曾触及+5%"仅对照
+- `scripts/evening_review.py [--push] [--window 30] [--output 文件]`
+- 口径：追踪库 realized 为主，"曾触及+5%"仅对照
 
-### 风控 — 按需
-- 执行脚本：`scripts/risk_monitor.py --positions positions.csv`
-- 有 CRITICAL 警报时 exit 1，可接入告警通道
+### 纯选股成功率回测/优化（手动/按需）
+- `scripts/screen_bt.py --strategies ALL --sample 300` → 全策略成功率报告
+- `scripts/screen_optimize.py --strategy B1_B2_B3 --sample 800` →
+  walk-forward 稳健参数（须跑赢基线才写入 best_params.json）
 
 ## 项目结构
 
 ```
-├── CLAUDE.md
-├── progress_log.md
+├── AGENTS.md / CLAUDE.md / progress_log.md
 ├── alphapulse/
-│   ├── factors/          # 因子模块（每个因子独立 .py，compute(df)->Series）
-│   │   └── factor_registry.py
-│   ├── strategies/       # B1 / 砖型图 / 单针下三十
-│   ├── utils/            # data_loader, backtest_utils
-│   └── config/           # settings.py, best_params.json
-├── vnpy_strategies/      # CtaTemplate 封装
-├── scripts/              # parse_tdx_data, daily_screener, evening_review, risk_monitor, export_qmt_csv
-├── tests/
-├── backtest_results/
-├── data/day/             # CSV日线
-└── reports/
+│   ├── factors/            # 因子模块（compute(df)->Series，注册于 factor_registry）
+│   ├── strategies/         # 选股信号生成器（B1_B2_B3/砖型图/单针/ZG 等）
+│   ├── screening/          # 纯选股评估层（evaluator + 策略注册）★v5
+│   ├── ranking/            # 子分数 + 加权排序（每日选股评分链）
+│   ├── tracking/           # 信号追踪闭环（实盘口径成功率）
+│   ├── market/             # 大盘诊断 + 硬闸门（选股择时门）
+│   ├── agent_team/         # 多角色选股研判（无仓位/风控层）
+│   ├── ml/                 # 形态模型（标签=选股机会命中）
+│   ├── pipeline/           # 研究管线（策略开发用）
+│   └── config/             # settings.py, best_params.json, factor_weights.json
+├── scripts/                # daily_screener / eod_pipeline / data_catchup /
+│   │                       # screen_bt / screen_optimize / track_signals 等
+├── tests/                  # 全量单测（含截断不变性防泄漏测试）
+├── docs/                   # v5_screen_system.md（第一性原理规格）
+└── reports/                # 选股日报 / 成功率报告 / walk-forward 报告
 ```
 
-## 执行阶段
+## 执行阶段（v5 纯选股体系）
 
-### 阶段一：数据准备
-- `scripts/parse_tdx_data.py`：解析通达信 `.day` → `data/day/{symbol}.csv`
-- 安装 VeighNa：`pip install veighna`
-- 验证：抽查 600519.csv / 000001.csv 完整性
+### 阶段一：数据准备 ✅
+- `scripts/fetch_index_data.py`（指数）、`scripts/daily_update.py`（个股断点续传）、
+  `scripts/data_catchup.py`（每小时自愈）、`scripts/fetch_delisted.py`（退市股）
+- 数据新鲜度铁律：`alphapulse/utils/data_freshness.py`（基准=上证指数最新bar，
+  个股覆盖 ≥75% 才算最新；选股/复盘前强制确认）
 
-### 阶段二：核心因子实现（8个因子）
+### 阶段二：因子/策略库 ✅
+- 8 核心因子 + 40+ 扩展因子注册于 `factor_registry.py`；10 个选股策略注册于
+  `screening/strategies.py`；全部因子必须因果（未来函数=红线）
 
-| 因子ID | 名称 | 关键参数 |
-|--------|------|----------|
-| N_STRUCT | N型结构识别 | min_leg_len=5, retrace_ratio=0.618 |
-| VOL_RED_GREEN | 红肥绿瘦 | N=20, ratio_threshold=1.3 |
-| ABNORMAL_VOL | 放量异动 | M=60, P=20, K=2.0, X=3, Y=5 |
-| VOL_CONT_SHRINK | 缩量 | shrink_ratio=0.25, recent_period=5 |
-| KDJ_J_LOW | J值低位 | j_threshold=13 |
-| WEEKLY_MA_BULL | 周线多头 | ma_periods=[5,10,20] |
-| MACD_BULL_DEAD | MACD多头/死叉 | fast=12, slow=26, signal=9 |
-| SHRINK_TO_ABNORMAL | 缩量至异动1/4 | ratio=0.25 |
+### 阶段三：纯选股成功率回测 ✅（v5 新增，替代旧交易回测）
+- `screen_bt.py`：机会命中（H日收盘≥+P%）+ 随机基线 + 年度表 + 逐H曲线 +
+  Wilson 下界 + 截断不变性门禁 + 退市股并入
 
-每个因子实现 `compute(data: pd.DataFrame) -> pd.Series`，注册到 `factor_registry.py`。
+### 阶段四：参数优化 ✅（v5 重做）
+- `screen_optimize.py`：walk-forward 稳健分（0.5中位+0.5最差）+ 链式流程回测 +
+  基线超额门槛（默认 ≥3pp 才写参）+ 覆盖门槛 → `config/best_params.json`（带 provenance）
 
-### 阶段三：案例分析与因子提炼
-- 用户提供 `cases.csv`（symbol, event_date, note，≥10 条）
-- 输出 `reports/case_analysis_report.md`：
-  1. 事件前后价格走势共性
-  2. tsfresh 提取 Top 5 量价特征
-  3. 转化为 CASE_001~005 因子注册入库
-  4. 回放测试：命中率 + 平均提前天数
+### 阶段五：每日选股 + 追踪闭环 ✅
+- 评分链（ranking）+ 硬闸门 + 新鲜度铁律 → Top50 → 信号追踪 →
+  实盘口径成功率（realized）→ 夜间/周复盘
 
-### 阶段四：三大策略信号生成器
-- `b1.py`：条件组合信号 DataFrame（symbol, signal, strategy, factor_snapshot）
-- `brick.py`：Renko 固定2%振幅 + 突破逻辑
-- `needle.py`：长下影 + J值超卖
-- 单元测试验证
+### 阶段六：长期无人值守
+- launchd：data-catchup（自愈+选股）/ daily-auto（夜报）/ morning-brief（晨报）
+- 选股成功率里程碑见下
 
-### 阶段五：回测（自研引擎，已验收）
-- `scripts/run_backtest.py`：次日开盘成交/涨停停牌跳过/滑点费率仓位/持有期上限内建
-- 2020-2025 完整回测；`--include-delisted` 加载退市股修正幸存者偏差
-- （2026-07-12 决定：vnpy CtaTemplate 封装零引用已删除，git 历史 `9e5a45d` 前可找回；
-  实盘对接走阶段九 QMT CSV 路线，不经 vnpy）
+## 总里程碑（v5 选股口径）
 
-### 阶段六：参数网格搜索（walk-forward 化）
-- `scripts/walk_forward.py`：锚定扩张训练窗 + 滚动验证窗，最差窗+中位数选稳健参数
-- 单窗口样本内选参已废弃（B1_B2_B3 曾出 hit_rate=1.0 的过拟合参数组）
-- 输出 Markdown 绩效表 → `config/best_params.json`（带 walk_forward 来源标注）
-
-### 阶段七：云端交叉验证（聚宽）
-- 翻译信号逻辑为聚宽 notebook
-- 2020-2025 回测，关键指标偏差 < 5%
-- 输出 `reports/cross_validation_report.md`
-
-### 阶段八：Agent 工具封装
-- `scripts/daily_screener.py`：当日信号 Markdown 列表
-- `scripts/evening_review.py`：胜率统计
-- `scripts/risk_monitor.py`：减仓警报
-- macOS 用 `launchd` / Python `schedule` 定时 14:30/15:30
-
-### 阶段九：QMT 实盘对接
-- `scripts/export_qmt_csv.py`：QMT 批量下单格式
-- 3 个月半自动运行规则
-
-### 阶段十：长期无人值守
-- 每日凌晨 2:00 自动因子扫描、策略回测、案例复核
-- 结果追加到 `daily_auto_report.md`
-
-## 总里程碑
-
-- [ ] 三种策略年化收益 > 20%，最大回撤 < 15%（2020-2025）
-- [ ] 训练案例命中率 ≥ 70%，验证 ≥ 60%
-- [ ] 云端偏差 < 5%
-- [ ] 每日自动信号+复盘，QMT 半自动
-- [ ] 无人值守稳定运行 ≥ 一周
+- [ ] 至少一个策略相对随机基线超额命中 ≥ +5pp（H=5, P=5%），且每年均为正
+- [ ] 全部生产策略通过截断不变性门禁（无未来函数）
+- [ ] walk-forward 链式样本外成功率 ≥ 基线 + 3pp
+- [ ] 每日自动选股+追踪稳定运行 ≥ 一周，闸门关闭有留痕与告警

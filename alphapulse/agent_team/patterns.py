@@ -1,8 +1,10 @@
 """战法序列状态（向量化，agent 与回测共源）。
 
 回测发现（reports/agent_team_backtest.md 2026-07-02）：B1 信号日直接买入无边际优势
-（3日>5% 命中 12.7% vs 基线 11.8%），与 Phase 3 结论一致——优势在 B2 放量确认：
-B1→B2 序列 72.4% 胜率 / B1→B2→B3 94.7%（playbook_engine 全历史统计）。
+（3日>5% 命中 12.7% vs 基线 11.8%），与 Phase 3 结论一致——优势在 B2 放量确认。
+⚠️ v5（2026-08-02）：原"B1→B2 72.4% / B1→B2→B3 94.7%"是 playbook 交易模拟的
+**条件胜率**（只统计走完序列的交易，天然已先涨），与实盘追踪库 19.7% 不可比，
+已随交易引擎一并下线；当前唯一主口径 = alphapulse.screening 的选股机会命中率。
 
 因此 pattern 角色按序列状态定强弱：
 - B2确认：B1 后 b2_wait 日内出现放量阳（vol > 1.85×前日 且 收>开），且未破 B1 日低点 → 强多
@@ -16,7 +18,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-B2_VOL_MULT = 1.85     # 与 playbook_engine.simulate_b1b2b3 默认一致
+B2_VOL_MULT = 1.85     # B2 放量倍数（序列定义与 b1_b2_b3_strategy 一致）
 B2_WAIT = 8            # 2026-07-04 网格调优：每持有日收益 w=8 见顶（best_params 同步）
 NEEDLE_RECENT = 6
 

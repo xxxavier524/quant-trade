@@ -38,19 +38,10 @@ def main():
     stocks = load_universe(Path(args.data_dir), args.sample, "9999-12-31")
     print(f"universe: {len(stocks)} 只")
 
-    pb_kwargs = {}
-    try:
-        bp = json.loads((PROJECT_ROOT / "config" / "best_params.json").read_text())
-        sp = bp.get("PLAYBOOK_B1B2B3", {}).get("stop_pct")
-        if sp:
-            pb_kwargs["B1B2B3"] = {"stop_pct": sp}
-            print(f"标签口径: stop_pct={sp}")
-    except Exception:
-        pass
-
-    print("构建交易特征集（B1B2B3）...")
-    df = pm.build_training_set(stocks, playbooks=["B1B2B3"], playbook_kwargs=pb_kwargs)
-    print(f"  交易 {len(df)} 笔，基准胜率 {df['label'].mean()*100:.1f}%")
+    # v5（2026-08-02）：标签 = 纯选股口径（B1_B2_B3 信号的机会命中）
+    print("构建选股特征集（B1_B2_B3）...")
+    df = pm.build_training_set(stocks, strategies=["B1_B2_B3"])
+    print(f"  选股信号 {len(df)} 笔，基准命中率 {df['label'].mean()*100:.1f}%")
 
     tr = df[df["entry_year"] <= args.train_until]
     te = df[df["entry_year"] > args.train_until]
@@ -86,8 +77,8 @@ def main():
     if passed:
         ur.save_ump(model, {"train_until": args.train_until,
                             "holdout": result, "base_win_holdout": round(base_win, 4),
-                            "sample": args.sample, "stop_pct": pb_kwargs.get(
-                                "B1B2B3", {}).get("stop_pct")})
+                            "sample": args.sample,
+                            "metric": "选股机会命中（5日内收盘≥+5%）"})
         print(f"→ {ur.UMP_PATH}")
     print(f"耗时 {(time.monotonic()-t0)/60:.1f} 分钟")
     return 0

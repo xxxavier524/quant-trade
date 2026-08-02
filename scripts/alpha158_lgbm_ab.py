@@ -159,18 +159,9 @@ def main() -> int:
     stocks = load_universe(Path(args.data_dir), args.sample, "9999-12-31")
     print(f"universe: {len(stocks)} 只")
 
-    pb_kwargs = {}
-    try:
-        bp = json.loads((PROJECT_ROOT / "config" / "best_params.json").read_text())
-        sp = bp.get("PLAYBOOK_B1B2B3", {}).get("stop_pct")
-        if sp:
-            pb_kwargs["B1B2B3"] = {"stop_pct": sp}
-            print(f"B1B2B3 标签口径 stop_pct={sp}（best_params）")
-    except Exception:
-        pass
-
-    print("构建训练集（战法交易特征化）...")
-    train_df = pm.build_training_set(stocks, playbook_kwargs=pb_kwargs)
+    # v5（2026-08-02）：标签 = 纯选股口径，无交易模拟
+    print("构建训练集（选股信号特征化）...")
+    train_df = pm.build_training_set(stocks)
     train_df = pm.append_boost_samples(train_df, stocks)
     print(f"  交易样本 {len(train_df)} 笔")
     if len(train_df) < 1000:

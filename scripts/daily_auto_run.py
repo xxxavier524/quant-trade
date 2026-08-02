@@ -5,8 +5,8 @@
 固定2026-05-01），"参数优化"的评估函数是参数求和——两者输出均无意义却每天推飞书。
 现改为：
 1. 复盘 = signal_tracker 真实追踪库（选股 Top50 的 5日/+5% 成功率，按战法分列）
-2. 假参数优化下线（run_param_sweep 需要真实回测评估函数才有意义，待接
-   scripts/run_backtest.py 的组合级评估后再启用）
+2. 假参数优化下线（run_param_sweep 需要真实评估函数才有意义，待接
+   alphapulse.screening 的纯选股成功率评估后再启用）
 3. 因子权重 IC 调权 = scripts/ic_weight_tuning.py --apply（手动入口，写入 B1_SCORE）。
    2026-08-02 移除原 nightly 调权：它对 B1B2/BRICK/NEEDLE 三个空策略名算权重，
    与消费方 B1_SCORE 永远对不上，是纯 no-op（写键/读键/消费键三者不一致）。
