@@ -791,3 +791,29 @@ eod_pipeline 实跑 `data_fresh=true, gated=true`（零轴门 DIF=-58.41）。
 - ⬜ walk-forward 稳健超额 ≥ +3pp：未达标（B1_B2_B3 只有 +1.7pp）
 - ✅ 因果门禁全过；闸门留痕告警生效
 - 待办：重做 NEEDLE；提升 B1_B2_B3 稳健超额（考虑信号分级 B2/B3 子集）
+
+## v5 优化第 2/3 轮 — 2026-08-02（ZHIXING_ULTRA / VOLUME_B1）
+
+- ZHIXING_ULTRA 参数化：`compute_ultra(med_long_min=65, brick_min_ratio=2/3, dif_min=0)`，
+  默认值=原始公式口径，供 screen_optimize 扫描。
+- 网格：ZHIXING_ULTRA 18 组（med_long 55/65/75 × brick 0.5/0.67/0.8 × dif 0/0.1）；
+  VOLUME_B1 27 组（yangyin_28 × yangyin_14 × surge_ratio）。
+
+### 结果（600 只，8 验证窗，5日+5%机会命中）
+| 策略 | 最佳稳健% | 中位% | 最差% | 基线中位% | 超额pp | 总信号 | 判定 |
+|---|---|---|---|---|---|---|---|
+| ZHIXING_ULTRA | 24.0 | 26.9 | 21.1 | 22.2 | +1.8 | 8,800 | 未写参（<3pp） |
+| VOLUME_B1 | 21.4 | 28.4 | 14.5 | 20.9 | +0.5 | 1,002 | 未写参（<3pp） |
+
+两个策略的最差窗都在 14-21%（2023H2 类弱市段），与 B1_B2_B3 同样结论：
+全样本点估计有正超额，但按窗稳健估计不足 3pp——**当前三个"跑赢基线"的策略
+都处于"真实但脆弱"状态，需要策略改进而非调参**。
+
+### 对抗性检查抓到并修复：should_write 门槛绕过
+- 根因：旧逻辑"无在任参数 → 直接写入"排在基线检查之前，新策略第一次优化时
+  ZHIXING_ULTRA（+1.75pp）被误写入 best_params.json。
+- 修复：`min_lift`（跑赢随机基线）检查移到最前，无论有无在任参数都必须先过
+  基线门槛；回滚误写条目（best_params 恢复为原 3 个键）。
+- 回归测试：`test_should_write_lift_gate_applies_to_new_strategy`（无在任+低超额
+  → 拒绝；高超额→允许；有在任+低超额→拒绝）。
+- 修复后用真实数据复跑验证：ZHIXING_ULTRA / VOLUME_B1 均正确拒绝，best_params 未再被污染。

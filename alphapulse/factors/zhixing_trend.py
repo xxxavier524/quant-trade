@@ -67,7 +67,10 @@ def compute(
     return result.fillna(False).astype(bool)
 
 
-def compute_ultra(data: pd.DataFrame) -> pd.Series:
+def compute_ultra(data: pd.DataFrame,
+                  med_long_min: float = 65.0,
+                  brick_min_ratio: float = 2 / 3,
+                  dif_min: float = 0.0) -> pd.Series:
     """知行超短选股方案（docs/tdx_formulas/知行超短选股方案.txt，5条件AND）：
 
     1. 知行短期趋势线（白线）> 知行多空线（黄线）
@@ -75,6 +78,8 @@ def compute_ultra(data: pd.DataFrame) -> pd.Series:
     3. 当日收盘价 > 黄线
     4. 知行洗盘短线中长期值 > 65
     5. MACD DIF > 0
+
+    v5（2026-08-02）：阈值参数化供 screen_optimize 扫描，默认值=原始公式口径。
 
     Returns:
         pd.Series[bool]
@@ -84,11 +89,12 @@ def compute_ultra(data: pd.DataFrame) -> pd.Series:
     close = data["close"]
     white = compute_short_trend(close)
     yellow = compute_bull_bear_line(close)
-    brick = brick_ultra.compute(data)
+    brick = brick_ultra.compute(data, min_ratio=brick_min_ratio)
     med_long = zhixing_washout.compute_lines(data)["med_long"]
     dif = compute_macd_dif(close)
 
-    result = (white > yellow) & brick & (close > yellow) & (med_long > 65) & (dif > 0)
+    result = ((white > yellow) & brick & (close > yellow)
+              & (med_long > med_long_min) & (dif > dif_min))
     return result.fillna(False).astype(bool)
 
 

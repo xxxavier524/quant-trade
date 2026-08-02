@@ -62,6 +62,16 @@ GRIDS: dict[str, dict[str, list]] = {
         "dif_threshold": [-0.3, -0.1, 0.0],
         "pct_change_range": [2.0, 3.0, 5.0],
     },
+    "ZHIXING_ULTRA": {
+        "med_long_min": [55.0, 65.0, 75.0],
+        "brick_min_ratio": [0.5, 0.6667, 0.8],
+        "dif_min": [0.0, 0.1],
+    },
+    "VOLUME_B1": {
+        "yangyin_ratio_28": [1.4, 1.65, 2.0],
+        "yangyin_ratio_14": [1.8, 2.25, 2.7],
+        "surge_ratio": [1.5, 1.85, 2.2],
+    },
 }
 
 
@@ -134,13 +144,16 @@ def robust_score(per_window: list[dict | None]) -> dict | None:
 
 def should_write(new: dict, incumbent_score: float, min_improve: float,
                  min_lift: float) -> tuple[bool, str]:
+    # 基线门槛优先于一切：无论有无在任参数，跑不赢随机就不写
+    # （2026-08-02 修复：旧逻辑"无在任参数直接写"会绕过 min_lift——
+    # 新策略 ZHIXING_ULTRA 超额 +1.75pp 曾被误写入）
+    if new.get("lift_pp") is None or new["lift_pp"] < min_lift:
+        return False, (f"超额命中不足（{new.get('lift_pp')}pp < {min_lift}pp）——"
+                       f"选股未跑赢随机基线，不写参")
     if incumbent_score == float("-inf"):
         return True, "无在任参数"
     if new["robust"] < incumbent_score + min_improve:
         return False, f"未超在任 {incumbent_score:.4f} + 噪声容忍 {min_improve:.4f}"
-    if new.get("lift_pp") is None or new["lift_pp"] < min_lift:
-        return False, (f"超额命中不足（{new.get('lift_pp')}pp < {min_lift}pp）——"
-                       f"选股未跑赢随机基线，不写参")
     return True, ""
 
 

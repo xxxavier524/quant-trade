@@ -144,3 +144,20 @@ def test_screen_optimize_smoke(tmp_path, monkeypatch):
     if report.exists():
         text = report.read_text(encoding="utf-8")
         assert "2406" not in text, "链式成功率被错误地乘了100"
+
+
+def test_should_write_lift_gate_applies_to_new_strategy():
+    """基线门槛优先于在任检查：无在任参数+低超额也必须拒绝（2026-08-02 修复）。"""
+    import screen_optimize
+    new = {"robust": 24.0, "lift_pp": 1.75}
+    ok, reason = screen_optimize.should_write(
+        new, incumbent_score=float("-inf"), min_improve=1.0, min_lift=3.0)
+    assert not ok and "超额命中不足" in reason
+    # 高超额 + 无在任 → 允许
+    ok2, _ = screen_optimize.should_write(
+        {"robust": 26.0, "lift_pp": 5.0}, float("-inf"), 1.0, 3.0)
+    assert ok2
+    # 有在任 + 低超额 → 拒绝（无论提升多少）
+    ok3, _ = screen_optimize.should_write(
+        {"robust": 30.0, "lift_pp": 1.0}, 20.0, 1.0, 3.0)
+    assert not ok3
