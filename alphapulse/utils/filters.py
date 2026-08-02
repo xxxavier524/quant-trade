@@ -154,14 +154,17 @@ def has_n_structure(data: pd.DataFrame, lookback: int = 20) -> bool:
     Only considers the last `lookback` bars — N_STRUCT over the full history
     is too noisy. IC=-0.387 is the strongest factor but triggers too often
     if checked across all time.
+
+    v5 P1（2026-08-02）：改用 compute_causal 的 phase（结构确认后才可见），
+    旧版 compute() 的枢轴标签依赖未来K线。
     """
-    from alphapulse.factors.n_struct import compute as n_struct_compute
+    from alphapulse.factors.n_struct import compute_causal
     try:
-        result = n_struct_compute(data)
-        if isinstance(result, pd.Series):
-            recent = result.iloc[-lookback:] if len(result) >= lookback else result
-            return bool(recent.any()) if len(recent) > 0 else False
-        return bool(result)
+        ctx = compute_causal(data)
+        if isinstance(ctx, pd.DataFrame) and "phase" in ctx.columns:
+            recent = ctx["phase"].iloc[-lookback:] if len(ctx) >= lookback else ctx["phase"]
+            return bool((recent > 0).any()) if len(recent) > 0 else False
+        return False
     except Exception:
         return False
 

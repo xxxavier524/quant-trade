@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """QMT 批量下单文件导出。
 
-读取 daily_screener 的输出CSV，转换为 QMT 批量下单格式。
+读取 daily_screener 的输出CSV（reports/screen_YYYY-MM-DD.csv），转换为 QMT 批量下单格式。
+
+v5 P1（2026-08-02）：旧版只认"date/signal"两列的信号表，而 screen_*.csv 没有这两列，
+实测直接 ValueError 崩溃——QMT 链路从未真正接通。现兼容两种输入：
+  - screen_*.csv：无 date/signal → 日期从文件名取，整表视为买入候选（按 rank 排序取前 N）
+  - 旧 signals.csv：有 date/signal 列（signal=1 买 / -1 卖）→ 按原逻辑
 
 QMT 批量下单 CSV 格式:
     code, quantity, direction, price_type, price
@@ -12,12 +17,15 @@ QMT 批量下单 CSV 格式:
     - price: 委托价格（市价填0）
 
 用法:
-    python scripts/export_qmt_csv.py --signals signals.csv --capital 1000000 --output qmt_orders.csv
+    python scripts/export_qmt_csv.py --signals reports/screen_2026-07-16.csv --capital 1000000 --output qmt_orders.csv
 """
 
 import argparse
+import json
+import re
 import sys
 from pathlib import Path
+from datetime import date
 
 import pandas as pd
 
@@ -26,8 +34,16 @@ from alphapulse.config.settings import MAX_SINGLE_POSITION, MAX_HOLDINGS
 
 
 def load_signals(signal_path: str) -> pd.DataFrame:
-    """加载信号CSV。"""
-    return pd.read_csv(signal_path, parse_dates=["date"])
+    """加载信号CSV（兼容 screen_*.csv 与旧 signals.csv 两种格式）。"""
+    df = pd.read_csv(signal_path, dtype={"symbol": str})
+    # screen_*.csv 无 date 列 → 从文件名取日期
+    if "date" not in df.columns:
+        m = re.search(r"(\d{4}-\d{2}-\d{2})", Path(signal_path).name)
+        df["date"] = m.group(1) if m else date.today().isoformat()
+    # screen_*.csv 无 signal 列 → 整表为买入候选
+    if "signal" not in df.columns:
+        df["signal"] = 1
+    return df
 
 
 def generate_qmt_orders(
@@ -56,6 +72,10 @@ def generate_qmt_orders(
 
     orders = []
 
+    # screen 输出按 rank 升序（rank=1 最优），旧格式按原始顺序
+    if "rank" in buy_signals.columns:
+        buy_signals = buy_signals.sort_values("rank").reset_index(drop=True)
+
     # 卖出指令
     for _, row in sell_signals.iterrows():
         orders.append({
@@ -75,9 +95,17 @@ def generate_qmt_orders(
             # 从factor_snapshot中尝试获取价格
             snap = row.get("factor_snapshot", {})
             if isinstance(snap, str):
-                import json
-                snap = json.loads(snap.replace("'", '"'))
+                try:
+                    snap = json.loads(snap.replace("'", '"'))
+                except Exception:
+                    snap = {}
             current_price = snap.get("close", 0)
+            # screen_*.csv 有独立 close 列（旧格式没有）
+            if not current_price and "close" in row:
+                try:
+                    current_price = float(row["close"])
+                except (TypeError, ValueError):
+                    current_price = 0
 
             if current_price and current_price > 0:
                 shares = int(per_stock_capital / current_price / 100) * 100  # 整手

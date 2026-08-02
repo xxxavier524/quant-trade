@@ -22,8 +22,11 @@
 - P0 已完成：N 型结构因果化、胜率口径统一为 realized、硬闸门关闭留痕告警
 - 关键决策：B1B2B3 已证负期望（留出窗全参数组负值，见 daily_auto_report.md），
   **调参救不了 → 重做信号**；auto_retune 对负期望候选不覆盖参数
-- 已知遗留（P1）：`knowledge_points.py` / `utils/filters.py` 仍调用非因果
-  `n_struct.compute`（未接生产信号）；QMT 导出链路待修；文档/调度口已对齐
+- P1 已完成（2026-08-02）：risk_monitor 假规则（近60日高点/浮亏名/组合占总资金）、
+  run_backtest 静默吞错、QMT 导出接口打通 screen_*.csv、knowledge_points/filters
+  因果化、nightly IC 调权死代码下线；data-catchup 加 RunAtLoad 开机自愈
+- 仍待办：run_backtest `--mode short` 买价口径（信号日收盘 vs 主引擎次日开盘）
+  未统一；B1B2B3 策略重做（负期望，调参已放弃）
 
 ## 模型路由
 
@@ -41,6 +44,7 @@
 
 ### 每日收盘后（15:35 起每小时）— 数据自愈 + 选股流水线
 - 触发方式：macOS launchd (`config/com.alphapulse.data-catchup.plist`，15:35~22:30)
+  - RunAtLoad=true：开机/登录立即触发一次自愈（覆盖关机漏更，2026-08-02 起）
 - 链路：data_catchup 每小时续传至覆盖率达标 → `scripts/eod_pipeline.py`
   （指数更新 → 数据新鲜度铁律 → 全市场选股 → agent 研判 → 信号追踪 → 决策对账 → 卡死股恢复）
 - 全市场选股：`scripts/daily_screener.py [--date YYYY-MM-DD] [--top N] [--no-gate]`

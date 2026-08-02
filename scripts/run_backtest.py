@@ -106,6 +106,8 @@ class BacktestEngine:
         # Phase 1: 预计算所有股票的信号（只算一次）
         all_signals = {}  # symbol -> set of signal dates
         n_done = 0
+        n_errors = 0
+        err_samples = []
         for symbol, full_data in stocks.items():
             try:
                 signals = strategy_fn(full_data, symbol=symbol, **strategy_params)
@@ -113,11 +115,26 @@ class BacktestEngine:
                     buy_dates = set(signals[signals["signal"] == 1].index)
                     if buy_dates:
                         all_signals[symbol] = buy_dates
-            except Exception:
-                pass
+            except Exception as e:
+                # v5 P1（2026-08-02）：旧版 except: pass 把策略异常静默吞掉，
+                # 系统性故障会表现为"零信号回测成功"。现在计数上报，
+                # 错误率过高直接中止而非产出假结果。
+                n_errors += 1
+                if len(err_samples) < 10:
+                    err_samples.append(f"{symbol}: {type(e).__name__}: {e}")
             n_done += 1
             if n_done % 50 == 0:
                 print(f"    signals: {n_done}/{len(stocks)} stocks, {sum(len(v) for v in all_signals.values())} total signals")
+
+        if n_errors:
+            rate = n_errors / max(len(stocks), 1)
+            print(f"[WARN] 信号预计算失败 {n_errors}/{len(stocks)}（{rate:.1%}）", file=sys.stderr)
+            for s in err_samples:
+                print(f"    {s}", file=sys.stderr)
+            if rate > 0.10 or n_errors > 50:
+                raise RuntimeError(
+                    f"信号预计算错误率过高（{rate:.1%}），疑似系统性故障——"
+                    f"已中止而非静默输出零信号。请先修复策略/数据问题。")
 
         print(f"    signals ready: {len(all_signals)} stocks with signals, {sum(len(v) for v in all_signals.values())} total")
 
@@ -347,6 +364,7 @@ def load_stocks(data_dir: str, symbols: list[str] = None, min_days: int = 365) -
     """加载股票数据。"""
     data_path = Path(data_dir)
     stocks = {}
+    n_fail = 0
     files = list(data_path.glob("*.csv"))
     if symbols:
         files = [f for f in files if f.stem in set(symbols)]
@@ -367,7 +385,11 @@ def load_stocks(data_dir: str, symbols: list[str] = None, min_days: int = 365) -
             if isinstance(df.index, pd.DatetimeIndex) and len(df) >= min_days:
                 stocks[f.stem] = df.sort_index()
         except Exception:
-            pass
+            n_fail += 1
+
+    if n_fail > 20:
+        print(f"[WARN] load_stocks: {n_fail} 只股票解析失败被跳过（{data_dir}）",
+              file=sys.stderr)
 
     return stocks
 
@@ -440,7 +462,9 @@ def main():
                     continue
                 if len(sigs) == 0 or "signal" not in sigs.columns:
                     continue
-                hit = sigs[sigs["signal"].astype(bool)]
+                # v5 P1：旧版 astype(bool) 会把 -1（卖出信号）当买入——
+                # BRICK 类策略的卖出行会被错误计为买点。
+                hit = sigs[sigs["signal"] == 1]
                 # generate_signals 以信号日为索引（df.index 值）
                 for idx, srow in hit.iterrows():
                     d = str(idx)[:10]

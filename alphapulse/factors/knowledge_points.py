@@ -19,7 +19,7 @@ import numpy as np
 from alphapulse.factors.zhixing_trend import compute_short_trend, compute_bull_bear_line
 from alphapulse.factors.b1_formula import compute as b1_compute
 from alphapulse.factors.s1_sell_signal import compute as s1_compute
-from alphapulse.factors.n_struct import compute as n_struct_compute
+from alphapulse.factors.n_struct import compute_causal
 from alphapulse.factors.key_k_abc import compute as key_k_abc_compute
 
 
@@ -301,13 +301,12 @@ def compute_key_support(data: pd.DataFrame) -> pd.DataFrame:
         return result
 
     # --- 支撑1: N型结构A点低点 - 3价位 ---
-    ns_labels = n_struct_compute(data)
-    # 找到所有A点位置
-    a_mask = ns_labels == "A"
-    if a_mask.any():
-        a_prices = low.where(a_mask, np.nan)
-        # 前向填充：每根bar知道最近一个A点的价格
-        last_a_price = a_prices.ffill()
+    # v5 P1（2026-08-02）：旧版用 n_struct.compute 的 A 标签找支撑——枢轴判定
+    # 依赖未来K线。compute_causal 的 a_price 列仅在结构确认后可见（因果），
+    # 取最近已确认结构的 A 点价格 -3 价位。
+    ns_ctx = compute_causal(data)
+    last_a_price = ns_ctx["a_price"].ffill()
+    if last_a_price.notna().any():
         result["n_pattern_support"] = (last_a_price - 0.03).round(2)
 
     # --- 支撑2: 近20日横盘区间下沿 ---

@@ -665,3 +665,42 @@ update-retry launchd(只跑数据不重跑选股)，与②配合：下午失败�
 - 每日 IC 自动调权闭环断裂（写键/读键/消费键不一致，nightly 为 no-op）。
 - `run_backtest` 静默吞错、short 模式口径、risk_monitor 三个假规则（见审查报告）。
 - 数据停更 07-28（07-29~31 三个工作日 catchup 无记录，机器睡眠/断网待查）。
+
+## v5 P1 — 2026-08-02（与数据停更修复同批）
+
+### 数据停更修复（根因：整机关机，非代码故障）
+- 根因确认：`kern.boottime` = 08-02 19:02，机器自 07-28 22:50 断电至 08-02 19:02；
+  launchd 的 StartCalendarInterval 错过窗口不补跑 → 07-29~31 三个工作日漏更。
+- 立即修复：`fetch_index_data.py` 指数追平 07-31 + `daily_update.py` 后台断点续传
+  （baostock 限速约 40-80 只/分，全市场约 2 小时，进度在 `logs/update_progress.json`）。
+- 韧性修复：`config/com.alphapulse.data-catchup.plist` **RunAtLoad=true**——
+  每次开机/登录立即触发一次自愈（周末守卫照常跳过），已同步安装并 reload 验证。
+
+### P1-1 risk_monitor 三个假规则
+- 个股回撤基准：全历史最高 → **近60个交易日高点**（旧版早年大牛股永久触发假警报）。
+- "单日亏损>5%"：实现本是累计浮亏 → 规则改名"个股浮亏>5%"对齐实现。
+- 组合回撤：分母持仓成本 → **总资金**（旧版 20% 仓位上限下几乎永不触发，是死规则）。
+- 顺带优化：每只股票 CSV 只读一次（旧版逐规则重复读 3 次）。
+
+### P1-2 run_backtest 静默吞错
+- 信号预计算 `except: pass` → 计数上报 + 错误率 >10%（或 >50 只）直接中止，
+  不再"系统性故障=零信号回测成功"；load_stocks 解析失败 >20 只告警；
+  `--mode short` 的 `signal.astype(bool)` 会把 -1 卖信号当买 → 改 `== 1`。
+
+### P1-3 QMT 导出接口打通
+- `export_qmt_csv.py` 兼容 `screen_*.csv`（无 date/signal 列 → 日期取文件名、
+  整表视为买入候选、按 rank 取前5、close 列取价）；实测 07-16 screen CSV 正常出单。
+- 旧 signals.csv 格式（date/signal，含 -1 卖出）保持兼容。
+
+### P1-4 因果化收尾
+- `knowledge_points.compute_key_support`：A 标签 → `compute_causal` 的 a_price 列。
+- `utils/filters.has_n_structure`：`compute()` 标签 → `compute_causal` 的 phase。
+
+### P1-5 nightly IC 调权死代码下线
+- `daily_auto_run` 原对 B1B2/BRICK/NEEDLE 三个空策略名调权（消费方是 B1_SCORE，
+  写键/读键/消费键永不对齐，纯 no-op）→ 移除；IC 调权唯一入口 =
+  `scripts/ic_weight_tuning.py --apply`（手动，写 B1_SCORE）。
+
+### 验证
+- 新增 14 项 P1 测试全过；全量套件回归通过（693+14，网络依赖测试仍 deselect）。
+- 后台补数进行中（done_index 进度可查 `logs/update_progress.json`）。

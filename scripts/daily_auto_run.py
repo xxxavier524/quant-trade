@@ -7,7 +7,9 @@
 1. 复盘 = signal_tracker 真实追踪库（选股 Top50 的 5日/+5% 成功率，按战法分列）
 2. 假参数优化下线（run_param_sweep 需要真实回测评估函数才有意义，待接
    scripts/run_backtest.py 的组合级评估后再启用）
-3. 因子权重 IC 更新保留（FactorWeighter，无 IC 历史时不写权重）
+3. 因子权重 IC 调权 = scripts/ic_weight_tuning.py --apply（手动入口，写入 B1_SCORE）。
+   2026-08-02 移除原 nightly 调权：它对 B1B2/BRICK/NEEDLE 三个空策略名算权重，
+   与消费方 B1_SCORE 永远对不上，是纯 no-op（写键/读键/消费键三者不一致）。
 """
 import json
 import sys
@@ -18,7 +20,6 @@ from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from alphapulse.ranking.factor_weighter import FactorWeighter
 from alphapulse.notify.feishu_bot import send_feishu
 from alphapulse.config.settings import FEISHU_WEBHOOK_URL, DATA_DIR
 
@@ -33,15 +34,6 @@ def validate_data() -> bool:
     if len(files) < 4000:
         logger.warning(f"Low file count: {len(files)}, expected ~5229")
     return len(files) >= 4000
-
-
-def run_factor_update():
-    logger.info("=== Factor Weight Update ===")
-    fw = FactorWeighter()
-    for strategy in ["B1B2", "BRICK", "NEEDLE"]:
-        weights = fw.compute_weights(strategy, half_life=30)
-        logger.info(f"{strategy} weights: {weights}")
-    fw.save()
 
 
 def build_nightly_summary(reports_dir: Path | None = None) -> str:
@@ -96,10 +88,9 @@ def main():
     # 参数优化：假评估函数(参数求和)已下线；待接真实回测评估后恢复
     logger.info("=== Auto-Research: 已停用（等待真实回测评估函数接入） ===")
 
-    try:
-        run_factor_update()
-    except Exception as e:
-        logger.error(f"Factor update failed: {e}")
+    # v5 P1（2026-08-02）：nightly 调权是死代码（空策略名 + 空 IC 历史 → no-op），
+    # 已移除。IC 调权唯一入口 = scripts/ic_weight_tuning.py --apply（手动，写 B1_SCORE）。
+    logger.info("=== IC 调权: 手动入口 scripts/ic_weight_tuning.py --apply ===")
 
     logger.info(f"Done in {(time.monotonic() - start) / 60:.0f}min")
     if summary and FEISHU_WEBHOOK_URL:

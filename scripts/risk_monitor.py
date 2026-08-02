@@ -4,9 +4,9 @@
 接收持仓CSV，检查每个持仓是否触发减仓条件：
 - 单票仓位超过20%
 - 持仓数超过5只
-- 个股从最高点回撤超过15%
-- 组合整体回撤超过10%
-- 单日亏损超过5%
+- 个股自近60个交易日高点回撤超过15%（v5 P1：旧版用全历史最高，假警报常开）
+- 组合浮亏超过总资金的10%（v5 P1：旧版分母只有持仓成本，20%仓位上限下永不触发）
+- 个股累计浮亏超过5%（旧版规则名"单日亏损"与实现不符，已改名对齐）
 
 用法:
     python scripts/risk_monitor.py --positions positions.csv --data-dir ./data/day
@@ -63,19 +63,35 @@ def check_positions(
             "message": f"当前持仓 {len(positions)} 只，超过上限 {MAX_HOLDINGS}。建议减仓至 {MAX_HOLDINGS} 只。",
         })
 
+    # CSV 读取缓存：每只股票只读一次（旧版逐条规则重复读 3 次）
+    _cache: dict[str, pd.DataFrame | None] = {}
+
+    def _load(symbol: str) -> pd.DataFrame | None:
+        if symbol not in _cache:
+            csv_path = Path(data_dir) / f"{symbol}.csv"
+            df = None
+            if csv_path.exists():
+                try:
+                    df = pd.read_csv(csv_path, parse_dates=["date"], index_col="date")
+                except Exception:
+                    df = None
+            _cache[symbol] = df
+        return _cache[symbol]
+
+    total_cost = 0.0
+    total_value = 0.0
+
     for _, row in positions.iterrows():
         symbol = row["symbol"]
         shares = row["shares"]
         cost_price = row["cost_price"]
 
-        # 获取最新价格
+        # 获取最新价格（行内 current_price 优先，否则读数据目录一次）
         current_price = row.get("current_price", np.nan)
-        if pd.isna(current_price) or current_price is None:
-            csv_path = Path(data_dir) / f"{symbol}.csv"
-            if csv_path.exists():
-                stock_data = pd.read_csv(csv_path, parse_dates=["date"], index_col="date")
-                if len(stock_data) > 0:
-                    current_price = float(stock_data.iloc[-1]["close"])
+        stock_data = _load(symbol)
+        if (pd.isna(current_price) or current_price is None) \
+                and stock_data is not None and len(stock_data) > 0:
+            current_price = float(stock_data.iloc[-1]["close"])
 
         if pd.isna(current_price) or current_price == 0:
             alerts.append({
@@ -87,6 +103,8 @@ def check_positions(
             continue
 
         current_value = shares * current_price
+        total_cost += shares * cost_price
+        total_value += current_value
 
         # 2. 单票仓位检查
         position_pct = current_value / total_capital
@@ -99,48 +117,42 @@ def check_positions(
             })
 
         # 3. 个股回撤检查（需历史数据）
-        csv_path = Path(data_dir) / f"{symbol}.csv"
-        if csv_path.exists():
-            stock_data = pd.read_csv(csv_path, parse_dates=["date"], index_col="date")
-            if len(stock_data) > 0:
-                historical_high = stock_data["high"].max()
-                drawdown = (historical_high - current_price) / historical_high
+        # v5 P1（2026-08-02）：回撤基准改为近 60 个交易日高点。
+        # 旧版用全历史最高价——任何早年大牛的票都永久触发，是常开假警报。
+        if stock_data is not None and len(stock_data) > 0 and "high" in stock_data:
+            recent_high = float(stock_data["high"].tail(60).max())
+            if recent_high > 0:
+                drawdown = (recent_high - current_price) / recent_high
                 if drawdown > 0.15:
                     alerts.append({
                         "symbol": symbol,
                         "level": "WARN",
-                        "rule": "个股回撤 > 15%",
-                        "message": f"{symbol}: 最高价 {historical_high:.2f}，当前 {current_price:.2f}，回撤 {drawdown:.1%}。",
+                        "rule": "近60日高点回撤 > 15%",
+                        "message": f"{symbol}: 近60日高点 {recent_high:.2f}，当前 {current_price:.2f}，回撤 {drawdown:.1%}。",
                     })
 
-        # 4. 个股盈亏检查
+        # 4. 个股盈亏检查（累计浮亏，非单日——规则名已对齐实现）
         pnl_pct = (current_price - cost_price) / cost_price
         if pnl_pct < -0.05:
             alerts.append({
                 "symbol": symbol,
                 "level": "INFO",
-                "rule": "单日亏损 > 5%",
+                "rule": "个股浮亏 > 5%",
                 "message": f"{symbol}: 成本 {cost_price:.2f}，当前 {current_price:.2f}，浮动盈亏 {pnl_pct:.1%}。",
             })
 
-    # 5. 组合回撤（简化：所有持仓加权盈亏）
-    total_cost = (positions["shares"] * positions["cost_price"]).sum()
-    total_value = 0
-    for _, row in positions.iterrows():
-        symbol = row["symbol"]
-        csv_path = Path(data_dir) / f"{symbol}.csv"
-        if csv_path.exists():
-            stock_data = pd.read_csv(csv_path, parse_dates=["date"], index_col="date")
-            if len(stock_data) > 0:
-                total_value += row["shares"] * float(stock_data.iloc[-1]["close"])
-    if total_cost > 0:
-        portfolio_dd = (total_cost - total_value) / total_cost
-        if portfolio_dd > 0.10:
+    # 5. 组合亏损（v5 P1）：分母改用总资金（含现金）。
+    # 旧版分母只有持仓成本——单票≤20%仓位下，持仓全亏完也到不了10%，
+    # 该 CRITICAL 规则实际是死规则，永远不触发。
+    if total_cost > 0 and total_capital > 0:
+        portfolio_loss = (total_cost - total_value) / total_capital
+        if portfolio_loss > 0.10:
             alerts.append({
                 "symbol": "*",
                 "level": "CRITICAL",
-                "rule": "组合回撤 > 10%",
-                "message": f"组合总成本 {total_cost:.0f}，当前市值 {total_value:.0f}，整体回撤 {portfolio_dd:.1%}。建议减仓或止损。",
+                "rule": "组合浮亏 > 10%（占总资金）",
+                "message": f"组合总成本 {total_cost:.0f}，当前市值 {total_value:.0f}，"
+                           f"占总资金 {portfolio_loss:.1%}。建议减仓或止损。",
             })
 
     return sorted(alerts, key=lambda a: {"CRITICAL": 0, "WARN": 1, "INFO": 2}.get(a["level"], 3))
