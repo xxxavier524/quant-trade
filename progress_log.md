@@ -854,3 +854,16 @@ eod_pipeline 实跑 `data_fresh=true, gated=true`（零轴门 DIF=-58.41）。
 3. B3 稀缺（约 0.3 信号/股/5年）导致最差窗噪声大，稳健分过不了 3pp——
    需更大样本或接受"中位窗 +10pp"的证据强度。
 4. 建议：每日选股将 B2/B3 信号单独标注（B3 高置信徽章），不做参数覆盖。
+
+## v5 B2/B3 徽章接入每日选股 — 2026-08-03
+
+- `composite.build_stock_row` 新增 `b1b2b3_stage`（''/B1/B2/B3，末行标签对齐、
+  尾窗 300 行控耗时、套用 best_params 在任参数）与严格徽章 `sig_b2`/`sig_b3`
+  （加入 rank_all 的 strict_signal 判定）。
+- daily_screener：strategies 标签新增 "B2确认"/"B3锁仓"，进 Markdown 报告与飞书推送；
+  strategy_families.json 将两者归入"基本面法"（成功率追踪口径一致）。
+- 效果：每天选出的 Top 表会直接标出"今天是某票 B2 放量确认 / B3 锁仓"，
+  对应统计验证过的 +6.0pp / +15.4pp 命中优势。
+- 测试：新增 3 项（末行 stage 解析/空信号/家族归属），全量 **637 passed**。
+- 未做：B2 优化参数（稳健 +2.98pp）仍未写入 best_params——差 0.02pp，
+  是否 `--force-write` 由用户定夺。

@@ -121,6 +121,43 @@ def _brick3_last_signal(data: pd.DataFrame) -> pd.Series:
     return pd.Series([hit])
 
 
+_b1b2b3_params_cache: dict | None = None
+
+
+def _b1b2b3_params() -> dict:
+    """B1_B2_B3 生产参数（config/best_params.json，walk-forward 写入）。"""
+    global _b1b2b3_params_cache
+    if _b1b2b3_params_cache is None:
+        try:
+            bp = json.loads((PROJECT_ROOT / "config" / "best_params.json").read_text())
+            _b1b2b3_params_cache = {
+                k: v for k, v in bp.get("B1_B2_B3", {}).items()
+                if not k.startswith("_")}
+        except Exception:
+            _b1b2b3_params_cache = {}
+    return _b1b2b3_params_cache
+
+
+def _b1b2b3_stage(data: pd.DataFrame) -> str:
+    """B1→B2→B3 递进战法当日阶段（'' / B1 / B2 / B3）。
+
+    v5 徽章（2026-08-03）：回测证实 B2/B3 确认升级显著提升命中率
+    （B1 +1.5pp → B2 +6.0pp → B3 +15.4pp，见 progress_log），
+    故 B2/B3 作为严格信号徽章进选股输出。尾窗 300 行控耗时；
+    信号帧索引=输入帧行标签，用末行标签对齐（同 _brick3_last_signal）。
+    """
+    from alphapulse.strategies import b1_b2_b3_strategy
+    tail = data.tail(300)
+    sig = b1_b2_b3_strategy.generate_signals(tail, **_b1b2b3_params())
+    last_label = tail.index[-1]
+    if sig.empty:
+        return ""
+    row = sig[sig.index == last_label]
+    if row.empty or not bool(row["signal"].eq(1).any()):
+        return ""
+    return str(row["signal_type"].iloc[0])
+
+
 def build_stock_row(symbol: str, name: str, data: pd.DataFrame) -> dict | None:
     """单只股票：子分数 + 严格信号徽章 + 快照字段。"""
     subs = compute_sub_scores(data)
@@ -147,6 +184,14 @@ def build_stock_row(symbol: str, name: str, data: pd.DataFrame) -> dict | None:
         except Exception:
             row[col] = False
             SIGNAL_ERRORS[col] += 1
+    # B1→B2→B3 递进徽章（v5：B2/B3 是统计验证过的确认升级，单独标注）
+    try:
+        row["b1b2b3_stage"] = _b1b2b3_stage(data)
+        row["sig_b2"] = row["b1b2b3_stage"] == "B2"
+        row["sig_b3"] = row["b1b2b3_stage"] == "B3"
+    except Exception:
+        row["b1b2b3_stage"] = ""
+        row["sig_b2"] = row["sig_b3"] = False
     # 战法序列状态（回测证明 B2确认 才是优势所在，B1候B2=等确认——直接展示给用户）
     try:
         from alphapulse.agent_team.patterns import pattern_state_series, STATE_CN
@@ -216,7 +261,7 @@ def rank_all(factor_df: pd.DataFrame, top_n: int = 50,
                    if c not in ranked.columns and c != "symbol"]
     merged = ranked.merge(factor_df[["symbol"] + detail_cols], on="symbol", how="left")
     badge_cols = [c for c in ["sig_b1", "sig_volume_b1", "sig_zhixing",
-                              "sig_needle", "sig_brick3"]
+                              "sig_needle", "sig_brick3", "sig_b2", "sig_b3"]
                   if c in merged.columns]
     merged["strict_signal"] = merged[badge_cols].any(axis=1)
     merged = merged.sort_values(["strict_signal", "score"],
