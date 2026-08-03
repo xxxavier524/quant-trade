@@ -93,13 +93,14 @@ def load_sample(sample_n: int, data_dir: str | Path, min_days: int = 300,
 
 def eval_combo_on_windows(strategy: str, params: dict, stocks: dict,
                           closes_map: dict, windows: list[dict],
-                          horizon: int, success_pct: float) -> list[dict | None]:
+                          horizon: int, success_pct: float,
+                          subtype: str | None = None) -> list[dict | None]:
     """一组参数在每个验证窗的样本外成功率（+ 该窗基线）。"""
     # 全历史信号只算一次，按窗过滤日期
     all_dates: dict[str, list[str]] = {}
     for sym, df in stocks.items():
         try:
-            frame = run_strategy(strategy, df, **params)
+            frame = run_strategy(strategy, df, subtype=subtype, **params)
             dates = signal_dates_of(frame, df)
             if dates:
                 all_dates[sym] = dates
@@ -110,7 +111,11 @@ def eval_combo_on_windows(strategy: str, params: dict, stocks: dict,
         win_by_symbol = {sym: [d for d in dates
                                if w["valid_start"] <= d <= w["valid_end"]]
                          for sym, dates in all_dates.items()}
-        r = evaluate_strategy(win_by_symbol, closes_map, horizon, success_pct)
+        # 窗口级评价用 MIN_SIGNALS_PER_WINDOW（8）作为样本门槛，而不是
+        # 策略级的 MIN_SIGNALS（100）——稀疏子集（如 B1_B2_B3[B3]）每窗
+        # 只有几十个信号，默认 100 会整窗判"样本不足"（2026-08-03 修复）。
+        r = evaluate_strategy(win_by_symbol, closes_map, horizon, success_pct,
+                              min_signals=MIN_SIGNALS_PER_WINDOW)
         n = r.get("n", 0)
         if n < MIN_SIGNALS_PER_WINDOW or r.get("success_rate") is None:
             per_window.append(None)
@@ -171,6 +176,9 @@ def main() -> int:
     ap.add_argument("--force-write", action="store_true",
                     help="无视稳健/超额门槛强制写入")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--subtype", default=None,
+                    help="只优化指定子类型信号（如 B1_B2_B3 的 B2/B3，"
+                         "BRICK_THREE_TYPES 的 BRICK_N_JUMP）")
     args = ap.parse_args()
     if args.force_write:
         args.min_improve = float("-inf")
@@ -183,7 +191,8 @@ def main() -> int:
     keys = list(GRIDS[args.strategy])
     combos = [dict(zip(keys, vals))
               for vals in itertools.product(*GRIDS[args.strategy].values())]
-    print(f"[WF] {args.strategy}: {len(combos)} 组参数 × {len(windows)} 验证窗 "
+    sub_label = f"[{args.subtype}]" if args.subtype else ""
+    print(f"[WF] {args.strategy}{sub_label}: {len(combos)} 组参数 × {len(windows)} 验证窗 "
           f"（口径: {args.horizon}日内收盘≥+{args.success_pct:.0f}% 机会命中）", flush=True)
 
     combo_windows: dict[str, list] = {}
@@ -193,7 +202,7 @@ def main() -> int:
         key = json.dumps(params, sort_keys=True)
         per_window = eval_combo_on_windows(
             args.strategy, params, stocks, closes_map, windows,
-            args.horizon, args.success_pct)
+            args.horizon, args.success_pct, subtype=args.subtype)
         combo_windows[key] = per_window
         combo_meta[key] = {"params": params, "robust": robust_score(per_window)}
         if ci % 5 == 0 or ci == len(combos):
@@ -207,7 +216,7 @@ def main() -> int:
 
     chain = chain_selection(combo_windows, windows)
 
-    md = [f"# 纯选股成功率优化 — {args.strategy}",
+    md = [f"# 纯选股成功率优化 — {args.strategy}{sub_label}",
           f"\n样本 {len(stocks)} 只 | {len(combos)} 组参数 × {len(windows)} 窗"
           f" | 口径: 信号后{args.horizon}日内收盘≥+{args.success_pct:.0f}%（机会命中）",
           f" | 稳健分 = 0.5×中位窗 + 0.5×最差窗；基线 = 同窗全体股票命中率\n",
@@ -227,7 +236,9 @@ def main() -> int:
         # chain_selection 的 oos 来自 evaluate_strategy（已是百分数），不要再乘 100
         oos = f"{c['oos']:.1f}" if c["oos"] is not None else "—"
         md.append(f"| {c['window']} | {oos} | {c['n']} | `{c['chosen'] or '—'}` |")
-    out_md = PROJECT_ROOT / "reports" / f"screen_optimize_{args.strategy}.md"
+    out_md = PROJECT_ROOT / "reports" / (
+        f"screen_optimize_{args.strategy}_{args.subtype}.md"
+        if args.subtype else f"screen_optimize_{args.strategy}.md")
     out_md.parent.mkdir(exist_ok=True)
     out_md.write_text("\n".join(md), encoding="utf-8")
     print(f"[WF] 报告 → {out_md}", flush=True)

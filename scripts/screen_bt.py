@@ -161,15 +161,21 @@ def main() -> int:
     gates: dict[str, tuple[bool, str]] = {}
     t0 = time.time()
     for name in names:
-        sig_dates_by_symbol: dict[str, list[str]] = {}
+        frames_by_symbol: dict[str, pd.DataFrame] = {}
         for sym, df in stocks.items():
             try:
-                frame = run_strategy(name, df)
-                dates = signal_dates_of(frame, df)
-                if dates:
-                    sig_dates_by_symbol[sym] = dates
+                frames_by_symbol[sym] = run_strategy(name, df)
             except Exception as e:
                 print(f"  [WARN] {name}/{sym}: {type(e).__name__}: {e}", file=sys.stderr)
+
+        def _eval(dates_by_symbol: dict[str, list[str]]) -> dict:
+            return evaluate_strategy(dates_by_symbol, closes_map,
+                                     args.horizon, args.success_pct)
+
+        sig_dates_by_symbol = {
+            sym: signal_dates_of(f, stocks[sym])
+            for sym, f in frames_by_symbol.items()}
+        sig_dates_by_symbol = {s: d for s, d in sig_dates_by_symbol.items() if d}
         results[name] = evaluate_strategy(sig_dates_by_symbol, closes_map,
                                           args.horizon, args.success_pct)
         gates[name] = causality_gate(name, stocks)
@@ -178,6 +184,33 @@ def main() -> int:
               f" 基线 {results[name].get('base_rate')}%"
               f" 超额 {results[name].get('lift_pp')}pp"
               f"（{time.time()-t0:.0f}s）", flush=True)
+
+        # 子类型明细（B1_B2_B3 的 B1/B2/B3、BRICK_THREE_TYPES 的三型）——
+        # 验证"分级确认"是否真能提升命中率（v5 假设检验）。
+        first_frame = next(iter(frames_by_symbol.values()), pd.DataFrame())
+        subtype_cols = [c for c in ("signal_type", "brick_type")
+                        if c in first_frame.columns]
+        if subtype_cols:
+            col = subtype_cols[0]
+            values = sorted({v for f in frames_by_symbol.values()
+                             if col in f.columns
+                             for v in f[col].dropna().unique()})
+            for val in values:
+                sub_by_symbol = {}
+                for sym, f in frames_by_symbol.items():
+                    if col not in f.columns:
+                        continue
+                    sub = f[f[col] == val]
+                    dates = signal_dates_of(sub, stocks[sym])
+                    if dates:
+                        sub_by_symbol[sym] = dates
+                key = f"{name}[{val}]"
+                results[key] = _eval(sub_by_symbol)
+                gates[key] = gates[name]
+                print(f"  {key}: {results[key].get('n', 0)} 信号 "
+                      f"成功率 {results[key].get('success_rate')}%"
+                      f" 基线 {results[key].get('base_rate')}%"
+                      f" 超额 {results[key].get('lift_pp')}pp", flush=True)
 
     total_note = "，".join(f"{n}={'✅' if g[0] else '❌'}" for n, g in gates.items())
     md = format_md(results, args.horizon, args.success_pct, gates,

@@ -61,8 +61,13 @@ SCREENING_STRATEGIES: dict[str, tuple] = {
 }
 
 
-def run_strategy(name: str, data: pd.DataFrame, **overrides) -> pd.DataFrame:
-    """运行指定选股策略，返回统一信号帧（空帧安全）。"""
+def run_strategy(name: str, data: pd.DataFrame, subtype: str | None = None,
+                 **overrides) -> pd.DataFrame:
+    """运行指定选股策略，返回统一信号帧（空帧安全）。
+
+    subtype: 可选子类型过滤（B1_B2_B3 的 signal_type B1/B2/B3，
+    BRICK_THREE_TYPES 的 brick_type）。用于验证"分级确认"是否提升命中率。
+    """
     if name not in SCREENING_STRATEGIES:
         raise KeyError(f"未知选股策略: {name}，可选: {list(SCREENING_STRATEGIES)}")
     fn, defaults = SCREENING_STRATEGIES[name]
@@ -76,9 +81,17 @@ def run_strategy(name: str, data: pd.DataFrame, **overrides) -> pd.DataFrame:
                 and "argument" not in str(e):
             raise
         frame = fn(data, **params)
-    if frame is None or len(frame) == 0:
+    if frame is None or len(frame.columns) == 0:
+        # 注意：有列的空帧（0 行）必须保留原 schema（signal_type/brick_type 等），
+        # 否则子类型过滤会丢列（2026-08-03 修复）
         cols = ["symbol", "date", "signal", "strategy", "factor_snapshot"]
         return pd.DataFrame(columns=cols)
     if "signal" not in frame.columns:
         frame = frame.assign(signal=1)
+    if subtype:
+        col = ("signal_type" if "signal_type" in frame.columns
+               else "brick_type" if "brick_type" in frame.columns else None)
+        if col is None:
+            raise ValueError(f"{name} 无子类型列，无法过滤 subtype={subtype}")
+        frame = frame[frame[col] == subtype]
     return frame

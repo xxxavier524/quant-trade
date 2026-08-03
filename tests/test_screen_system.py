@@ -95,6 +95,26 @@ def test_registry_wrappers():
     assert "B1_B2_B3" in SCREENING_STRATEGIES
 
 
+def test_run_strategy_subtype_filter(monkeypatch):
+    """子类型过滤：只保留对应 signal_type；无子类型列的策略报错。"""
+    import alphapulse.screening.strategies as ss
+
+    def fake_gen(data, symbol="", **kw):
+        return pd.DataFrame({"signal": [1, 1, 1],
+                             "signal_type": ["B1", "B2", "B3"]},
+                            index=[0, 1, 2])
+
+    monkeypatch.setitem(ss.SCREENING_STRATEGIES, "FAKE", (fake_gen, {}))
+    df = _mk_df(10)
+    full = ss.run_strategy("FAKE", df)
+    assert set(full["signal_type"]) == {"B1", "B2", "B3"}
+    b2 = ss.run_strategy("FAKE", df, subtype="B2")
+    assert list(b2["signal_type"]) == ["B2"]
+    with pytest.raises(ValueError):
+        ss.run_strategy("VOLUME_B1", df, subtype="X")
+    monkeypatch.delitem(ss.SCREENING_STRATEGIES, "FAKE")
+
+
 def test_screen_bt_report_end_to_end(tmp_path):
     import screen_bt
     for i in range(3):
@@ -161,3 +181,24 @@ def test_should_write_lift_gate_applies_to_new_strategy():
     ok3, _ = screen_optimize.should_write(
         {"robust": 30.0, "lift_pp": 1.0}, 20.0, 1.0, 3.0)
     assert not ok3
+
+
+def test_eval_combo_on_windows_uses_window_min_signals(monkeypatch):
+    """窗口级评价门槛=8（不是策略级 100）——稀疏子集（B3）每窗几十个信号
+    不能被整窗判'样本不足'（2026-08-03 修复）。"""
+    import screen_optimize
+    from scripts.walk_forward import make_windows
+    captured = {}
+
+    def fake_eval(dates_by_symbol, closes_map, horizon, success_pct, min_signals):
+        captured["min_signals"] = min_signals
+        return {"n": 50, "success_rate": 25.0, "base_rate": 20.0, "lift_pp": 5.0}
+
+    monkeypatch.setattr(screen_optimize, "evaluate_strategy", fake_eval)
+    stocks = {"s0": _mk_df(1100, "2022-01-03")}
+    closes = {s: d.set_index("date")["close"].astype(float)
+              for s, d in stocks.items()}
+    per_window = screen_optimize.eval_combo_on_windows(
+        "NEEDLE", {}, stocks, closes, make_windows(), 5, 5.0)
+    assert captured["min_signals"] == screen_optimize.MIN_SIGNALS_PER_WINDOW
+    assert all(w is not None for w in per_window)   # n=50 ≥ 8 → 计入该窗
